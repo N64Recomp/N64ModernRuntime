@@ -30,6 +30,7 @@ namespace recomp {
 		OtherError
 	};
     GameHandle register_game(const recomp::GameEntry& entry);
+    void register_patch(const char* patch, std::size_t size);
 	void check_all_stored_roms();
 	bool load_stored_rom(GameHandle game);
 	RomValidationError select_rom(const std::filesystem::path& rom_path, GameHandle game);

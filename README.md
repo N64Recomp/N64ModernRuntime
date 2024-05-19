@@ -1,6 +1,6 @@
 # N64 Modern Runtime
 
-> Note 
+> Note
 This repo is a WIP as files are moved out of Zelda64Recomp and genericized. It cannot be used directly in its current state.
 
 This repo contains two libraries: Ultramodern and Librecomp.

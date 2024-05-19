@@ -4,5 +4,5 @@ project(N64ModernRuntime)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-add_subdirectory(librecomp)
 add_subdirectory(ultramodern)
+# add_subdirectory(librecomp)

@@ -40,16 +40,16 @@ std::mutex current_game_mutex;
 
 // Global variables
 std::vector<char> patch_data;
-std::unordered_map<uint64_t, recomp::GameEntry> game_roms {};
+std::unordered_map<std::u8string_view, recomp::GameEntry> game_roms {};
 
-std::string recomp::GameEntry::stored_filename() const {
-    return std::to_string(rom_hash) + ".z64";
+std::u8string recomp::GameEntry::stored_filename() const {
+    return std::u8string{game_id} + u8".z64";
 }
 
 recomp::GameHandle recomp::register_game(const recomp::GameEntry& entry) {
     std::lock_guard<std::mutex> lock(game_roms_mutex);
-    game_roms.insert({ entry.rom_hash, entry });
-    return { entry.rom_hash };
+    game_roms.insert({ entry.game_id, entry });
+    return { entry.game_id };
 }
 
 void recomp::register_patch(const char* patch, std::size_t size) {
@@ -129,7 +129,7 @@ bool check_stored_rom(const recomp::GameEntry& game_entry) {
     return true;
 }
 
-static std::unordered_set<uint64_t> valid_game_roms;
+static std::unordered_set<std::u8string_view> valid_game_roms;
 
 bool recomp::is_rom_valid(recomp::GameHandle game) {
     return valid_game_roms.contains(game.id);
@@ -393,6 +393,11 @@ void init(uint8_t* rdram, recomp_context* ctx) {
 
 std::optional<recomp::GameHandle> current_game = std::nullopt;
 std::atomic<GameStatus> game_status = GameStatus::None;
+
+std::u8string_view recomp::current_game_id() {
+    std::lock_guard<std::mutex> lock(current_game_mutex);
+    return current_game.value().id;
+};
 
 void recomp::start_game(recomp::GameHandle game) {
     std::lock_guard<std::mutex> lock(current_game_mutex);

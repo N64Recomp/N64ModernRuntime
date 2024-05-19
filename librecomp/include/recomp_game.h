@@ -9,16 +9,18 @@
 
 namespace recomp {
     struct GameHandle {
-        uint64_t id;
+        std::u8string_view id;
     };
     struct GameEntry {
         uint64_t rom_hash;
         std::string internal_name;
-        void (*entrypoint)();
+        std::u8string_view game_id;
         std::span<const char> cache_data;
         bool is_enabled;
 
-        std::string stored_filename() const;
+        void (*entrypoint)();
+
+        std::u8string stored_filename() const;
     };
 	enum class RomValidationError {
 		Good,
@@ -43,6 +45,7 @@ namespace recomp {
 	void start_game(GameHandle game);
 	void message_box(const char* message);
     std::filesystem::path get_app_folder_path();
+    std::u8string_view current_game_id();
 }
 
 #endif

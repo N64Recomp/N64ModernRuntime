@@ -6,7 +6,6 @@
 #include <mutex>
 #include "recomp.h"
 #include "recomp_game.h"
-#include "recomp_config.h"
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
 
@@ -95,7 +94,7 @@ struct {
 } save_context;
 
 const std::u8string save_folder = u8"saves";
-const std::u8string save_filename = std::u8string{recomp::mm_game_id} + u8".bin";
+const std::u8string save_filename = std::u8string{recomp::current_game_id()} + u8".bin";
 
 std::filesystem::path get_save_file_path() {
     return recomp::get_app_folder_path() / save_folder / save_filename;

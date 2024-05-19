@@ -13,11 +13,9 @@
 #include "recomp.h"
 #include "recomp_overlays.h"
 #include "recomp_game.h"
-#include "recomp_config.h"
 #include "xxHash/xxh3.h"
 #include <ultramodern/ultramodern.hpp>
-#include "../../RecompiledPatches/patches_bin.h"
-#include "mm_shader_cache.h"
+//#include "../../RecompiledPatches/patches_bin.h"
 
 #ifdef _MSC_VER
 inline uint32_t byteswap(uint32_t val) {
@@ -29,19 +27,19 @@ constexpr uint32_t byteswap(uint32_t val) {
 }
 #endif
 
-struct RomEntry {
-    uint64_t xxhash3_value;
-    std::u8string stored_filename;
-    std::string internal_rom_name;
-};
+std::unordered_map<uint64_t, recomp::GameEntry> game_roms {};
 
-const std::unordered_map<recomp::Game, RomEntry> game_roms {
-    { recomp::Game::MM, { 0xEF18B4A9E2386169ULL, std::u8string{recomp::mm_game_id} + u8".z64", "ZELDA MAJORA'S MASK" }},
-};
+std::string recomp::GameEntry::stored_filename() const {
+    return std::to_string(rom_hash) + ".z64";
+}
+
+recomp::GameHandle recomp::register_game(const recomp::GameEntry& entry) {
+    game_roms.insert({ entry.rom_hash, entry });
+    return { entry.rom_hash };
+}
 
 bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
     uint64_t calculated_hash = XXH3_64bits(rom_data.data(), rom_data.size());
-
     return calculated_hash == expected_hash;
 }
 
@@ -73,23 +71,49 @@ bool write_file(const std::filesystem::path& path, const std::vector<uint8_t>& d
     return true;
 }
 
-bool check_stored_rom(const RomEntry& game_entry) {
+std::filesystem::path recomp::get_app_folder_path() {
+    std::filesystem::path recomp_dir{};
 
-    std::vector stored_rom_data = read_file(recomp::get_app_folder_path() / game_entry.stored_filename);
+#if defined(_WIN32)
+    // Deduce local app data path.
+   PWSTR known_path = NULL;
+   HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &known_path);
+   if (result == S_OK) {
+       recomp_dir = std::filesystem::path{known_path} / recomp::program_id;
+   }
 
-    if (!check_hash(stored_rom_data, game_entry.xxhash3_value)) {
+   CoTaskMemFree(known_path);
+#elif defined(__linux__)
+    const char *homedir;
+
+   if ((homedir = getenv("HOME")) == nullptr) {
+       homedir = getpwuid(getuid())->pw_dir;
+   }
+
+   if (homedir != nullptr) {
+       recomp_dir = std::filesystem::path{homedir} / (std::u8string{u8".config/"} + std::u8string{recomp::program_id});
+   }
+#endif
+
+    return recomp_dir;
+}
+
+bool check_stored_rom(const recomp::GameEntry& game_entry) {
+    std::vector stored_rom_data = read_file(recomp::get_app_folder_path() / game_entry.stored_filename());
+
+    if (!check_hash(stored_rom_data, game_entry.rom_hash)) {
         // Incorrect hash, remove the stored ROM file if it exists.
-        std::filesystem::remove(recomp::get_app_folder_path() / game_entry.stored_filename);
+        std::filesystem::remove(recomp::get_app_folder_path() / game_entry.stored_filename());
         return false;
     }
 
     return true;
 }
 
-static std::unordered_set<recomp::Game> valid_game_roms;
+static std::unordered_set<uint64_t> valid_game_roms;
 
-bool recomp::is_rom_valid(recomp::Game game) {
-    return valid_game_roms.contains(game);
+bool recomp::is_rom_valid(recomp::GameHandle game) {
+    return valid_game_roms.contains(game.id);
 }
 
 void recomp::check_all_stored_roms() {
@@ -100,18 +124,18 @@ void recomp::check_all_stored_roms() {
     }
 }
 
-bool recomp::load_stored_rom(recomp::Game game) {
-    auto find_it = game_roms.find(game);
+bool recomp::load_stored_rom(recomp::GameHandle game) {
+    auto find_it = game_roms.find(game.id);
 
     if (find_it == game_roms.end()) {
         return false;
     }
     
-    std::vector<uint8_t> stored_rom_data = read_file(recomp::get_app_folder_path() / find_it->second.stored_filename);
+    std::vector<uint8_t> stored_rom_data = read_file(recomp::get_app_folder_path() / find_it->second.stored_filename());
 
-    if (!check_hash(stored_rom_data, find_it->second.xxhash3_value)) {
+    if (!check_hash(stored_rom_data, find_it->second.rom_hash)) {
         // The ROM no longer has the right hash, delete it.
-        std::filesystem::remove(recomp::get_app_folder_path() / find_it->second.stored_filename);
+        std::filesystem::remove(recomp::get_app_folder_path() / find_it->second.stored_filename());
         return false;
     }
 
@@ -176,14 +200,14 @@ void byteswap_data(std::vector<uint8_t>& rom_data, size_t index_xor) {
     }
 }
 
-recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, Game game) {
-    auto find_it = game_roms.find(game);
+recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, recomp::GameHandle game) {
+    auto find_it = game_roms.find(game.id);
 
     if (find_it == game_roms.end()) {
         return recomp::RomValidationError::OtherError;
     }
 
-    const RomEntry& game_entry = find_it->second;
+    const recomp::GameEntry& game_entry = find_it->second;
 
     std::vector<uint8_t> rom_data = read_file(rom_path);
 
@@ -209,13 +233,13 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
             break;
     }
 
-    if (!check_hash(rom_data, game_entry.xxhash3_value)) {
-        const std::string_view name{ reinterpret_cast<const char*>(rom_data.data()) + 0x20, game_entry.internal_rom_name.size()};
-        if (name == game_entry.internal_rom_name) {
+    if (!check_hash(rom_data, game_entry.rom_hash)) {
+        const std::string_view name{ reinterpret_cast<const char*>(rom_data.data()) + 0x20, game_entry.internal_name.size()};
+        if (name == game_entry.internal_name) {
             return recomp::RomValidationError::IncorrectVersion;
         }
         else {
-            if (game == recomp::Game::MM && std::string_view{ reinterpret_cast<const char*>(rom_data.data()) + 0x20, 19 } == "THE LEGEND OF ZELDA") {
+            if (game_entry.is_enabled && std::string_view{ reinterpret_cast<const char*>(rom_data.data()) + 0x20, 19 } == game_entry.internal_name) {
                 return recomp::RomValidationError::NotYet;
             }
             else {
@@ -224,7 +248,7 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
         }
     }
 
-    write_file(recomp::get_app_folder_path() / game_entry.stored_filename, rom_data);
+    write_file(recomp::get_app_folder_path() / game_entry.stored_filename(), rom_data);
     
     return recomp::RomValidationError::Good;
 }
@@ -347,15 +371,15 @@ void init(uint8_t* rdram, recomp_context* ctx) {
     MEM_W(osMemSize, 0) = 8 * 1024 * 1024; // 8MB
 }
 
-std::atomic<recomp::Game> game_started = recomp::Game::None;
+std::atomic<std::optional<recomp::GameHandle>> game_started = std::nullopt;
 
-void recomp::start_game(recomp::Game game) {
+void recomp::start_game(recomp::GameHandle game) {
     game_started.store(game);
     game_started.notify_all();
 }
 
 bool ultramodern::is_game_started() {
-    return game_started.load() != recomp::Game::None;
+    return game_started.load() != std::nullopt;
 }
 
 void set_audio_callbacks(const ultramodern::audio_callbacks_t& callbacks);

@@ -6,3 +6,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 add_subdirectory(librecomp)
 add_subdirectory(ultramodern)
+
+set(RT64_STATIC TRUE)
+add_subdirectory(rt64)

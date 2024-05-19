@@ -16,3 +16,4 @@ add_library(ultramodern STATIC
 target_include_directories(ultramodern PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         "${CMAKE_SOURCE_DIR}/thirdparty/concurrentqueue")
+target_link_libraries(ultramodern PRIVATE rt64)

@@ -15,7 +15,7 @@
 #include "recomp_game.h"
 #include "recomp_config.h"
 #include "xxHash/xxh3.h"
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultramodern.hpp>
 #include "../../RecompiledPatches/patches_bin.h"
 #include "mm_shader_cache.h"
 

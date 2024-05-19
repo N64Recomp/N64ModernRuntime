@@ -1,6 +1,6 @@
 #include <cstdio>
 #include <fstream>
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultramodern.hpp>
 #include "recomp.h"
 
 extern "C" void osSpTaskLoad_recomp(uint8_t* rdram, recomp_context* ctx) {

@@ -7,8 +7,8 @@
 #include "recomp.h"
 #include "recomp_game.h"
 #include "recomp_config.h"
-#include "../ultramodern/ultra64.h"
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultra64.h>
+#include <ultramodern/ultramodern.hpp>
 
 static std::vector<uint8_t> rom;
 

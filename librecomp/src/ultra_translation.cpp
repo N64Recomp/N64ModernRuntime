@@ -1,6 +1,6 @@
 #include <memory>
-#include "../ultramodern/ultra64.h"
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultra64.h>
+#include <ultramodern/ultramodern.hpp>
 #include "recomp.h"
 
 extern "C" void osInitialize_recomp(uint8_t * rdram, recomp_context * ctx) {

@@ -1,11 +1,15 @@
 #ifndef __RECOMP_H__
 #define __RECOMP_H__
 
+#include <stdlib.h>
 #include <stdint.h>
 #include <math.h>
 #include <assert.h>
 #include <setjmp.h>
+
+#ifdef HAVE_MALLOC_H
 #include <malloc.h>
+#endif
 
 typedef uint64_t gpr;
 

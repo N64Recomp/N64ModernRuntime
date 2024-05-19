@@ -1,4 +1,4 @@
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultramodern.hpp>
 #include "recomp.h"
 
 // TODO remove these by implementing the necessary instructions and control flow handling in the recompiler.

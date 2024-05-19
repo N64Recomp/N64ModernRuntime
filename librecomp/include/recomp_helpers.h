@@ -2,7 +2,7 @@
 #define __RECOMP_HELPERS__
 
 #include "recomp.h"
-#include "../ultramodern/ultra64.h"
+#include <ultramodern/ultra64.h>
 
 template<int index, typename T>
 T _arg(uint8_t* rdram, recomp_context* ctx) {

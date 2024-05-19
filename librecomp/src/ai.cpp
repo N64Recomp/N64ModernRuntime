@@ -1,8 +1,8 @@
 #include "recomp.h"
 #include <cstdio>
 #include <string>
-#include "../ultramodern/ultra64.h"
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultra64.h>
+#include <ultramodern/ultramodern.hpp>
 
 #define VI_NTSC_CLOCK 48681812
 

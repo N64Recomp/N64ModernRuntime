@@ -1,7 +1,7 @@
 #include <vector>
 
-#include "../ultramodern/ultra64.h"
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultra64.h>
+#include <ultramodern/ultramodern.hpp>
 #include "recomp.h"
 #include "euc-jp.h"
 

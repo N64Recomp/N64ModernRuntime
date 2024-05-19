@@ -5,7 +5,7 @@
 #include <filesystem>
 
 #include "recomp.h"
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultramodern.hpp>
 #include "rt64_layer.h"
 
 namespace recomp {

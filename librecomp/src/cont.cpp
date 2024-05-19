@@ -1,4 +1,4 @@
-#include "../ultramodern/ultramodern.hpp"
+#include <ultramodern/ultramodern.hpp>
 #include "recomp_helpers.h"
 
 static ultramodern::input_callbacks_t input_callbacks;

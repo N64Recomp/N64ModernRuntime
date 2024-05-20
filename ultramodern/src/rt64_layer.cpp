@@ -110,6 +110,10 @@ ultramodern::RT64SetupResult map_setup_result(RT64::Application::SetupResult rt6
         case RT64::Application::SetupResult::GraphicsDeviceNotFound:
             return ultramodern::RT64SetupResult::GraphicsDeviceNotFound;
     }
+
+    fprintf(stderr, "Unhandled `RT64::Application::SetupResult` ?\n");
+    assert(false);
+    std::exit(EXIT_FAILURE);
 }
 
 ultramodern::RT64Context::RT64Context(uint8_t* rdram, ultramodern::WindowHandle window_handle, bool debug) {

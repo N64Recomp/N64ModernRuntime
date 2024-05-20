@@ -83,10 +83,9 @@ if (LINUX)
     target_include_directories(ultramodern PRIVATE ${SDL2_INCLUDE_DIRS})
 
     message(STATUS "X11_FOUND = ${X11_FOUND}")
-    message(STATUS "X11_Xrandr_FOUND = ${X11_Xrandr_FOUND}")
     message(STATUS "X11_INCLUDE_DIR = ${X11_INCLUDE_DIR}")
     message(STATUS "X11_LIBRARIES = ${X11_LIBRARIES}")
 
-    target_include_directories(ultramodern PRIVATE ${X11_INCLUDE_DIR} ${X11_Xrandr_INCLUDE_PATH})
-    target_link_libraries(ultramodern PRIVATE ${X11_LIBRARIES} ${X11_Xrandr_LIB})
+    target_include_directories(ultramodern PRIVATE ${X11_INCLUDE_DIR})
+    target_link_libraries(ultramodern PRIVATE ${X11_LIBRARIES})
 endif()

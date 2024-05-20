@@ -17,7 +17,7 @@
 #include "rt64_layer.h"
 #include "recomp.h"
 #include "recomp_game.h"
-#include "recomp_ui.h"
+ #include "ultramodern/recomp_ui.h"
 #include "recomp_input.h"
 #include "rsp.h"
 
@@ -325,7 +325,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
 
     // TODO move recomp code out of ultramodern.
     recomp::update_supported_options();
-    
+
     rsp_constants_init();
 
     // Notify the caller thread that this thread is ready.

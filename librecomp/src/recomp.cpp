@@ -345,9 +345,6 @@ gpr get_entrypoint_address();
 const char* get_rom_name();
 
 void read_patch_data(uint8_t* rdram, gpr patch_data_address) {
-//    for (size_t i = 0; i < sizeof(pa); i++) {
-//        MEM_B(i, patch_data_address) = mm_patches_bin[i];
-//    }
     for (size_t i = 0; i < patch_data.size(); i++) {
         MEM_B(i, patch_data_address) = patch_data[i];
     }

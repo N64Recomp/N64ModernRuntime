@@ -43,11 +43,6 @@ target_include_directories(ultramodern PRIVATE
     "${PROJECT_SOURCE_DIR}/../rt64/src/contrib/nativefiledialog-extended/src/include"
 )
 
-# TODO: remove when librecomp is untangled from ultramodern
-target_include_directories(ultramodern PRIVATE
-    "${CMAKE_SOURCE_DIR}/librecomp/include"
-)
-
 if (WIN32)
     include(FetchContent)
     # Fetch SDL2 on windows

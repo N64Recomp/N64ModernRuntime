@@ -1,6 +1,6 @@
 #include <cassert>
 
-#include "ultramodern.hpp"
+#include <ultramodern/ultramodern.hpp>
 
 static PTR(OSThread) running_queue_impl = NULLPTR;
 

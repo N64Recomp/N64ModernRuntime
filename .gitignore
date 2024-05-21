@@ -1,0 +1,9 @@
+build/
+temp/
+.vscode/
+
+*.o
+*.elf
+*.z64
+*.n64
+*.v64

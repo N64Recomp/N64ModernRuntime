@@ -1,4 +1,4 @@
-#include <ultramodern/ultramodern.hpp>
+#include "ultramodern.hpp"
 
 void ultramodern::schedule_running_thread(RDRAM_ARG PTR(OSThread) t_) {
     debug_printf("[Scheduling] Adding thread %d to the running queue\n", TO_PTR(OSThread, t_)->id);

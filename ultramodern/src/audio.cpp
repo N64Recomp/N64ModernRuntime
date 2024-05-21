@@ -1,5 +1,5 @@
-#include <ultramodern/ultra64.h>
-#include <ultramodern/ultramodern.hpp>
+#include "ultra64.h"
+#include "ultramodern.hpp"
 #include <cassert>
 
 static uint32_t sample_rate = 48000;

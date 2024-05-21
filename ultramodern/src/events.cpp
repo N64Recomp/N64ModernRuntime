@@ -11,11 +11,11 @@
 
 #include "blockingconcurrentqueue.h"
 
-#include <ultramodern/ultra64.h>
-#include <ultramodern/ultramodern.hpp>
-#include <ultramodern/config.hpp>
-#include <ultramodern/rt64_layer.h>
-#include <ultramodern/recomp_ui.h>
+#include "ultra64.h"
+#include "ultramodern.hpp"
+#include "config.hpp"
+#include "rt64_layer.h"
+#include "recomp_ui.h"
 #include "recomp.h"
 #include "recomp_game.h"
 #include "recomp_input.h"

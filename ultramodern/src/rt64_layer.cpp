@@ -4,7 +4,7 @@
 
 #define HLSL_CPU
 #include "hle/rt64_application.h"
-#include <ultramodern/rt64_layer.h>
+#include "rt64_layer.h"
 #include "rt64_render_hooks.h"
 
 ultramodern::RT64Context::~RT64Context() = default;

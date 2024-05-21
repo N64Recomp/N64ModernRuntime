@@ -28,6 +28,10 @@ target_include_directories(ultramodern PUBLIC
     "${CMAKE_SOURCE_DIR}/thirdparty/sse2neon"
 )
 
+target_include_directories(ultramodern PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/ultramodern"
+)
+
 # TODO: remove when rt64 is no longer a hard dependency
 target_include_directories(ultramodern PRIVATE
     "${CMAKE_SOURCE_DIR}/rt64/src"

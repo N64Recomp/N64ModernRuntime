@@ -16,6 +16,7 @@
 #include "config.hpp"
 #include "rt64_layer.h"
 #include "user_callbacks.hpp"
+#include "rsp_stuff.hpp"
 
 struct SpTaskAction {
     OSTask task;
@@ -196,12 +197,6 @@ uint8_t dmem[0x1000];
 uint16_t rspReciprocals[512];
 uint16_t rspInverseSquareRoots[512];
 
-#if 0
-using RspUcodeFunc = RspExitReason(uint8_t* rdram);
-extern RspUcodeFunc njpgdspMain;
-extern RspUcodeFunc aspMain;
-#endif
-
 // From Ares emulator. For license details, see rsp_vu.h
 void rsp_constants_init() {
     rspReciprocals[0] = u16(~0);
@@ -219,19 +214,23 @@ void rsp_constants_init() {
         rspInverseSquareRoots[index] = u16(b >> 1);
     }
 }
-#if 0
+
 // Runs a recompiled RSP microcode
 void run_rsp_microcode(uint8_t* rdram, const OSTask* task, RspUcodeFunc* ucode_func) {
     // Load the OSTask into DMEM
     memcpy(&dmem[0xFC0], task, sizeof(OSTask));
+
+    auto& user_callbacks = ultramodern::get_user_callbacks();
+    assert(user_callbacks.dma_rdram_to_dmem != nullptr);
+
     // Load the ucode data into DMEM
-    dma_rdram_to_dmem(rdram, 0x0000, task->t.ucode_data, 0xF80 - 1);
+    user_callbacks.dma_rdram_to_dmem(rdram, 0x0000, task->t.ucode_data, 0xF80 - 1);
+
     // Run the ucode
     RspExitReason exit_reason = ucode_func(rdram);
     // Ensure that the ucode exited correctly
     assert(exit_reason == RspExitReason::Broke);
 }
-#endif
 
 void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready) {
     ultramodern::set_native_thread_name("SP Task Thread");
@@ -239,6 +238,8 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
 
     // Notify the caller thread that this thread is ready.
     thread_ready->signal();
+
+    auto& user_callbacks = ultramodern::get_user_callbacks();
 
     while (true) {
         // Wait until an RSP task has been sent
@@ -249,16 +250,12 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
             return;
         }
 
-        // Run the correct function based on the task type
-        if (task->t.type == M_AUDTASK) {
-            #if 0
-            run_rsp_microcode(rdram, task, aspMain);
-            #endif
-        }
-        else if (task->t.type == M_NJPEGTASK) {
-            #if 0
-            run_rsp_microcode(rdram, task, njpgdspMain);
-            #endif
+        // Ask the user what the correct ucode function is this.
+        assert(user_callbacks.get_rsp_microcode != nullptr);
+        RspUcodeFunc* ucode_func = user_callbacks.get_rsp_microcode(task->t.type, task);
+
+        if (ucode_func != nullptr) {
+            run_rsp_microcode(rdram, task, ucode_func);
         }
         else {
             fprintf(stderr, "Unknown task type: %" PRIu32 "\n", task->t.type);

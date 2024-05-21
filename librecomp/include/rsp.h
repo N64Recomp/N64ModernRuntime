@@ -1,21 +1,11 @@
 #ifndef __RSP_H__
 #define __RSP_H__
 
-#include "rsp_vu.h"
-#include "recomp.h"
 #include <cstdio>
 
-enum class RspExitReason {
-    Invalid,
-    Broke,
-    ImemOverrun,
-    UnhandledJumpTarget,
-    Unsupported
-};
-
-extern uint8_t dmem[];
-extern uint16_t rspReciprocals[512];
-extern uint16_t rspInverseSquareRoots[512];
+#include "rsp_vu.h"
+#include "recomp.h"
+#include "ultramodern/rsp_stuff.hpp"
 
 #define RSP_MEM_B(offset, addr) \
     (*reinterpret_cast<int8_t*>(dmem + (0xFFF & (((offset) + (addr)) ^ 3))))
@@ -61,7 +51,7 @@ static inline void RSP_MEM_H_STORE(uint32_t offset, uint32_t addr, uint32_t val)
 
 #define RSP_ADD32(a, b) \
     ((int32_t)((a) + (b)))
-    
+
 #define RSP_SUB32(a, b) \
     ((int32_t)((a) - (b)))
 

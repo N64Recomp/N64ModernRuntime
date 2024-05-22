@@ -5,6 +5,9 @@ project(N64ModernRuntime)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+
+set(CMAKE_LIBRARY_PATH "/usr/lib/gcc/aarch64-linux-gnu/11")
+
 add_subdirectory(ultramodern)
 add_subdirectory(librecomp)
 

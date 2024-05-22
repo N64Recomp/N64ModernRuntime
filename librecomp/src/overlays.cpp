@@ -3,9 +3,9 @@
 #include <vector>
 #include "recomp.h"
 #include "recomp_overlays.h"
-#include "../RecompiledFuncs/recomp_overlays.inl"
+#include "sections.h"
 
-constexpr size_t num_code_sections = ARRLEN(section_table);
+constexpr size_t num_code_sections = ARRLEN(get_section_table());
 
 // SectionTableEntry sections[] defined in recomp_overlays.inl
 
@@ -27,7 +27,7 @@ std::vector<LoadedSection> loaded_sections{};
 std::unordered_map<int32_t, recomp_func_t*> func_map{};
 
 void load_overlay(size_t section_table_index, int32_t ram) {
-    const SectionTableEntry& section = section_table[section_table_index];
+    const SectionTableEntry& section = get_section_table()[section_table_index];
     for (size_t function_index = 0; function_index < section.num_funcs; function_index++) {
         const FuncEntry& func = section.funcs[function_index];
         func_map[ram + func.offset] = func.func;
@@ -44,34 +44,34 @@ void load_special_overlay(const SectionTableEntry& section, int32_t ram) {
 }
 
 
-extern "C" {
-int32_t section_addresses[num_sections];
-}
+//extern "C" {
+//int32_t section_addresses[get_num_sections()];
+//}
 
 extern "C" void load_overlays(uint32_t rom, int32_t ram_addr, uint32_t size) {
     // Search for the first section that's included in the loaded rom range
     // Sections were sorted by `init_overlays` so we can use the bounds functions
-    auto lower = std::lower_bound(&section_table[0], &section_table[num_code_sections], rom,
+    auto lower = std::lower_bound(&get_section_table()[0], &get_section_table()[num_code_sections], rom,
         [](const SectionTableEntry& entry, uint32_t addr) {
             return entry.rom_addr < addr;
         }
     );
-    auto upper = std::upper_bound(&section_table[0], &section_table[num_code_sections], (uint32_t)(rom + size),
+    auto upper = std::upper_bound(&get_section_table()[0], &get_section_table()[num_code_sections], (uint32_t)(rom + size),
         [](uint32_t addr, const SectionTableEntry& entry) {
             return addr < entry.size + entry.rom_addr;
         }
     );
     // Load the overlays that were found
     for (auto it = lower; it != upper; ++it) {
-        load_overlay(std::distance(&section_table[0], it), it->rom_addr - rom + ram_addr);
+        load_overlay(std::distance(&get_section_table()[0], it), it->rom_addr - rom + ram_addr);
     }
 }
 
 extern "C" void unload_overlays(int32_t ram_addr, uint32_t size);
 
 extern "C" void unload_overlay_by_id(uint32_t id) {
-    uint32_t section_table_index = overlay_sections_by_index[id];
-    const SectionTableEntry& section = section_table[section_table_index];
+    uint32_t section_table_index = get_overlay_sections_by_index()[id];
+    const SectionTableEntry& section = get_section_table()[section_table_index];
 
     auto find_it = std::find_if(loaded_sections.begin(), loaded_sections.end(), [section_table_index](const LoadedSection& s) { return s.section_table_index == section_table_index; });
 
@@ -90,8 +90,8 @@ extern "C" void unload_overlay_by_id(uint32_t id) {
 }
 
 extern "C" void load_overlay_by_id(uint32_t id, uint32_t ram_addr) {
-    uint32_t section_table_index = overlay_sections_by_index[id];
-    const SectionTableEntry& section = section_table[section_table_index];
+    uint32_t section_table_index = get_overlay_sections_by_index()[id];
+    const SectionTableEntry& section = get_section_table()[section_table_index];
     int32_t prev_address = section_addresses[section.index];
     if (/*ram_addr >= 0x80000000 && ram_addr < 0x81000000) {*/ prev_address == section.ram_addr) {
         load_overlay(section_table_index, ram_addr);
@@ -105,7 +105,7 @@ extern "C" void load_overlay_by_id(uint32_t id, uint32_t ram_addr) {
 
 extern "C" void unload_overlays(int32_t ram_addr, uint32_t size) {
     for (auto it = loaded_sections.begin(); it != loaded_sections.end();) {
-        const auto& section = section_table[it->section_table_index];
+        const auto& section = get_section_table()[it->section_table_index];
 
         // Check if the unloaded region overlaps with the loaded section
         if (ram_addr < (it->loaded_ram_addr + section.size) && (ram_addr + size) >= it->loaded_ram_addr) {
@@ -140,11 +140,11 @@ void load_patch_functions();
 
 void init_overlays() {
     for (size_t section_index = 0; section_index < num_code_sections; section_index++) {
-        section_addresses[section_table[section_index].index] = section_table[section_index].ram_addr;
+        section_addresses[get_section_table()[section_index].index] = get_section_table()[section_index].ram_addr;
     }
 
     // Sort the executable sections by rom address
-    std::sort(&section_table[0], &section_table[num_code_sections],
+    std::sort(&get_section_table()[0], &get_section_table()[num_code_sections],
         [](const SectionTableEntry& a, const SectionTableEntry& b) {
             return a.rom_addr < b.rom_addr;
         }

@@ -15,7 +15,6 @@
 #include "recomp_game.h"
 #include "xxHash/xxh3.h"
 #include <ultramodern/ultramodern.hpp>
-//#include "../../RecompiledPatches/patches_bin.h"
 
 #ifdef _MSC_VER
 inline uint32_t byteswap(uint32_t val) {

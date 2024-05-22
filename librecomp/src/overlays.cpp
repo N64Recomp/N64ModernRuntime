@@ -44,9 +44,9 @@ void load_special_overlay(const SectionTableEntry& section, int32_t ram) {
 }
 
 
-//extern "C" {
-//int32_t section_addresses[get_num_sections()];
-//}
+extern "C" {
+int32_t* section_addresses = nullptr;
+}
 
 extern "C" void load_overlays(uint32_t rom, int32_t ram_addr, uint32_t size) {
     // Search for the first section that's included in the loaded rom range
@@ -139,7 +139,9 @@ extern "C" void unload_overlays(int32_t ram_addr, uint32_t size) {
 void load_patch_functions();
 
 void init_overlays() {
-    for (size_t section_index = 0; section_index < num_code_sections; section_index++) {
+    section_addresses = (int32_t *)malloc(get_num_sections() * sizeof(int32_t));
+
+    for (size_t section_index = 0; section_index < get_num_sections(); section_index++) {
         section_addresses[get_section_table()[section_index].index] = get_section_table()[section_index].ram_addr;
     }
 

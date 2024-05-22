@@ -40,16 +40,16 @@ std::mutex current_game_mutex;
 
 // Global variables
 std::vector<char> patch_data;
-std::unordered_map<std::u8string_view, recomp::GameEntry> game_roms {};
+std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
 
 std::u8string recomp::GameEntry::stored_filename() const {
-    return std::u8string{game_id} + u8".z64";
+    return game_id + u8".z64";
 }
 
-recomp::GameHandle recomp::register_game(const recomp::GameEntry& entry) {
+bool recomp::register_game(const recomp::GameEntry& entry) {
     std::lock_guard<std::mutex> lock(game_roms_mutex);
     game_roms.insert({ entry.game_id, entry });
-    return { entry.game_id };
+    return true;
 }
 
 void recomp::register_patch(const char* patch, std::size_t size) {
@@ -129,10 +129,10 @@ bool check_stored_rom(const recomp::GameEntry& game_entry) {
     return true;
 }
 
-static std::unordered_set<std::u8string_view> valid_game_roms;
+static std::unordered_set<std::u8string> valid_game_roms;
 
-bool recomp::is_rom_valid(recomp::GameHandle game) {
-    return valid_game_roms.contains(game.id);
+bool recomp::is_rom_valid(std::u8string& game_id) {
+    return valid_game_roms.contains(game_id);
 }
 
 void recomp::check_all_stored_roms() {
@@ -143,8 +143,8 @@ void recomp::check_all_stored_roms() {
     }
 }
 
-bool recomp::load_stored_rom(recomp::GameHandle game) {
-    auto find_it = game_roms.find(game.id);
+bool recomp::load_stored_rom(std::u8string& game_id) {
+    auto find_it = game_roms.find(game_id);
 
     if (find_it == game_roms.end()) {
         return false;
@@ -217,8 +217,8 @@ void byteswap_data(std::vector<uint8_t>& rom_data, size_t index_xor) {
     }
 }
 
-recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, recomp::GameHandle game) {
-    auto find_it = game_roms.find(game.id);
+recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, std::u8string& game_id) {
+    auto find_it = game_roms.find(game_id);
 
     if (find_it == game_roms.end()) {
         return recomp::RomValidationError::OtherError;
@@ -388,17 +388,17 @@ void init(uint8_t* rdram, recomp_context* ctx) {
     MEM_W(osMemSize, 0) = 8 * 1024 * 1024; // 8MB
 }
 
-std::optional<recomp::GameHandle> current_game = std::nullopt;
+std::optional<std::u8string> current_game = std::nullopt;
 std::atomic<GameStatus> game_status = GameStatus::None;
 
-std::u8string_view recomp::current_game_id() {
+std::u8string recomp::current_game_id() {
     std::lock_guard<std::mutex> lock(current_game_mutex);
-    return current_game.value().id;
+    return current_game.value();
 };
 
-void recomp::start_game(recomp::GameHandle game) {
+void recomp::start_game(std::u8string game_id) {
     std::lock_guard<std::mutex> lock(current_game_mutex);
-    current_game = game;
+    current_game = game_id;
     game_status.store(GameStatus::Running);
 }
 
@@ -463,7 +463,7 @@ void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::a
                     recomp::message_box("Error opening stored ROM! Please restart this program.");
                 }
 
-                auto find_it = game_roms.find(current_game.value().id);
+                auto find_it = game_roms.find(current_game.value());
                 const recomp::GameEntry& game_entry = find_it->second;
 
                 ultramodern::load_shader_cache(game_entry.cache_data);

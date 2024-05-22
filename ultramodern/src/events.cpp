@@ -15,9 +15,9 @@
 #include "ultramodern.hpp"
 #include "config.hpp"
 #include "rt64_layer.h"
+#include "recomp_ui.h"
 #include "recomp.h"
 #include "recomp_game.h"
-#include "ultramodern/recomp_ui.h"
 #include "recomp_input.h"
 #include "rsp.h"
 

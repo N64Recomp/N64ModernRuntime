@@ -9,10 +9,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # TODO: uncoment this when we fix the warnings
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 
-if(UNIX AND NOT APPLE)
-    set(LINUX TRUE)
-endif()
-
 add_library(ultramodern STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/audio.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/events.cpp"
@@ -28,8 +24,12 @@ add_library(ultramodern STATIC
 
 target_include_directories(ultramodern PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include/"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/ultramodern" # FIXME: remove redundant path
     "${CMAKE_SOURCE_DIR}/thirdparty/concurrentqueue"
+    "${CMAKE_SOURCE_DIR}/thirdparty/sse2neon"
+)
+
+target_include_directories(ultramodern PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/ultramodern"
 )
 
 # TODO: remove when rt64 is no longer a hard dependency
@@ -63,9 +63,10 @@ if (WIN32)
     target_link_directories(ultramodern PRIVATE
         ${sdl2_SOURCE_DIR}/lib/x64
     )
-endif()
-
-if (LINUX)
+elseif (APPLE)
+    find_package(SDL2 REQUIRED)
+    target_include_directories(ultramodern PRIVATE ${SDL2_INCLUDE_DIRS})
+else()
     find_package(SDL2 REQUIRED)
     find_package(X11 REQUIRED)
 

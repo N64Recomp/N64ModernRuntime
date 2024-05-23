@@ -151,6 +151,7 @@ struct gfx_callbacks_t {
     create_window_t* create_window;
     update_gfx_t* update_gfx;
 };
+
 bool is_game_started();
 void quit();
 void join_event_threads();

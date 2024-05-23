@@ -193,45 +193,6 @@ void dp_complete() {
     osSendMesg(PASS_RDRAM events_context.dp.mq, events_context.dp.msg, OS_MESG_NOBLOCK);
 }
 
-uint8_t dmem[0x1000];
-uint16_t rspReciprocals[512];
-uint16_t rspInverseSquareRoots[512];
-
-// From Ares emulator. For license details, see rsp_vu.h
-void rsp_constants_init() {
-    rspReciprocals[0] = u16(~0);
-    for (u16 index = 1; index < 512; index++) {
-        u64 a = index + 512;
-        u64 b = (u64(1) << 34) / a;
-        rspReciprocals[index] = u16((b + 1) >> 8);
-    }
-
-    for (u16 index = 0; index < 512; index++) {
-        u64 a = (index + 512) >> ((index % 2 == 1) ? 1 : 0);
-        u64 b = 1 << 17;
-        //find the largest b where b < 1.0 / sqrt(a)
-        while (a * (b + 1) * (b + 1) < (u64(1) << 44)) b++;
-        rspInverseSquareRoots[index] = u16(b >> 1);
-    }
-}
-
-// Runs a recompiled RSP microcode
-void run_rsp_microcode(uint8_t* rdram, const OSTask* task, RspUcodeFunc* ucode_func) {
-    // Load the OSTask into DMEM
-    memcpy(&dmem[0xFC0], task, sizeof(OSTask));
-
-    auto& user_callbacks = ultramodern::get_user_callbacks();
-    assert(user_callbacks.dma_rdram_to_dmem != nullptr);
-
-    // Load the ucode data into DMEM
-    user_callbacks.dma_rdram_to_dmem(rdram, 0x0000, task->t.ucode_data, 0xF80 - 1);
-
-    // Run the ucode
-    RspExitReason exit_reason = ucode_func(rdram);
-    // Ensure that the ucode exited correctly
-    assert(exit_reason == RspExitReason::Broke);
-}
-
 void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready) {
     ultramodern::set_native_thread_name("SP Task Thread");
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::Normal);
@@ -251,11 +212,10 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
         }
 
         // Ask the user what the correct ucode function is this.
-        assert(user_callbacks.get_rsp_microcode != nullptr);
-        RspUcodeFunc* ucode_func = user_callbacks.get_rsp_microcode(task->t.type, task);
+        RspUcodeFunc* ucode_func = ultramodern::rsp::get_microcode(task->t.type, task);
 
         if (ucode_func != nullptr) {
-            run_rsp_microcode(rdram, task, ucode_func);
+            ultramodern::rsp::run_microcode(rdram, task, ucode_func);
         }
         else {
             fprintf(stderr, "Unknown task type: %" PRIu32 "\n", task->t.type);
@@ -330,7 +290,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
         user_callbacks.update_supported_options();
     }
 
-    rsp_constants_init();
+    ultramodern::rsp::constants_init();
 
     // Notify the caller thread that this thread is ready.
     thread_ready->signal();

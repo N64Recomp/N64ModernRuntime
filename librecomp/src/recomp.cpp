@@ -1,6 +1,3 @@
-#ifdef _WIN32
-#include <Windows.h>
-#endif
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -10,6 +7,14 @@
 #include <unordered_set>
 #include <fstream>
 #include <iostream>
+#include <optional>
+
+#ifdef _WIN32
+#include <Windows.h>
+#elif defined(__linux__)
+#include <pwd.h>
+#endif
+
 #include "recomp.h"
 #include "recomp_overlays.h"
 #include "recomp_game.h"
@@ -97,7 +102,7 @@ std::filesystem::path recomp::get_app_folder_path() {
    PWSTR known_path = NULL;
    HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &known_path);
    if (result == S_OK) {
-       recomp_dir = std::filesystem::path{known_path} / recomp::program_id;
+       recomp_dir = std::filesystem::path{known_path} / recomp::get_program_id();
    }
 
    CoTaskMemFree(known_path);
@@ -109,7 +114,7 @@ std::filesystem::path recomp::get_app_folder_path() {
    }
 
    if (homedir != nullptr) {
-       recomp_dir = std::filesystem::path{homedir} / (std::u8string{u8".config/"} + std::u8string{recomp::program_id});
+       recomp_dir = std::filesystem::path{homedir} / (std::u8string{u8".config/"} + recomp::get_program_id());
    }
 #endif
 
@@ -447,9 +452,9 @@ void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::a
 
     std::thread game_thread{[](ultramodern::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");
-        
+
         ultramodern::set_native_thread_name("Game Start Thread");
-        
+
         ultramodern::preinit(rdram, window_handle);
 
         game_status.wait(GameStatus::None);
@@ -458,25 +463,31 @@ void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::a
         switch (game_status.load()) {
             // TODO refactor this to allow a project to specify what entrypoint function to run for a give game.
             case GameStatus::Running:
-                if (!recomp::load_stored_rom(current_game.value())) {
-                    recomp::message_box("Error opening stored ROM! Please restart this program.");
+                {
+                    if (!recomp::load_stored_rom(current_game.value())) {
+                        recomp::message_box("Error opening stored ROM! Please restart this program.");
+                    }
+
+                    auto find_it = game_roms.find(current_game.value());
+                    const recomp::GameEntry& game_entry = find_it->second;
+
+                    ultramodern::load_shader_cache(game_entry.cache_data);
+                    init(rdram, &context);
+                    try {
+                        recomp_entrypoint(rdram, &context);
+                    } catch (ultramodern::thread_terminated& terminated) {
+
+                    }
                 }
-
-                auto find_it = game_roms.find(current_game.value());
-                const recomp::GameEntry& game_entry = find_it->second;
-
-                ultramodern::load_shader_cache(game_entry.cache_data);
-                init(rdram, &context);
-                try {
-                    recomp_entrypoint(rdram, &context);
-                } catch (ultramodern::thread_terminated& terminated) {
-
-                } 
                 break;
+
             case GameStatus::Quit:
                 break;
+
+            case GameStatus::None:
+                break;
         }
-        
+
         debug_printf("[Recomp] Quitting\n");
     }, window_handle, rdram_buffer.get()};
 

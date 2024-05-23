@@ -29,7 +29,15 @@ add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ultra_translation.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/vi.cpp")
 
-target_include_directories(librecomp PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_include_directories(librecomp PRIVATE "${CMAKE_SOURCE_DIR}/rt64/src/contrib")
+target_include_directories(librecomp PUBLIC
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/ultramodern/include"
+    "${CMAKE_SOURCE_DIR}/thirdparty/concurrentqueue"
+)
+target_include_directories(librecomp PRIVATE
+    "${CMAKE_SOURCE_DIR}/rt64/src/contrib"
+)
+
 target_compile_options(librecomp PRIVATE -Wno-deprecated-declarations)
+
 target_link_libraries(librecomp PRIVATE ultramodern)

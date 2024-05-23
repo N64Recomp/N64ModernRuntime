@@ -25,6 +25,8 @@
 #   undef Success
 #endif
 
+#include <ultramodern/rsp_stuff.hpp>
+
 struct UltraThreadContext {
     std::thread host_thread;
     moodycamel::LightweightSemaphore running;
@@ -132,6 +134,7 @@ struct audio_callbacks_t {
     set_frequency_t* set_frequency;
 };
 
+// TODO: This really isn't used by ultramodern. Should we move it to librecomp instead?
 // Input
 struct input_callbacks_t {
     using poll_input_t = void(void);
@@ -142,14 +145,21 @@ struct input_callbacks_t {
     set_rumble_t* set_rumble;
 };
 
+// TODO: This really isn't used by ultramodern. Should we move it to librecomp instead?
 struct gfx_callbacks_t {
     using gfx_data_t = void*;
     using create_gfx_t = gfx_data_t();
     using create_window_t = WindowHandle(gfx_data_t);
     using update_gfx_t = void(gfx_data_t);
+    using destroy_ui_t = void();
+
     create_gfx_t* create_gfx;
     create_window_t* create_window;
     update_gfx_t* update_gfx;
+
+    // TODO: Since we have a destroy_ui we could provide an init_ui?
+    // void (*init_ui)();
+    destroy_ui_t* destroy_ui;
 };
 
 bool is_game_started();

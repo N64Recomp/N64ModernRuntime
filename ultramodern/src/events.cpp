@@ -337,9 +337,6 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
         }
     }
 
-    if (user_callbacks.destroy_ui != nullptr) {
-        user_callbacks.destroy_ui();
-    }
     rt64.shutdown();
 }
 

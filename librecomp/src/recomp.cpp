@@ -426,10 +426,11 @@ void ultramodern::quit() {
     current_game.reset();
 }
 
-void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input_callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks_) {
+void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input_callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks_, const ultramodern::rsp::rsp_callbacks_t& rsp_callbacks_) {
     recomp::check_all_stored_roms();
     set_audio_callbacks(audio_callbacks);
     set_input_callbacks(input_callbacks);
+    ultramodern::rsp::set_callbacks(rsp_callbacks_);
 
     ultramodern::gfx_callbacks_t gfx_callbacks = gfx_callbacks_;
 
@@ -499,6 +500,13 @@ void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::a
             gfx_callbacks.update_gfx(gfx_data);
         }
     }
+
+    // moved from ultarmodern/src/events.cpp/gfx_thread_func
+    // TODO: is it fine to have it here?
+    if (gfx_callbacks.destroy_ui != nullptr) {
+        gfx_callbacks.destroy_ui();
+    }
+
     game_thread.join();
     ultramodern::join_event_threads();
     ultramodern::join_thread_cleaner_thread();

@@ -14,10 +14,6 @@ namespace ultramodern {
         void (*update_rumble)();
         void (*update_supported_options)();
 
-        // TODO: Since we have a destroy_ui we could provide an init_ui?
-        // void (*init_ui)();
-        void (*destroy_ui)();
-
         /**
          * Show an OS dialog with the given `msg`.
          * `msg` is non-`nullptr`.
@@ -26,12 +22,12 @@ namespace ultramodern {
     };
 
     /**
-     * 
+     *
      */
     void register_user_callbacks(UserCallbacks& callbacks);
 
     /**
-     * 
+     *
      */
     const UserCallbacks& get_user_callbacks();
 };

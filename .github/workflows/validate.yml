@@ -48,21 +48,17 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           # enable ccache
-          export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
-          
-          # Build N64Recomp & RSPRecomp
+          export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"          
           cmake -DCMAKE_BUILD_TYPE=${{ matrix.type }} -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER=clang++-15 -DCMAKE_C_COMPILER=clang-15 -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build
       - name: Build ultramodern
         run: |
           # enable ccache
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
-
           cmake --build cmake-build --config ${{ matrix.type }} --target ultramodern -j $(nproc)
       - name: Build librecomp
         run: |
           # enable ccache
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
-
           cmake --build cmake-build --config ${{ matrix.type }} --target librecomp -j $(nproc)
   build-windows:
     runs-on: windows-latest
@@ -89,17 +85,14 @@ jobs:
         run: |
           # enable ccache
           set $env:PATH="$env:USERPROFILE/.cargo/bin;$env:PATH"
-
           cmake -DCMAKE_BUILD_TYPE=${{ matrix.type }} -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER=clang-cl -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build -DCMAKE_CXX_FLAGS="-Xclang -fcxx-exceptions"
       - name: Build ultramodern
         run: |
           # enable ccache
           set $env:PATH="$env:USERPROFILE/.cargo/bin;$env:PATH"
-
           cmake --build cmake-build --config ${{ matrix.type }} --target ultramodern -j 8
       - name: Build librecomp
         run: |
           # enable ccache
           set $env:PATH="$env:USERPROFILE/.cargo/bin;$env:PATH"
-
           cmake --build cmake-build --config ${{ matrix.type }} --target librecomp -j 8

@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <mutex>
 
 #ifdef _WIN32
 #include <Windows.h>

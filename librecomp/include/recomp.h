@@ -256,7 +256,7 @@ recomp_func_t* get_function(int32_t vram);
 #define LOOKUP_FUNC(val) \
     get_function((int32_t)(val))
 
-extern int32_t section_addresses[];
+extern int32_t* section_addresses;
 
 #define LO16(x) \
     ((x) & 0xFFFF)

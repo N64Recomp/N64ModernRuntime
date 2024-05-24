@@ -105,7 +105,7 @@ extern "C" void osContGetQuery_recomp(uint8_t * rdram, recomp_context * ctx) {
 }
 
 extern "C" void osContSetCh_recomp(uint8_t* rdram, recomp_context* ctx) {
-    max_controllers = std::min(_arg<0, u8>(rdram, ctx), u8(4));
+    max_controllers = (std::min)(_arg<0, u8>(rdram, ctx), u8(4));
     _return<s32>(ctx, 0);
 }
 

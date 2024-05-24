@@ -44,7 +44,7 @@ jobs:
           sudo make install
           sudo cp -av /usr/local/lib/libSDL* /lib/x86_64-linux-gnu/
           echo ::endgroup::
-      - name: Configure CMake
+      - name: Generate CMake Project
         if: runner.os != 'Windows'
         run: |
           # enable ccache
@@ -85,7 +85,7 @@ jobs:
           Remove-Item -Path "C:\ProgramData\Chocolatey\bin\ccache.exe" -Force -ErrorAction SilentlyContinue
       - name: Configure Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
-      - name: Build N64Recomp & RSPRecomp
+      - name: Generate CMake Project
         run: |
           # enable ccache
           set $env:PATH="$env:USERPROFILE/.cargo/bin;$env:PATH"

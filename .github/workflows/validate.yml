@@ -90,9 +90,13 @@ jobs:
         run: |
           # enable ccache
           set $env:PATH="$env:USERPROFILE/.cargo/bin;$env:PATH"
-          cmake --build cmake-build --config ${{ matrix.type }} --target ultramodern -j 8
+          $cpuCores = (Get-CimInstance -ClassName Win32_Processor).NumberOfLogicalProcessors
+
+          cmake --build cmake-build --config ${{ matrix.type }} --target ultramodern -j $cpuCores
       - name: Build librecomp
         run: |
           # enable ccache
           set $env:PATH="$env:USERPROFILE/.cargo/bin;$env:PATH"
-          cmake --build cmake-build --config ${{ matrix.type }} --target librecomp -j 8
+          $cpuCores = (Get-CimInstance -ClassName Win32_Processor).NumberOfLogicalProcessors
+
+          cmake --build cmake-build --config ${{ matrix.type }} --target librecomp -j $cpuCores

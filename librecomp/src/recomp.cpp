@@ -11,7 +11,7 @@
 #include <mutex>
 
 #ifdef _WIN32
-#include <Windows.h>
+#include <Shlobj.h>
 #elif defined(__linux__)
 #include <pwd.h>
 #endif

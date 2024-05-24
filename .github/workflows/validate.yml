@@ -10,10 +10,11 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build-unix:
-    runs-on: ubuntu-22.04
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         type: [ Debug, Release ]
+        os: [ ubuntu-22.04, blaze/ubuntu-22.04 ] # ubuntu-22.04 is intel, blaze/ubuntu-22.04 is arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,7 +24,7 @@ jobs:
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
-          key: ${{ runner.os }}-z64re-ccache-${{ matrix.type }}
+          key: ${{ runner.os }}-z64re-ccache-${{ matrix.type }}-${{ matrix.os }}
       - name: Install Linux Dependencies
         if: runner.os == 'Linux'
         run: |

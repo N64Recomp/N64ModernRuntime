@@ -9,6 +9,7 @@
 #include <iostream>
 #include <optional>
 #include <mutex>
+#include <array>
 
 #ifdef _WIN32
 #include <Shlobj.h>

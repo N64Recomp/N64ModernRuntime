@@ -9,12 +9,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  build-unix:
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    runs-on: ${{ matrix.arch == 'x64' && 'ubuntu-22.04' || 'blaze/ubuntu-22.04' }}
     strategy:
       matrix:
         type: [ Debug, Release ]
-        os: [ ubuntu-22.04, blaze/ubuntu-22.04 ] # ubuntu-22.04 is intel, blaze/ubuntu-22.04 is arm64
+        os: [ ubuntu-22.04 ]
+        arch: [ x64, arm64 ]
+    name: ${{ matrix.os }} (${{ matrix.arch }}, ${{ matrix.type }})
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,6 +68,7 @@ jobs:
     strategy:
       matrix:
         type: [ Debug, Release ]
+    name: windows (${{ matrix.type }})
     steps:
       - name: Checkout
         uses: actions/checkout@v4

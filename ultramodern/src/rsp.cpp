@@ -1,7 +1,7 @@
 #include <cassert>
 #include <cstring>
 
-#include "rsp_stuff.hpp"
+#include "ultramodern/rsp.hpp"
 
 static ultramodern::rsp::callbacks_t rsp_callbacks {};
 

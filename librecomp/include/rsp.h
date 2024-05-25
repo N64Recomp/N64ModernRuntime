@@ -5,7 +5,23 @@
 
 #include "rsp_vu.h"
 #include "recomp.h"
-#include "ultramodern/rsp_stuff.hpp"
+#include "ultramodern/ultra64.h"
+
+// TODO: Move these to recomp namespace?
+
+enum class RspExitReason {
+    Invalid,
+    Broke,
+    ImemOverrun,
+    UnhandledJumpTarget,
+    Unsupported
+};
+
+using RspUcodeFunc = RspExitReason(uint8_t* rdram);
+
+extern uint8_t dmem[];
+extern uint16_t rspReciprocals[512];
+extern uint16_t rspInverseSquareRoots[512];
 
 #define RSP_MEM_B(offset, addr) \
     (*reinterpret_cast<int8_t*>(dmem + (0xFFF & (((offset) + (addr)) ^ 3))))
@@ -78,6 +94,29 @@ static inline void dma_dmem_to_rdram(uint8_t* rdram, uint32_t dmem_addr, uint32_
     assert(dmem_addr + wr_len <= 0x1000);
     for (uint32_t i = 0; i < wr_len; i++) {
         MEM_B(0, (int64_t)(int32_t)(dram_addr + i + 0x80000000)) = RSP_MEM_B(i, dmem_addr);
+    }
+}
+
+namespace recomp {
+    namespace rsp {
+        struct callbacks_t {
+            using get_rsp_microcode_t = RspUcodeFunc*(const OSTask* task);
+
+            /**
+             * Return a function pointer to the corresponding RSP microcode function for the given `task_type`.
+             *
+             * The full OSTask (`task` parameter) is passed in case the `task_type` number is not enough information to distinguish out the exact microcode function.
+             *
+             * This function is allowed to return `nullptr` if no microcode matches the specified task. In this case a message will be printed to stderr and the program will exit.
+             */
+            get_rsp_microcode_t* get_rsp_microcode;
+        };
+
+        void set_callbacks(const callbacks_t& callbacks);
+
+        void constants_init();
+
+        bool run_microcode(uint8_t* rdram, const OSTask* task);
     }
 }
 

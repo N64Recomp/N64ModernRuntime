@@ -425,10 +425,15 @@ void ultramodern::quit() {
     current_game.reset();
 }
 
-void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input_callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks_, const ultramodern::rsp::callbacks_t& rsp_callbacks_, const ultramodern::events::callbacks_t& thread_callbacks_, const ultramodern::error_handling::callbacks_t& error_handling_callbacks_) {
+void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::callbacks_t& rsp_callbacks, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input_callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks_, const ultramodern::events::callbacks_t& thread_callbacks_, const ultramodern::error_handling::callbacks_t& error_handling_callbacks_) {
     recomp::check_all_stored_roms();
 
-    ultramodern::set_callbacks(audio_callbacks, input_callbacks, gfx_callbacks_, rsp_callbacks_, thread_callbacks_, error_handling_callbacks_);
+    recomp::rsp::set_callbacks(rsp_callbacks);
+
+    ultramodern::set_callbacks(ultramodern::rsp::callbacks_t {
+        .init = recomp::rsp::constants_init,
+        .run_microcode = recomp::rsp::run_microcode,
+    }, audio_callbacks, input_callbacks, gfx_callbacks_, thread_callbacks_, error_handling_callbacks_);
 
     set_input_callbacks(input_callbacks);
 

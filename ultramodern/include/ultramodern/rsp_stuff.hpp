@@ -9,49 +9,20 @@
 
 // TODO: Move these to ultramodern namespace?
 
-enum class RspExitReason {
-    Invalid,
-    Broke,
-    ImemOverrun,
-    UnhandledJumpTarget,
-    Unsupported
-};
-
-using RspUcodeFunc = RspExitReason(uint8_t* rdram);
-
-extern uint8_t dmem[];
-extern uint16_t rspReciprocals[512];
-extern uint16_t rspInverseSquareRoots[512];
-
 namespace ultramodern {
     namespace rsp {
         struct callbacks_t {
-            using dma_rdram_to_dmem_t = void(uint8_t* rdram, uint32_t dmem_addr, uint32_t dram_addr, uint32_t rd_len);
-            using get_rsp_microcode_t = RspUcodeFunc*(uint32_t task_type, OSTask* task);
+            using init_t = void();
+            using run_microcode_t = bool(RDRAM_ARG const OSTask* task);
 
-            /**
-             * Simulate a DMA copy from RDRAM (CPU) to DMEM (RSP).
-             *
-             * This function should fill the ultramodern's `dmem` by reading from the `rdram` parameter.
-             */
-            dma_rdram_to_dmem_t* dma_rdram_to_dmem;
-
-            /**
-             * Return a function pointer to the corresponding RSP microcode function for the given `task_type`.
-             *
-             * The full OSTask (`task` parameter) is passed in case the `task_type` number is not enough information to distinguish out the exact microcode function.
-             *
-             * This function is allowed to return `nullptr` if no microcode matches the specified task. In this case a message will be printed to stderr and the program will exit.
-             */
-            get_rsp_microcode_t* get_rsp_microcode;
+            init_t* init;
+            run_microcode_t* run_microcode;
         };
 
         void set_callbacks(const callbacks_t& callbacks);
 
-        void constants_init();
-
-        RspUcodeFunc* get_microcode(uint32_t task_type, OSTask* task);
-        void run_microcode(uint8_t* rdram, const OSTask* task, RspUcodeFunc* ucode_func);
+        void init();
+        bool run_microcode(RDRAM_ARG const OSTask* task);
     };
 } // namespace ultramodern
 

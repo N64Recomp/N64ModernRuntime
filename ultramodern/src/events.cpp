@@ -213,14 +213,9 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
             return;
         }
 
-        // Ask the user what the correct ucode function is this.
-        RspUcodeFunc* ucode_func = ultramodern::rsp::get_microcode(task->t.type, task);
 
-        if (ucode_func != nullptr) {
-            ultramodern::rsp::run_microcode(rdram, task, ucode_func);
-        }
-        else {
-            fprintf(stderr, "Unknown task type: %" PRIu32 "\n", task->t.type);
+        if (!ultramodern::rsp::run_microcode(PASS_RDRAM task)) {
+            fprintf(stderr, "Failed to execute task type: %" PRIu32 "\n", task->t.type);
             assert(false);
             std::quick_exit(EXIT_FAILURE);
         }
@@ -290,7 +285,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
         threads_callbacks.gfx_init_callback();
     }
 
-    ultramodern::rsp::constants_init();
+    ultramodern::rsp::init();
 
     // Notify the caller thread that this thread is ready.
     thread_ready->signal();

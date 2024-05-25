@@ -16,6 +16,12 @@ namespace ultramodern {
             using run_microcode_t = bool(RDRAM_ARG const OSTask* task);
 
             init_t* init;
+
+            /**
+             * Executes the given RSP task.
+             *
+             * Returns true if task was executed successfully.
+             */
             run_microcode_t* run_microcode;
         };
 

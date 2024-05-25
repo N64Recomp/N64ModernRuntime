@@ -12,7 +12,7 @@
 #include "blockingconcurrentqueue.h"
 
 #include "ultra64.h"
-#include "ultramodern.hpp"
+#include "ultramodern/ultramodern.hpp"
 #include "config.hpp"
 #include "rt64_layer.h"
 #include "ultramodern/rsp.hpp"

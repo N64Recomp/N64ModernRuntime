@@ -17,9 +17,9 @@
 #include "rt64_layer.h"
 #include "rsp_stuff.hpp"
 
-static ultramodern::threads_callbacks_t threads_callbacks{};
+static ultramodern::events::callbacks_t threads_callbacks{};
 
-void set_threads_callbacks(const ultramodern::threads_callbacks_t& callbacks) {
+void ultramodern::events::set_callbacks(const ultramodern::events::callbacks_t& callbacks) {
     threads_callbacks = callbacks;
 }
 

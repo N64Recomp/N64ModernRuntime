@@ -25,8 +25,9 @@
 #   undef Success
 #endif
 
-#include <ultramodern/rsp_stuff.hpp>
-#include <ultramodern/error_handling.hpp>
+#include "ultramodern/error_handling.hpp"
+#include "ultramodern/events.hpp"
+#include "ultramodern/rsp_stuff.hpp"
 
 struct UltraThreadContext {
     std::thread host_thread;
@@ -163,27 +164,20 @@ struct gfx_callbacks_t {
     destroy_ui_t* destroy_ui;
 };
 
-struct threads_callbacks_t {
-    using vi_callback_t = void();
-    using gfx_init_callback_t = void();
-
-    /**
-     * Called in each VI.
-     */
-    vi_callback_t* vi_callback;
-
-    /**
-     * Called before entering the gfx main loop.
-     */
-    gfx_init_callback_t* gfx_init_callback;
-};
-
 bool is_game_started();
 void quit();
 void join_event_threads();
 void join_thread_cleaner_thread();
 void join_saving_thread();
 
+void set_audio_callbacks(const audio_callbacks_t& callbacks);
+
+/**
+ * Register all the callbacks required by `ultramodern`.
+ *
+ * It must be called only once and it must be called before `ultramodern::preinit`.
+ */
+void set_callbacks(const audio_callbacks_t& audio_callbacks, const input_callbacks_t& input_callbacks, const gfx_callbacks_t& gfx_callbacks_, const rsp::callbacks_t& rsp_callbacks_, const events::callbacks_t& thread_callbacks, const error_handling::callbacks_t& error_handling_callbacks);
 } // namespace ultramodern
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

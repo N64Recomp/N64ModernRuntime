@@ -2,9 +2,9 @@
 
 #include "ultramodern/error_handling.hpp"
 
-static ultramodern::error_handling::error_handling_callbacks_t error_handling_callbacks{};
+static ultramodern::error_handling::callbacks_t error_handling_callbacks{};
 
-void ultramodern::error_handling::set_error_handling_callbacks(const ultramodern::error_handling::error_handling_callbacks_t& callbacks) {
+void ultramodern::error_handling::set_callbacks(const ultramodern::error_handling::callbacks_t& callbacks) {
     error_handling_callbacks = callbacks;
 }
 

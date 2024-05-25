@@ -402,7 +402,7 @@ std::u8string recomp::current_game_id() {
     return current_game.value();
 };
 
-void recomp::start_game(std::u8string game_id) {
+void recomp::start_game(const std::u8string& game_id) {
     std::lock_guard<std::mutex> lock(current_game_mutex);
     current_game = game_id;
     game_status.store(GameStatus::Running);
@@ -412,7 +412,6 @@ bool ultramodern::is_game_started() {
     return game_status.load() != GameStatus::None;
 }
 
-void set_audio_callbacks(const ultramodern::audio_callbacks_t& callbacks);
 void set_input_callbacks(const ultramodern::input_callbacks_t& callback);
 
 std::atomic_bool exited = false;
@@ -426,11 +425,12 @@ void ultramodern::quit() {
     current_game.reset();
 }
 
-void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input_callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks_, const ultramodern::rsp::rsp_callbacks_t& rsp_callbacks_) {
+void recomp::start(ultramodern::WindowHandle window_handle, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input_callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks_, const ultramodern::rsp::callbacks_t& rsp_callbacks_, const ultramodern::events::callbacks_t& thread_callbacks_, const ultramodern::error_handling::callbacks_t& error_handling_callbacks_) {
     recomp::check_all_stored_roms();
-    set_audio_callbacks(audio_callbacks);
+
+    ultramodern::set_callbacks(audio_callbacks, input_callbacks, gfx_callbacks_, rsp_callbacks_, thread_callbacks_, error_handling_callbacks_);
+
     set_input_callbacks(input_callbacks);
-    ultramodern::rsp::set_callbacks(rsp_callbacks_);
 
     ultramodern::gfx_callbacks_t gfx_callbacks = gfx_callbacks_;
 

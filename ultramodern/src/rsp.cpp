@@ -4,9 +4,9 @@
 #include "rsp_stuff.hpp"
 
 
-static ultramodern::rsp::rsp_callbacks_t rsp_callbacks;
+static ultramodern::rsp::callbacks_t rsp_callbacks;
 
-void ultramodern::rsp::set_callbacks(const ultramodern::rsp::rsp_callbacks_t& callbacks) {
+void ultramodern::rsp::set_callbacks(const ultramodern::rsp::callbacks_t& callbacks) {
     rsp_callbacks = callbacks;
 }
 

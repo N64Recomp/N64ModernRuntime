@@ -25,13 +25,16 @@ extern uint16_t rspInverseSquareRoots[512];
 
 namespace ultramodern {
     namespace rsp {
-        struct rsp_callbacks_t {
+        struct callbacks_t {
+            using dma_rdram_to_dmem_t = void(uint8_t* rdram, uint32_t dmem_addr, uint32_t dram_addr, uint32_t rd_len);
+            using get_rsp_microcode_t = RspUcodeFunc*(uint32_t task_type, OSTask* task);
+
             /**
              * Simulate a DMA copy from RDRAM (CPU) to DMEM (RSP).
              *
              * This function should fill the ultramodern's `dmem` by reading from the `rdram` parameter.
              */
-            void (*dma_rdram_to_dmem)(uint8_t* rdram, uint32_t dmem_addr, uint32_t dram_addr, uint32_t rd_len);
+            dma_rdram_to_dmem_t* dma_rdram_to_dmem;
 
             /**
              * Return a function pointer to the corresponding RSP microcode function for the given `task_type`.
@@ -40,10 +43,10 @@ namespace ultramodern {
              *
              * This function is allowed to return `nullptr` if no microcode matches the specified task. In this case a message will be printed to stderr and the program will exit.
              */
-            RspUcodeFunc* (*get_rsp_microcode)(uint32_t task_type, OSTask* task);
+            get_rsp_microcode_t* get_rsp_microcode;
         };
 
-        void set_callbacks(const rsp_callbacks_t& callbacks);
+        void set_callbacks(const callbacks_t& callbacks);
 
         void constants_init();
 

@@ -1,10 +1,9 @@
 #ifndef __ERROR_HANDLING_HPP__
 #define __ERROR_HANDLING_HPP__
 
-
 namespace ultramodern {
     namespace error_handling {
-        struct error_handling_callbacks_t {
+        struct callbacks_t {
             using message_box_t = void(const char* msg);
 
             /**
@@ -15,7 +14,7 @@ namespace ultramodern {
             message_box_t *message_box;
         };
 
-        void set_error_handling_callbacks(const error_handling_callbacks_t& callbacks);
+        void set_callbacks(const callbacks_t& callbacks);
 
         void message_box(const char* msg);
     }

@@ -6,7 +6,7 @@ static uint32_t sample_rate = 48000;
 
 static ultramodern::audio_callbacks_t audio_callbacks;
 
-void set_audio_callbacks(const ultramodern::audio_callbacks_t& callbacks) {
+void ultramodern::set_audio_callbacks(const ultramodern::audio_callbacks_t& callbacks) {
     audio_callbacks = callbacks;
 }
 

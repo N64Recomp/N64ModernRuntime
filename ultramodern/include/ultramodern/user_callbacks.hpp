@@ -13,12 +13,6 @@ namespace ultramodern {
 
         void (*update_rumble)();
         void (*update_supported_options)();
-
-        /**
-         * Show an OS dialog with the given `msg`.
-         * `msg` is non-`nullptr`.
-         */
-        void (*message_box)(const char* msg);
     };
 
     /**

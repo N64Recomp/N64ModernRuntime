@@ -200,8 +200,6 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
     // Notify the caller thread that this thread is ready.
     thread_ready->signal();
 
-    auto& user_callbacks = ultramodern::get_user_callbacks();
-
     while (true) {
         // Wait until an RSP task has been sent
         OSTask* task;
@@ -543,16 +541,9 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle)
     ultramodern::RT64SetupResult setup_result = rt64_setup_result.load();
     if (rt64_setup_result != ultramodern::RT64SetupResult::Success) {
         auto show_rt64_error = [](const std::string& msg) {
-            auto& user_callbacks = ultramodern::get_user_callbacks();
             std::string error_msg = "An error has been encountered on startup: " + msg;
 
-            // We print the message to stderr since the user may not have provided a message_box callback
-            // TODO: is fprintf ok? or do we prefer using something more C++'ish?
-            fprintf(stderr, "%s\n", error_msg.c_str());
-
-            if (user_callbacks.message_box != nullptr) {
-                user_callbacks.message_box(error_msg.c_str());
-            }
+            ultramodern::error_handling::message_box(error_msg.c_str());
         };
 
         const std::string driver_os_suffix = "\nPlease make sure your GPU drivers and your OS are up to date.";

@@ -26,6 +26,7 @@
 #endif
 
 #include <ultramodern/rsp_stuff.hpp>
+#include <ultramodern/error_handling.hpp>
 
 struct UltraThreadContext {
     std::thread host_thread;

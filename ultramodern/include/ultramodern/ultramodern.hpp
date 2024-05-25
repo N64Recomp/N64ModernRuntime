@@ -146,7 +146,7 @@ struct input_callbacks_t {
     set_rumble_t* set_rumble;
 };
 
-// TODO: This really isn't used by ultramodern. Should we move it to librecomp instead?
+// TODO: Most of the members of this struct are not used by ultramodern. Should we move them to librecomp instead?
 struct gfx_callbacks_t {
     using gfx_data_t = void*;
     using create_gfx_t = gfx_data_t();
@@ -161,6 +161,21 @@ struct gfx_callbacks_t {
     // TODO: Since we have a destroy_ui we could provide an init_ui?
     // void (*init_ui)();
     destroy_ui_t* destroy_ui;
+};
+
+struct threads_callbacks_t {
+    using vi_callback_t = void();
+    using gfx_init_callback_t = void();
+
+    /**
+     * Called in each VI.
+     */
+    vi_callback_t* vi_callback;
+
+    /**
+     * Called before entering the gfx main loop.
+     */
+    gfx_init_callback_t* gfx_init_callback;
 };
 
 bool is_game_started();

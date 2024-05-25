@@ -15,8 +15,13 @@
 #include "ultramodern.hpp"
 #include "config.hpp"
 #include "rt64_layer.h"
-#include "user_callbacks.hpp"
 #include "rsp_stuff.hpp"
+
+static ultramodern::threads_callbacks_t threads_callbacks{};
+
+void set_threads_callbacks(const ultramodern::threads_callbacks_t& callbacks) {
+    threads_callbacks = callbacks;
+}
 
 struct SpTaskAction {
     OSTask task;
@@ -115,7 +120,6 @@ void vi_thread_func() {
     using namespace std::chrono_literals;
 
     int remaining_retraces = events_context.vi.retrace_count;
-    auto& user_callbacks = ultramodern::get_user_callbacks();
 
     while (!exited) {
         // Determine the next VI time (more accurate than adding 16ms each VI interrupt)
@@ -175,8 +179,8 @@ void vi_thread_func() {
             }
         }
 
-        if (user_callbacks.update_rumble != nullptr) {
-            user_callbacks.update_rumble();
+        if (threads_callbacks.vi_callback != nullptr) {
+            threads_callbacks.vi_callback();
         }
     }
 }
@@ -274,8 +278,6 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
 
     ultramodern::RT64Context rt64{rdram, window_handle, cur_config.load().developer_mode};
 
-    auto& user_callbacks = ultramodern::get_user_callbacks();
-
     if (!rt64.valid()) {
         // TODO move recomp code out of ultramodern.
         rt64_setup_result.store(rt64.get_setup_result());
@@ -284,8 +286,8 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
         return;
     }
 
-    if (user_callbacks.update_supported_options != nullptr) {
-        user_callbacks.update_supported_options();
+    if (threads_callbacks.gfx_init_callback != nullptr) {
+        threads_callbacks.gfx_init_callback();
     }
 
     ultramodern::rsp::constants_init();

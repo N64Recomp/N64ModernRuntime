@@ -23,7 +23,6 @@ add_library(ultramodern STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/threads.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/timer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ultrainit.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/user_callbacks.cpp"
 )
 
 target_include_directories(ultramodern PUBLIC

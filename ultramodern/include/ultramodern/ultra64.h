@@ -35,9 +35,9 @@ typedef uint8_t u8;
 #  endif
 #else
 #  define PTR(x) int32_t
-#  define RDRAM_ARG uint8_t *rdram, 
+#  define RDRAM_ARG uint8_t *rdram,
 #  define RDRAM_ARG1 uint8_t *rdram
-#  define PASS_RDRAM rdram, 
+#  define PASS_RDRAM rdram,
 #  define PASS_RDRAM1 rdram
 #  define TO_PTR(type, var) ((type*)(&rdram[(uint64_t)var - 0xFFFFFFFF80000000]))
 #  define GET_MEMBER(type, addr, member) (addr + (intptr_t)&(((type*)nullptr)->member))
@@ -214,6 +214,63 @@ typedef struct {
     OSViFieldRegs  fldRegs[2];
 } OSViMode;
 
+/// os_pfs.h
+
+
+/*
+ * Structure for file system
+ */
+typedef struct {
+    int status;
+    PTR(OSMesgQueue) queue;
+    int channel;
+    u8 id[32];
+    u8 label[32];
+    int version;
+    int dir_size;
+    int inode_table; /* block location */
+    int minode_table; /* mirrioring inode_table */
+    int dir_table; /* block location */
+    int inode_start_page; /* page # */
+
+    // These two members reversed due to endianness
+    u16 padding;
+    u8 activebank;
+    u8 banks;
+} OSPfs;
+
+typedef struct {
+    u32 file_size; /* bytes */
+    u32 game_code;
+#if 0
+    // I'm not sure how this should look like due to endianness
+    u16 company_code;
+    char ext_name[4];
+    char game_name[16];
+#endif
+} OSPfsState;
+
+
+/* File System error number */
+
+#define PFS_ERR_NOPACK          1   /* no memory card is plugged or */
+#define PFS_ERR_NEW_PACK        2   /* ram pack has been changed to a different one */
+#define PFS_ERR_INCONSISTENT    3   /* need to run Pfschecker*/
+#define PFS_ERR_CONTRFAIL       CONT_OVERRUN_ERROR              
+#define PFS_ERR_INVALID         5   /* invalid parameter or file not exist*/
+#define PFS_ERR_BAD_DATA        6   /* the data read from pack are bad*/
+#define PFS_DATA_FULL           7   /* no free pages on ram pack*/
+#define PFS_DIR_FULL            8   /* no free directories on ram pack*/
+#define PFS_ERR_EXIST           9   /* file exists*/
+#define PFS_ERR_ID_FATAL        10  /* dead ram pack */
+#define PFS_ERR_DEVICE          11  /* wrong device type*/
+#define PFS_ERR_NO_GBCART       12  /* no gb cartridge (64GB-PAK) */
+#define PFS_ERR_NEW_GBCART      13  /* gb cartridge may be changed */
+
+
+/// os_pfs.h
+
+
 ///////////////
 // Functions //
 ///////////////
@@ -254,6 +311,22 @@ OSTime osGetTime();
 int osSetTimer(RDRAM_ARG PTR(OSTimer) timer, OSTime countdown, OSTime interval, PTR(OSMesgQueue) mq, OSMesg msg);
 int osStopTimer(RDRAM_ARG PTR(OSTimer) timer);
 u32 osVirtualToPhysical(PTR(void) addr);
+
+s32 osPfsInitPak(RDRAM_ARG PTR(OSMesgQueue), PTR(OSPfs), int);
+s32 osPfsRepairId(RDRAM_ARG PTR(OSPfs));
+s32 osPfsInit(RDRAM_ARG PTR(OSMesgQueue), PTR(OSPfs), int);
+s32 osPfsReFormat(RDRAM_ARG PTR(OSPfs), PTR(OSMesgQueue), int);
+s32 osPfsChecker(RDRAM_ARG PTR(OSPfs));
+s32 osPfsAllocateFile(RDRAM_ARG PTR(OSPfs), u16, u32, PTR(u8), PTR(u8), int, PTR(s32));
+s32 osPfsFindFile(RDRAM_ARG PTR(OSPfs), u16, u32, PTR(u8), PTR(u8), PTR(s32));
+s32 osPfsDeleteFile(RDRAM_ARG PTR(OSPfs), u16, u32, PTR(u8), PTR(u8));
+s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs), s32, u8, int, int, PTR(u8));
+s32 osPfsFileState(RDRAM_ARG PTR(OSPfs), s32, PTR(OSPfsState));
+s32 osPfsGetLabel(RDRAM_ARG PTR(OSPfs), PTR(u8), PTR(int));
+s32 osPfsSetLabel(RDRAM_ARG PTR(OSPfs), PTR(u8));
+s32 osPfsIsPlug(RDRAM_ARG PTR(OSMesgQueue), PTR(u8));
+s32 osPfsFreeBlocks(RDRAM_ARG PTR(OSPfs), PTR(s32));
+s32 osPfsNumFiles(RDRAM_ARG PTR(OSPfs), PTR(s32), PTR(s32));
 
 #ifdef __cplusplus
 } // extern "C"

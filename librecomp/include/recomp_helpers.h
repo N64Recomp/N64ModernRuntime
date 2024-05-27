@@ -6,8 +6,31 @@
 
 template<int index, typename T>
 T _arg(uint8_t* rdram, recomp_context* ctx) {
-    static_assert(index < 4, "Only args 0 through 3 supported");
-    gpr raw_arg = (&ctx->r4)[index];
+    static_assert(index >= 0, "");
+    gpr raw_arg;
+
+    switch (index) {
+        case 0:
+            raw_arg = ctx->r4;
+            break;
+
+        case 1:
+            raw_arg = ctx->r5;
+            break;
+
+        case 2:
+            raw_arg = ctx->r6;
+            break;
+
+        case 3:
+            raw_arg = ctx->r7;
+            break;
+
+        default:
+            raw_arg = MEM_W(4 * index, ctx->r29);
+            break;
+    }
+
     if constexpr (std::is_same_v<T, float>) {
         if constexpr (index < 2) {
             static_assert(index != 1, "Floats in arg 1 not supported");

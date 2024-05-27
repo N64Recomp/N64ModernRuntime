@@ -16,7 +16,8 @@ namespace recomp {
         std::span<const char> cache_data;
         bool is_enabled;
 
-        void (*entrypoint)();
+        gpr entrypoint_address;
+        void (*entrypoint)(uint8_t* rdram, recomp_context* context);
 
         std::u8string stored_filename() const;
     };

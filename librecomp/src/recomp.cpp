@@ -346,23 +346,15 @@ void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t ar
     func(rdram, &ctx);
 }
 
-// Recomp generation functions
-extern "C" void recomp_entrypoint(uint8_t * rdram, recomp_context * ctx);
-gpr get_entrypoint_address();
-const char* get_rom_name();
-
 void read_patch_data(uint8_t* rdram, gpr patch_data_address) {
     for (size_t i = 0; i < patch_data.size(); i++) {
         MEM_B(i, patch_data_address) = patch_data[i];
     }
 }
 
-void init(uint8_t* rdram, recomp_context* ctx) {
+void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
     // Initialize the overlays
     init_overlays();
-
-    // Get entrypoint from recomp function
-    gpr entrypoint = get_entrypoint_address();
 
     // Load overlays in the first 1MB
     load_overlays(0x1000, (int32_t)entrypoint, 1024 * 1024);
@@ -483,9 +475,9 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
                     const recomp::GameEntry& game_entry = find_it->second;
 
                     ultramodern::load_shader_cache(game_entry.cache_data);
-                    init(rdram, &context);
+                    init(rdram, &context, game_entry.entrypoint_address);
                     try {
-                        recomp_entrypoint(rdram, &context);
+                        game_entry.entrypoint(rdram, &context);
                     } catch (ultramodern::thread_terminated& terminated) {
 
                     }

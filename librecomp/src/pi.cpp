@@ -94,10 +94,9 @@ struct {
 } save_context;
 
 const std::u8string save_folder = u8"saves";
-const std::u8string save_filename = std::u8string{recomp::current_game_id()} + u8".bin";
 
 std::filesystem::path get_save_file_path() {
-    return recomp::get_app_folder_path() / save_folder / save_filename;
+    return recomp::get_app_folder_path() / save_folder / (std::u8string{recomp::current_game_id()} + u8".bin");
 }
 
 void update_save_file() {

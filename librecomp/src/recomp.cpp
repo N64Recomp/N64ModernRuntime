@@ -61,6 +61,7 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
 
 void recomp::register_patch(const char* patch, std::size_t size) {
     std::lock_guard<std::mutex> lock(patch_data_mutex);
+    patch_data.resize(size);
     std::memcpy(patch_data.data(), patch, size);
 }
 

@@ -378,6 +378,7 @@ void recomp::start_game(const std::u8string& game_id) {
     std::lock_guard<std::mutex> lock(current_game_mutex);
     current_game = game_id;
     game_status.store(GameStatus::Running);
+    game_status.notify_all();
 }
 
 bool ultramodern::is_game_started() {

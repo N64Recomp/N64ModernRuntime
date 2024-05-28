@@ -49,16 +49,6 @@ std::mutex current_game_mutex;
 std::vector<char> patch_data;
 std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
 
-static std::u8string program_id = u8"";
-
-const std::u8string& recomp::get_program_id() {
-    return program_id;
-}
-
-void recomp::set_program_id(const std::u8string& program_id_) {
-    program_id = program_id_;
-}
-
 std::u8string recomp::GameEntry::stored_filename() const {
     return game_id + u8".z64";
 }
@@ -115,7 +105,7 @@ std::filesystem::path recomp::get_app_folder_path() {
    PWSTR known_path = NULL;
    HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &known_path);
    if (result == S_OK) {
-       recomp_dir = std::filesystem::path{known_path} / recomp::get_program_id();
+       recomp_dir = std::filesystem::path{known_path} / recomp::current_game_id();
    }
 
    CoTaskMemFree(known_path);
@@ -127,7 +117,7 @@ std::filesystem::path recomp::get_app_folder_path() {
    }
 
    if (homedir != nullptr) {
-       recomp_dir = std::filesystem::path{homedir} / (std::u8string{u8".config/"} + recomp::get_program_id());
+       recomp_dir = std::filesystem::path{homedir} / (std::u8string{u8".config/"} + recomp::current_game_id());
    }
 #endif
 

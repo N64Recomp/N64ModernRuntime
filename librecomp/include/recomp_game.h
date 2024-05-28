@@ -44,10 +44,6 @@ namespace recomp {
 	void start_game(const std::u8string& game_id);
 	std::filesystem::path get_app_folder_path();
 	std::u8string current_game_id();
-
-	// TODO: implement both
-	const std::u8string& get_program_id();
-	void set_program_id(const std::u8string& program_id);
 }
 
 #endif

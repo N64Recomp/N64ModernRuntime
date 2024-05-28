@@ -16,8 +16,9 @@ namespace recomp {
         size_t len;
     };
 
-    extern void register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays);
-    extern void register_patch_section(SectionTableEntry* code_sections);
+    void register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays);
+    void register_patch_section(SectionTableEntry* code_sections);
+    void load_patch_functions();
 };
 
 extern "C" void load_overlays(uint32_t rom, int32_t ram_addr, uint32_t size);

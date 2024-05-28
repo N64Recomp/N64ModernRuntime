@@ -142,8 +142,6 @@ extern "C" void unload_overlays(int32_t ram_addr, uint32_t size) {
     }
 }
 
-void load_patch_functions();
-
 void init_overlays() {
     section_addresses = (int32_t *)malloc(sections_info.total_num_sections * sizeof(int32_t));
 
@@ -158,7 +156,7 @@ void init_overlays() {
         }
     );
 
-    load_patch_functions();
+    recomp::load_patch_functions();
 }
 
 extern "C" recomp_func_t * get_function(int32_t addr) {

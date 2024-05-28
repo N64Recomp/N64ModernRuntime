@@ -9,10 +9,10 @@ static SectionTableEntry* code_sections = nullptr;
 
 void load_special_overlay(const SectionTableEntry& section, int32_t ram);
 
-void register_patch_section(SectionTableEntry* sections) {
+void recomp::register_patch_section(SectionTableEntry* sections) {
     code_sections = sections;
 }
 
-void load_patch_functions() {
+void recomp::load_patch_functions() {
     load_special_overlay(code_sections[0], code_sections[0].ram_addr);
 }

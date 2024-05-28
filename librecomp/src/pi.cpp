@@ -95,6 +95,8 @@ struct {
 
 const std::u8string save_folder = u8"saves";
 
+extern std::filesystem::path config_path;
+
 std::filesystem::path get_save_file_path() {
     return config_path / save_folder / (std::u8string{recomp::current_game_id()} + u8".bin");
 }

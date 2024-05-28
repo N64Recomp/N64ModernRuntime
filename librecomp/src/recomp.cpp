@@ -450,6 +450,8 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
                         ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
                     }
 
+                    ultramodern::init_saving(rdram);
+
                     auto find_it = game_roms.find(current_game.value());
                     const recomp::GameEntry& game_entry = find_it->second;
 

@@ -49,6 +49,16 @@ std::mutex current_game_mutex;
 std::vector<char> patch_data;
 std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
 
+static std::u8string program_id = u8"";
+
+const std::u8string& recomp::get_program_id() {
+    return program_id;
+}
+
+void recomp::set_program_id(const std::u8string& program_id_) {
+    program_id = program_id_;
+}
+
 std::u8string recomp::GameEntry::stored_filename() const {
     return game_id + u8".z64";
 }

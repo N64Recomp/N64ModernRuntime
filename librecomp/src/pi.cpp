@@ -101,15 +101,30 @@ std::filesystem::path get_save_file_path() {
     return config_path / save_folder / (std::u8string{recomp::current_game_id()} + u8".bin");
 }
 
+std::filesystem::path get_save_file_path_temp() {
+    return config_path / save_folder / (recomp::current_game_id() + u8".bin.temp");
+}
+
+std::filesystem::path get_save_file_path_backup() {
+    return config_path / save_folder / (recomp::current_game_id() + u8".bin.bak");
+}
+
 void update_save_file() {
-    std::ofstream save_file{ get_save_file_path(), std::ios_base::binary };
+    std::ofstream save_file{ get_save_file_path_temp(), std::ios_base::binary };
 
     if (save_file.good()) {
         std::lock_guard lock{ save_context.save_buffer_mutex };
         save_file.write(save_context.save_buffer.data(), save_context.save_buffer.size());
+
+        if (std::filesystem::exists(get_save_file_path())) {
+            std::filesystem::rename(get_save_file_path(), get_save_file_path_backup());
+        } else {
+            printf("\nSavefile doesn't exist. Skip renaming.\n");
+        }
+        std::filesystem::rename(get_save_file_path_temp(), get_save_file_path());
     } else {
-        fprintf(stderr, "Failed to save!\n");
-        std::exit(EXIT_FAILURE);
+        ultramodern::error_handling::message_box("Failed to write to the save file. Check your file permissions. If you have moved your appdata folder to Dropbox or similar, this can cause issues.");
+        // std::exit(EXIT_FAILURE);
     }
 }
 
@@ -176,6 +191,7 @@ void save_clear(uint32_t start, uint32_t size, char value) {
 
 void ultramodern::init_saving(RDRAM_ARG1) {
     std::filesystem::path save_file_path = get_save_file_path();
+    std::filesystem::path save_file_path_backup = get_save_file_path_backup();
 
     // Ensure the save file directory exists.
     std::filesystem::create_directories(save_file_path.parent_path());
@@ -185,8 +201,14 @@ void ultramodern::init_saving(RDRAM_ARG1) {
     if (save_file.good()) {
         save_file.read(save_context.save_buffer.data(), save_context.save_buffer.size());
     } else {
-        // Otherwise clear the save file to all zeroes.
-        save_context.save_buffer.fill(0);
+        // Reading the save file faield, so try to read the backup save file.
+        std::ifstream save_file_backup{ save_file_path_backup, std::ios_base::binary };
+        if (save_file_backup.good()) {
+            save_file_backup.read(save_context.save_buffer.data(), save_context.save_buffer.size());
+        } else {
+            // Otherwise clear the save file to all zeroes.
+            save_context.save_buffer.fill(0);
+        }
     }
 
     save_context.saving_thread = std::thread{saving_thread_func, PASS_RDRAM};

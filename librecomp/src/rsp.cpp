@@ -33,11 +33,12 @@ void recomp::rsp::constants_init() {
 }
 
 // Runs a recompiled RSP microcode
-bool recomp::rsp::run_microcode(uint8_t* rdram, const OSTask* task) {
+bool recomp::rsp::run_task(uint8_t* rdram, const OSTask* task) {
     assert(rsp_callbacks.get_rsp_microcode != nullptr);
     RspUcodeFunc* ucode_func = rsp_callbacks.get_rsp_microcode(task);
 
     if (ucode_func == nullptr) {
+        fprintf(stderr, "No registered RSP ucode for %" PRIu32 " (returned `nullptr`)\n", task->t.type);
         return false;
     }
 

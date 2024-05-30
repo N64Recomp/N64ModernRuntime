@@ -22,13 +22,13 @@ namespace ultramodern {
              *
              * Returns true if task was executed successfully.
              */
-            run_microcode_t* run_microcode;
+            run_microcode_t* run_task;
         };
 
         void set_callbacks(const callbacks_t& callbacks);
 
         void init();
-        bool run_microcode(RDRAM_ARG const OSTask* task);
+        bool run_task(RDRAM_ARG const OSTask* task);
     };
 } // namespace ultramodern
 

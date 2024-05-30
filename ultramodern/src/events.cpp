@@ -17,10 +17,10 @@
 #include "rt64_layer.h"
 #include "ultramodern/rsp.hpp"
 
-static ultramodern::events::callbacks_t threads_callbacks{};
+static ultramodern::events::callbacks_t events_callbacks{};
 
 void ultramodern::events::set_callbacks(const ultramodern::events::callbacks_t& callbacks) {
-    threads_callbacks = callbacks;
+    events_callbacks = callbacks;
 }
 
 struct SpTaskAction {
@@ -179,8 +179,8 @@ void vi_thread_func() {
             }
         }
 
-        if (threads_callbacks.vi_callback != nullptr) {
-            threads_callbacks.vi_callback();
+        if (events_callbacks.vi_callback != nullptr) {
+            events_callbacks.vi_callback();
         }
     }
 }
@@ -214,7 +214,7 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
         }
 
 
-        if (!ultramodern::rsp::run_microcode(PASS_RDRAM task)) {
+        if (!ultramodern::rsp::run_task(PASS_RDRAM task)) {
             fprintf(stderr, "Failed to execute task type: %" PRIu32 "\n", task->t.type);
             assert(false);
             std::quick_exit(EXIT_FAILURE);
@@ -281,8 +281,8 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
         return;
     }
 
-    if (threads_callbacks.gfx_init_callback != nullptr) {
-        threads_callbacks.gfx_init_callback();
+    if (events_callbacks.gfx_init_callback != nullptr) {
+        events_callbacks.gfx_init_callback();
     }
 
     ultramodern::rsp::init();

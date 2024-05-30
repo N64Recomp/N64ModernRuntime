@@ -15,8 +15,8 @@ void ultramodern::rsp::init() {
     }
 }
 
-bool ultramodern::rsp::run_microcode(RDRAM_ARG const OSTask* task) {
-    assert(rsp_callbacks.run_microcode != nullptr);
+bool ultramodern::rsp::run_task(RDRAM_ARG const OSTask* task) {
+    assert(rsp_callbacks.run_task != nullptr);
 
-    return rsp_callbacks.run_microcode(PASS_RDRAM task);
+    return rsp_callbacks.run_task(PASS_RDRAM task);
 }

@@ -116,7 +116,7 @@ namespace recomp {
 
         void constants_init();
 
-        bool run_microcode(uint8_t* rdram, const OSTask* task);
+        bool run_task(uint8_t* rdram, const OSTask* task);
     }
 }
 

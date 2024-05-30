@@ -430,10 +430,12 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
 
     recomp::rsp::set_callbacks(rsp_callbacks);
 
-    ultramodern::set_callbacks(ultramodern::rsp::callbacks_t {
+    static const ultramodern::rsp::callbacks_t ultramodern_rsp_callbacks {
         .init = recomp::rsp::constants_init,
-        .run_microcode = recomp::rsp::run_microcode,
-    }, audio_callbacks, input_callbacks, gfx_callbacks_, thread_callbacks_, error_handling_callbacks_);
+        .run_task = recomp::rsp::run_task,
+    };
+
+    ultramodern::set_callbacks(ultramodern_rsp_callbacks, audio_callbacks, input_callbacks, gfx_callbacks_, thread_callbacks_, error_handling_callbacks_);
 
     set_input_callbacks(input_callbacks);
 
@@ -504,12 +506,6 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
         if (gfx_callbacks.update_gfx != nullptr) {
             gfx_callbacks.update_gfx(gfx_data);
         }
-    }
-
-    // moved from ultarmodern/src/events.cpp/gfx_thread_func
-    // TODO: is it fine to have it here?
-    if (gfx_callbacks.destroy_ui != nullptr) {
-        gfx_callbacks.destroy_ui();
     }
 
     game_thread.join();

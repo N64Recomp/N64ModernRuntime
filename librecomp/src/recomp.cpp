@@ -21,7 +21,8 @@
 #include "recomp_overlays.h"
 #include "recomp_game.h"
 #include "xxHash/xxh3.h"
-#include <ultramodern/ultramodern.hpp>
+#include "ultramodern/ultramodern.hpp"
+#include "ultramodern/error_handling.hpp"
 
 #ifdef _MSC_VER
 inline uint32_t byteswap(uint32_t val) {
@@ -475,7 +476,7 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
             case GameStatus::Running:
                 {
                     if (!recomp::load_stored_rom(current_game.value())) {
-                        recomp::message_box("Error opening stored ROM! Please restart this program.");
+                        ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
                     }
 
                     auto find_it = game_roms.find(current_game.value());

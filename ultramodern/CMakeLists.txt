@@ -24,8 +24,8 @@ add_library(ultramodern STATIC
 
 target_include_directories(ultramodern PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include/"
-    "${CMAKE_SOURCE_DIR}/thirdparty/concurrentqueue"
-    "${CMAKE_SOURCE_DIR}/thirdparty/sse2neon"
+    "${PROJECT_SOURCE_DIR}/../thirdparty/concurrentqueue"
+    "${PROJECT_SOURCE_DIR}/../thirdparty/sse2neon"
 )
 
 target_include_directories(ultramodern PRIVATE
@@ -34,13 +34,13 @@ target_include_directories(ultramodern PRIVATE
 
 # TODO: remove when rt64 is no longer a hard dependency
 target_include_directories(ultramodern PRIVATE
-    "${CMAKE_SOURCE_DIR}/rt64/src"
-    "${CMAKE_SOURCE_DIR}/rt64/src/contrib"
-    "${CMAKE_SOURCE_DIR}/rt64/src/contrib/hlslpp/include"
-    "${CMAKE_SOURCE_DIR}/rt64/src/contrib/dxc/inc"
-    "${CMAKE_SOURCE_DIR}/rt64/src/rhi"
-    "${CMAKE_SOURCE_DIR}/rt64/src/render"
-    "${CMAKE_SOURCE_DIR}/rt64/src/contrib/nativefiledialog-extended/src/include"
+    "${PROJECT_SOURCE_DIR}/../rt64/src"
+    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib"
+    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib/hlslpp/include"
+    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib/dxc/inc"
+    "${PROJECT_SOURCE_DIR}/../rt64/src/rhi"
+    "${PROJECT_SOURCE_DIR}/../rt64/src/render"
+    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib/nativefiledialog-extended/src/include"
 )
 
 # TODO: remove when librecomp is untangled from ultramodern

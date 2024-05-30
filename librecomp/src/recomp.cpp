@@ -11,12 +11,6 @@
 #include <mutex>
 #include <array>
 
-#ifdef _WIN32
-#include <Shlobj.h>
-#elif defined(__linux__)
-#include <pwd.h>
-#endif
-
 #include "recomp.h"
 #include "recomp_overlays.h"
 #include "recomp_game.h"

@@ -52,6 +52,12 @@ namespace ultramodern {
         Window window;
         auto operator<=>(const WindowHandle&) const = default;
     };
+#elif defined(__APPLE__)
+    struct WindowHandle {
+        void* window;
+        void* view;
+        auto operator<=>(const WindowHandle&) const = default;
+    };
 #endif
 
 // We need a place in rdram to hold the PI handles, so pick an address in extended rdram

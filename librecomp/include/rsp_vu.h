@@ -110,8 +110,8 @@ struct RSP {
         bool divdp;
     } vpu;
 
-    static constexpr r128 zero{0};
-    static constexpr r128 invert{(uint64_t)-1, (uint64_t)-1};
+    static constexpr r128 zero{{0}};
+    static constexpr r128 invert{{(uint64_t)-1, (uint64_t)-1}};
 
     inline auto accumulatorGet(u32 index) const -> u64;
     inline auto accumulatorSet(u32 index, u64 value) -> void;

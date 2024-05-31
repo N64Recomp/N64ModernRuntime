@@ -172,7 +172,7 @@ void set_audio_callbacks(const audio_callbacks_t& callbacks);
  *
  * It must be called only once and it must be called before `ultramodern::preinit`.
  */
-void set_callbacks(const rsp::callbacks_t& rsp_callbacks, const audio_callbacks_t& audio_callbacks, const input_callbacks_t& input_callbacks, const gfx_callbacks_t& gfx_callbacks, const events::callbacks_t& thread_callbacks, const error_handling::callbacks_t& error_handling_callbacks);
+void set_callbacks(const rsp::callbacks_t& rsp_callbacks, const audio_callbacks_t& audio_callbacks, const input_callbacks_t& input_callbacks, const gfx_callbacks_t& gfx_callbacks, const events::callbacks_t& events_callbacks, const error_handling::callbacks_t& error_handling_callbacks);
 } // namespace ultramodern
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

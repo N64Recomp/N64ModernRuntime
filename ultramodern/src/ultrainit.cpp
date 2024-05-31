@@ -1,5 +1,5 @@
-#include "ultra64.h"
-#include "ultramodern.hpp"
+#include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
 
 void ultramodern::set_callbacks(
     const rsp::callbacks_t& rsp_callbacks,

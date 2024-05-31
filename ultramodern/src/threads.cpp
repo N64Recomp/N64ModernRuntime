@@ -3,8 +3,8 @@
 #include <cassert>
 #include <string>
 
-#include "ultra64.h"
-#include "ultramodern.hpp"
+#include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
 #include "blockingconcurrentqueue.h"
 
 // Native APIs only used to set thread names for easier debugging

@@ -11,10 +11,10 @@
 
 #include "blockingconcurrentqueue.h"
 
-#include "ultra64.h"
+#include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
-#include "config.hpp"
-#include "rt64_layer.hpp"
+#include "ultramodern/config.hpp"
+
 #include "ultramodern/rsp.hpp"
 #include "ultramodern/renderer_wrapper.hpp"
 

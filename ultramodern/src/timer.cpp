@@ -3,8 +3,8 @@
 #include <set>
 #include "blockingconcurrentqueue.h"
 
-#include "ultra64.h"
-#include "ultramodern.hpp"
+#include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN

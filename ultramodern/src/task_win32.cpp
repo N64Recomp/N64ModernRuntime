@@ -2,8 +2,8 @@
 
 #include <Windows.h>
 
-#include "ultra64.h"
-#include "ultramodern.hpp"
+#include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
 
 extern "C" unsigned int sleep(unsigned int seconds) {
     Sleep(seconds * 1000);

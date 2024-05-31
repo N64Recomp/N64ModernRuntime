@@ -17,7 +17,6 @@ add_library(ultramodern STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesgqueue.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/misc_ultra.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rsp.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/rt64_layer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scheduling.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/task_win32.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/threadqueue.cpp"
@@ -30,10 +29,6 @@ target_include_directories(ultramodern PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include/"
     "${PROJECT_SOURCE_DIR}/../thirdparty/concurrentqueue"
     "${PROJECT_SOURCE_DIR}/../thirdparty/sse2neon"
-)
-
-target_include_directories(ultramodern PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/ultramodern"
 )
 
 # TODO: remove when rt64 is no longer a hard dependency

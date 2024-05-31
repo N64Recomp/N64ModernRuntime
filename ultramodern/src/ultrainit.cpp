@@ -3,6 +3,7 @@
 
 void ultramodern::set_callbacks(
     const rsp::callbacks_t& rsp_callbacks,
+    const renderer::callbacks_t& renderer_callbacks,
     const audio_callbacks_t& audio_callbacks,
     const input::callbacks_t& input_callbacks,
     const gfx_callbacks_t& gfx_callbacks,
@@ -15,6 +16,7 @@ void ultramodern::set_callbacks(
     (void)gfx_callbacks; // nothing yet
     ultramodern::events::set_callbacks(thread_callbacks);
     ultramodern::error_handling::set_callbacks(error_handling_callbacks);
+    ultramodern::renderer::set_callbacks(renderer_callbacks);
 }
 
 void ultramodern::preinit(RDRAM_ARG ultramodern::WindowHandle window_handle) {

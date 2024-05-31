@@ -25,6 +25,10 @@
 #   undef Success
 #endif
 
+#include "ultramodern/error_handling.hpp"
+#include "ultramodern/events.hpp"
+#include "ultramodern/rsp.hpp"
+
 struct UltraThreadContext {
     std::thread host_thread;
     moodycamel::LightweightSemaphore running;
@@ -132,6 +136,7 @@ struct audio_callbacks_t {
     set_frequency_t* set_frequency;
 };
 
+// TODO: These functions are currently called by librecomp, but will get called by ultramodern in the future
 // Input
 struct input_callbacks_t {
     using poll_input_t = void(void);
@@ -142,21 +147,32 @@ struct input_callbacks_t {
     set_rumble_t* set_rumble;
 };
 
+// TODO: Most of the members of this struct are not used by ultramodern. Should we move them to librecomp instead?
 struct gfx_callbacks_t {
     using gfx_data_t = void*;
     using create_gfx_t = gfx_data_t();
     using create_window_t = WindowHandle(gfx_data_t);
     using update_gfx_t = void(gfx_data_t);
+
     create_gfx_t* create_gfx;
     create_window_t* create_window;
     update_gfx_t* update_gfx;
 };
+
 bool is_game_started();
 void quit();
 void join_event_threads();
 void join_thread_cleaner_thread();
 void join_saving_thread();
 
+void set_audio_callbacks(const audio_callbacks_t& callbacks);
+
+/**
+ * Register all the callbacks used by `ultramodern`, most of them being optional.
+ *
+ * It must be called only once and it must be called before `ultramodern::preinit`.
+ */
+void set_callbacks(const rsp::callbacks_t& rsp_callbacks, const audio_callbacks_t& audio_callbacks, const input_callbacks_t& input_callbacks, const gfx_callbacks_t& gfx_callbacks, const events::callbacks_t& events_callbacks, const error_handling::callbacks_t& error_handling_callbacks);
 } // namespace ultramodern
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

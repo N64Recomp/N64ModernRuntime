@@ -4,7 +4,6 @@
 
 #include "ultra64.h"
 #include "ultramodern.hpp"
-#include "recomp.h"
 
 struct QueuedMessage {
     PTR(OSMesgQueue) mq;

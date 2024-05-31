@@ -12,14 +12,16 @@
 #include "blockingconcurrentqueue.h"
 
 #include "ultra64.h"
-#include "ultramodern.hpp"
+#include "ultramodern/ultramodern.hpp"
 #include "config.hpp"
 #include "rt64_layer.h"
-#include "recomp_ui.h"
-#include "recomp.h"
-#include "recomp_game.h"
-#include "recomp_input.h"
-#include "rsp.h"
+#include "ultramodern/rsp.hpp"
+
+static ultramodern::events::callbacks_t events_callbacks{};
+
+void ultramodern::events::set_callbacks(const ultramodern::events::callbacks_t& callbacks) {
+    events_callbacks = callbacks;
+}
 
 struct SpTaskAction {
     OSTask task;
@@ -116,7 +118,7 @@ void vi_thread_func() {
     // the game to generate new audio and gfx lists.
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::Critical);
     using namespace std::chrono_literals;
-    
+
     int remaining_retraces = events_context.vi.retrace_count;
 
     while (!exited) {
@@ -176,9 +178,10 @@ void vi_thread_func() {
                 }
             }
         }
-                
-        // TODO move recomp code out of ultramodern.
-        recomp::update_rumble();
+
+        if (events_callbacks.vi_callback != nullptr) {
+            events_callbacks.vi_callback();
+        }
     }
 }
 
@@ -193,45 +196,6 @@ void dp_complete() {
     std::lock_guard lock{ events_context.message_mutex };
     osSendMesg(PASS_RDRAM events_context.dp.mq, events_context.dp.msg, OS_MESG_NOBLOCK);
 }
-
-uint8_t dmem[0x1000];
-uint16_t rspReciprocals[512];
-uint16_t rspInverseSquareRoots[512];
-
-using RspUcodeFunc = RspExitReason(uint8_t* rdram);
-extern RspUcodeFunc njpgdspMain;
-extern RspUcodeFunc aspMain;
-
-// From Ares emulator. For license details, see rsp_vu.h
-void rsp_constants_init() {
-    rspReciprocals[0] = u16(~0);
-    for (u16 index = 1; index < 512; index++) {
-        u64 a = index + 512;
-        u64 b = (u64(1) << 34) / a;
-        rspReciprocals[index] = u16((b + 1) >> 8);
-    }
-
-    for (u16 index = 0; index < 512; index++) {
-        u64 a = (index + 512) >> ((index % 2 == 1) ? 1 : 0);
-        u64 b = 1 << 17;
-        //find the largest b where b < 1.0 / sqrt(a)
-        while (a * (b + 1) * (b + 1) < (u64(1) << 44)) b++;
-        rspInverseSquareRoots[index] = u16(b >> 1);
-    }
-}
-
-// Runs a recompiled RSP microcode
-void run_rsp_microcode(uint8_t* rdram, const OSTask* task, RspUcodeFunc* ucode_func) {
-    // Load the OSTask into DMEM
-    memcpy(&dmem[0xFC0], task, sizeof(OSTask));
-    // Load the ucode data into DMEM
-    dma_rdram_to_dmem(rdram, 0x0000, task->t.ucode_data, 0xF80 - 1);
-    // Run the ucode
-    RspExitReason exit_reason = ucode_func(rdram);
-    // Ensure that the ucode exited correctly
-    assert(exit_reason == RspExitReason::Broke);
-}
-
 
 void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready) {
     ultramodern::set_native_thread_name("SP Task Thread");
@@ -249,15 +213,9 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
             return;
         }
 
-        // Run the correct function based on the task type
-        if (task->t.type == M_AUDTASK) {
-            run_rsp_microcode(rdram, task, aspMain);
-        }
-        else if (task->t.type == M_NJPEGTASK) {
-            run_rsp_microcode(rdram, task, njpgdspMain);
-        }
-        else {
-            fprintf(stderr, "Unknown task type: %" PRIu32 "\n", task->t.type);
+
+        if (!ultramodern::rsp::run_task(PASS_RDRAM task)) {
+            fprintf(stderr, "Failed to execute task type: %" PRIu32 "\n", task->t.type);
             assert(false);
             std::quick_exit(EXIT_FAILURE);
         }
@@ -323,10 +281,11 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
         return;
     }
 
-    // TODO move recomp code out of ultramodern.
-    recomp::update_supported_options();
+    if (events_callbacks.gfx_init_callback != nullptr) {
+        events_callbacks.gfx_init_callback();
+    }
 
-    rsp_constants_init();
+    ultramodern::rsp::init();
 
     // Notify the caller thread that this thread is ready.
     thread_ready->signal();
@@ -372,8 +331,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
             }
         }
     }
-    // TODO move recomp code out of ultramodern.
-    recomp::destroy_ui();
+
     rt64.shutdown();
 }
 
@@ -571,7 +529,7 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle)
     events_context.rdram = rdram;
     events_context.sp.gfx_thread = std::thread{ gfx_thread_func, rdram, &gfx_thread_ready, window_handle };
     events_context.sp.task_thread = std::thread{ task_thread_func, rdram, &task_thread_ready };
-    
+
     // Wait for the two sp threads to be ready before continuing to prevent the game from
     // running before we're able to handle RSP tasks.
     gfx_thread_ready.wait();
@@ -580,9 +538,11 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle)
     ultramodern::RT64SetupResult setup_result = rt64_setup_result.load();
     if (rt64_setup_result != ultramodern::RT64SetupResult::Success) {
         auto show_rt64_error = [](const std::string& msg) {
-            // TODO move recomp code out of ultramodern (message boxes).
-            recomp::message_box(("An error has been encountered on startup: " + msg).c_str());
+            std::string error_msg = "An error has been encountered on startup: " + msg;
+
+            ultramodern::error_handling::message_box(error_msg.c_str());
         };
+
         const std::string driver_os_suffix = "\nPlease make sure your GPU drivers and your OS are up to date.";
         switch (rt64_setup_result) {
             case ultramodern::RT64SetupResult::DynamicLibrariesNotFound:

@@ -1,3 +1,5 @@
+#include <cassert>
+
 #include "ultramodern/renderer_wrapper.hpp"
 #include "ultramodern/ultramodern.hpp"
 
@@ -24,9 +26,17 @@ static std::mutex graphic_config_mutex;
 
 void ultramodern::renderer::set_graphics_config(const GraphicsConfig* config) {
     std::lock_guard<std::mutex> lock(graphic_config_mutex);
+    assert(config != nullptr);
     graphic_config.reset(config);
 }
 
 const ultramodern::renderer::GraphicsConfig* ultramodern::renderer::get_graphics_config() {
-    return graphic_config.get();
+    std::lock_guard<std::mutex> lock(graphic_config_mutex);
+    auto ptr = graphic_config.get();
+    if (ptr == nullptr) {
+        error_handling::message_box("[Error] The graphic configuration was not registered");
+        // TODO: should we make a macro for this?
+        error_handling::quick_exit(__FILE__, __LINE__, __func__);
+    }
+    return ptr;
 }

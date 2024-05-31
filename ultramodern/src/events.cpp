@@ -227,21 +227,12 @@ std::atomic_uint32_t display_refresh_rate = 60;
 std::atomic<float> resolution_scale = 1.0f;
 
 uint32_t ultramodern::get_target_framerate(uint32_t original) {
-#if 0
-    ultramodern::GraphicsConfig graphics_config = ultramodern::get_graphics_config();
+    auto maybe_framerate = ultramodern::renderer::get_graphics_config()->get_target_framerate();
 
-    switch (graphics_config.rr_option) {
-        case RT64::UserConfiguration::RefreshRate::Original:
-        default:
-            return original;
-        case RT64::UserConfiguration::RefreshRate::Manual:
-            return graphics_config.rr_manual_value;
-        case RT64::UserConfiguration::RefreshRate::Display:
-#endif
-            return display_refresh_rate.load();
-#if 0
+    if (maybe_framerate.has_value()) {
+        return maybe_framerate.value();
     }
-#endif
+    return display_refresh_rate.load();
 }
 
 uint32_t ultramodern::get_display_refresh_rate() {
@@ -256,7 +247,7 @@ void ultramodern::load_shader_cache(std::span<const char> cache_data) {
     events_context.action_queue.enqueue(LoadShaderCacheAction{cache_data});
 }
 
-std::atomic<ultramodern::renderer::SetupResult> rt64_setup_result = ultramodern::renderer::SetupResult::Success;
+std::atomic<ultramodern::renderer::SetupResult> renderer_setup_result = ultramodern::renderer::SetupResult::Success;
 
 void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready, ultramodern::WindowHandle window_handle) {
     bool enabled_instant_present = false;
@@ -267,11 +258,10 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
 
     auto old_config = ultramodern::renderer::get_graphics_config();
 
-    //ultramodern::RT64Context rt64{rdram, window_handle, cur_config.load().developer_mode};
     auto renderer_context = ultramodern::renderer::create_render_context(rdram, window_handle, ultramodern::renderer::get_graphics_config()->developer_mode);
 
     if (!renderer_context->valid()) {
-        rt64_setup_result.store(renderer_context->get_setup_result());
+        renderer_setup_result.store(renderer_context->get_setup_result());
         // Notify the caller thread that this thread is ready.
         thread_ready->signal();
         return;
@@ -304,11 +294,11 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
                 sp_complete();
                 ultramodern::measure_input_latency();
 
-                auto rt64_start = std::chrono::high_resolution_clock::now();
+                auto renderer_start = std::chrono::high_resolution_clock::now();
                 renderer_context->send_dl(&task_action->task);
-                auto rt64_end = std::chrono::high_resolution_clock::now();
+                auto renderer_end = std::chrono::high_resolution_clock::now();
                 dp_complete();
-                // printf("RT64 ProcessDList time: %d us\n", static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(rt64_end - rt64_start).count()));
+                // printf("Renderer ProcessDList time: %d us\n", static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(renderer_end - renderer_start).count()));
             }
             else if (const auto* swap_action = std::get_if<SwapBuffersAction>(&action)) {
                 events_context.vi.current_buffer = events_context.vi.next_buffer;
@@ -511,32 +501,32 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle)
     gfx_thread_ready.wait();
     task_thread_ready.wait();
 
-    ultramodern::renderer::SetupResult setup_result = rt64_setup_result.load();
-    if (rt64_setup_result != ultramodern::renderer::SetupResult::Success) {
-        auto show_rt64_error = [](const std::string& msg) {
+    ultramodern::renderer::SetupResult setup_result = renderer_setup_result.load();
+    if (renderer_setup_result != ultramodern::renderer::SetupResult::Success) {
+        auto show_renderer_error = [](const std::string& msg) {
             std::string error_msg = "An error has been encountered on startup: " + msg;
 
             ultramodern::error_handling::message_box(error_msg.c_str());
         };
 
         const std::string driver_os_suffix = "\nPlease make sure your GPU drivers and your OS are up to date.";
-        switch (rt64_setup_result) {
+        switch (renderer_setup_result) {
             case ultramodern::renderer::SetupResult::Success:
                 break;
             case ultramodern::renderer::SetupResult::DynamicLibrariesNotFound:
-                show_rt64_error("Failed to load dynamic libraries. Make sure the DLLs are next to the recomp executable.");
+                show_renderer_error("Failed to load dynamic libraries. Make sure the DLLs are next to the recomp executable.");
                 break;
             case ultramodern::renderer::SetupResult::InvalidGraphicsAPI:
-                show_rt64_error(ultramodern::renderer::get_graphics_config()->get_graphics_api_name() + " is not supported on this platform. Please select a different graphics API.");
+                show_renderer_error(ultramodern::renderer::get_graphics_config()->get_graphics_api_name() + " is not supported on this platform. Please select a different graphics API.");
                 break;
             case ultramodern::renderer::SetupResult::GraphicsAPINotFound:
-                show_rt64_error("Unable to initialize " + ultramodern::renderer::get_graphics_config()->get_graphics_api_name() + "." + driver_os_suffix);
+                show_renderer_error("Unable to initialize " + ultramodern::renderer::get_graphics_config()->get_graphics_api_name() + "." + driver_os_suffix);
                 break;
             case ultramodern::renderer::SetupResult::GraphicsDeviceNotFound:
-                show_rt64_error("Unable to find compatible graphics device." + driver_os_suffix);
+                show_renderer_error("Unable to find compatible graphics device." + driver_os_suffix);
                 break;
         }
-        throw std::runtime_error("Failed to initialize RT64");
+        throw std::runtime_error("Failed to initialize the renderer");
     }
 
     events_context.vi.thread = std::thread{ vi_thread_func };

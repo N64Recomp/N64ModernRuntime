@@ -26,11 +26,8 @@ add_library(librecomp STATIC
 target_include_directories(librecomp PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${PROJECT_SOURCE_DIR}/../ultramodern/include"
+    "${PROJECT_SOURCE_DIR}/../thirdparty"
     "${PROJECT_SOURCE_DIR}/../thirdparty/concurrentqueue"
-)
-target_include_directories(librecomp PRIVATE
-    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib"
-    "${CMAKE_CURRENT_SOURCE_DIR}/include/librecomp"
 )
 
 target_compile_options(librecomp PRIVATE -Wno-deprecated-declarations)

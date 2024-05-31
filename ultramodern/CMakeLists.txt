@@ -28,19 +28,9 @@ add_library(ultramodern STATIC
 
 target_include_directories(ultramodern PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include/"
+    "${PROJECT_SOURCE_DIR}/../thirdparty"
     "${PROJECT_SOURCE_DIR}/../thirdparty/concurrentqueue"
     "${PROJECT_SOURCE_DIR}/../thirdparty/sse2neon"
-)
-
-# TODO: remove when rt64 is no longer a hard dependency
-target_include_directories(ultramodern PRIVATE
-    "${PROJECT_SOURCE_DIR}/../rt64/src"
-    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib"
-    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib/hlslpp/include"
-    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib/dxc/inc"
-    "${PROJECT_SOURCE_DIR}/../rt64/src/rhi"
-    "${PROJECT_SOURCE_DIR}/../rt64/src/render"
-    "${PROJECT_SOURCE_DIR}/../rt64/src/contrib/nativefiledialog-extended/src/include"
 )
 
 if (WIN32)

@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <span>
 
 #include "ultra64.h"
@@ -20,6 +21,7 @@ namespace ultramodern {
                 virtual ~GraphicsConfig() = 0;
 
                 virtual std::string get_graphics_api_name() const = 0;
+                virtual std::optional<uint32_t> get_target_framerate() const = 0;
 
                 auto operator<=>(const GraphicsConfig& rhs) const = default;
         };

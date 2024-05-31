@@ -43,7 +43,13 @@ namespace ultramodern {
                 SetupResult setup_result;
         };
 
-        // TODO: register function
+        struct callbacks_t {
+            using create_render_context_t = std::unique_ptr<RendererContext>(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
+
+            create_render_context_t *create_render_context;
+        };
+
+        void set_callbacks(const callbacks_t& callbacks);
 
         std::unique_ptr<RendererContext> create_render_context(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
     }

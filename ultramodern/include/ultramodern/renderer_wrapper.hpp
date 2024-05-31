@@ -1,0 +1,53 @@
+#ifndef __RENDERER_WRAPPER_HPP__
+#define __RENDERER_WRAPPER_HPP__
+
+#include <cstdint>
+#include <memory>
+#include <span>
+
+#include "ultra64.h"
+#include "config.hpp"
+
+namespace ultramodern {
+
+    // TODO: should we move the WindowHandle definition here?
+    struct WindowHandle;
+
+    namespace renderer {
+        enum class SetupResult {
+            Success,
+            DynamicLibrariesNotFound,
+            InvalidGraphicsAPI,
+            GraphicsAPINotFound,
+            GraphicsDeviceNotFound
+        };
+
+        class RendererContext {
+            public:
+                virtual ~RendererContext() = 0;
+
+                virtual bool valid() = 0;
+                virtual SetupResult get_setup_result() { return setup_result; }
+
+                virtual void update_config(const GraphicsConfig& old_config, const GraphicsConfig& new_config) = 0;
+
+                virtual void enable_instant_present() = 0;
+                virtual void send_dl(const OSTask* task) = 0;
+                virtual void update_screen(uint32_t vi_origin) = 0;
+                virtual void shutdown() = 0;
+                virtual uint32_t get_display_framerate() = 0;
+                virtual float get_resolution_scale() = 0;
+                virtual void load_shader_cache(std::span<const char> cache_binary) = 0;
+
+            private:
+                SetupResult setup_result;
+        };
+
+        // TODO: register function
+
+        std::unique_ptr<RendererContext> create_render_context(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
+    }
+}
+
+
+#endif

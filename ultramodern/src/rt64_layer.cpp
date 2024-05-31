@@ -1,6 +1,5 @@
 #include <memory>
 #include <cstring>
-// #include <Windows.h>
 
 #define HLSL_CPU
 #include "hle/rt64_application.h"

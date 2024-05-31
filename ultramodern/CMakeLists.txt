@@ -61,6 +61,7 @@ if (WIN32)
     target_link_directories(ultramodern PRIVATE
         ${sdl2_SOURCE_DIR}/lib/x64
     )
+    add_compile_definitions(NOMINMAX)
 elseif (APPLE)
     find_package(SDL2 REQUIRED)
     target_include_directories(ultramodern PRIVATE ${SDL2_INCLUDE_DIRS})

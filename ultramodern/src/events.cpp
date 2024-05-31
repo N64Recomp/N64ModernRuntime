@@ -13,7 +13,6 @@
 
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
-#include "ultramodern/config.hpp"
 
 #include "ultramodern/rsp.hpp"
 #include "ultramodern/renderer_wrapper.hpp"
@@ -224,21 +223,11 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
     }
 }
 
-static std::atomic<ultramodern::GraphicsConfig> cur_config{};
-
-void ultramodern::set_graphics_config(const ultramodern::GraphicsConfig& config) {
-    cur_config = config;
-    events_context.action_queue.enqueue(UpdateConfigAction{});
-}
-
-ultramodern::GraphicsConfig ultramodern::get_graphics_config() {
-    return cur_config;
-}
-
 std::atomic_uint32_t display_refresh_rate = 60;
 std::atomic<float> resolution_scale = 1.0f;
 
 uint32_t ultramodern::get_target_framerate(uint32_t original) {
+#if 0
     ultramodern::GraphicsConfig graphics_config = ultramodern::get_graphics_config();
 
     switch (graphics_config.rr_option) {
@@ -248,8 +237,11 @@ uint32_t ultramodern::get_target_framerate(uint32_t original) {
         case RT64::UserConfiguration::RefreshRate::Manual:
             return graphics_config.rr_manual_value;
         case RT64::UserConfiguration::RefreshRate::Display:
+#endif
             return display_refresh_rate.load();
+#if 0
     }
+#endif
 }
 
 uint32_t ultramodern::get_display_refresh_rate() {
@@ -273,10 +265,10 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
     ultramodern::set_native_thread_name("Gfx Thread");
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::Normal);
 
-    ultramodern::GraphicsConfig old_config = ultramodern::get_graphics_config();
+    auto old_config = ultramodern::renderer::get_graphics_config();
 
     //ultramodern::RT64Context rt64{rdram, window_handle, cur_config.load().developer_mode};
-    auto renderer_context = ultramodern::renderer::create_render_context(rdram, window_handle, cur_config.load().developer_mode);
+    auto renderer_context = ultramodern::renderer::create_render_context(rdram, window_handle, ultramodern::renderer::get_graphics_config()->developer_mode);
 
     if (!renderer_context->valid()) {
         rt64_setup_result.store(renderer_context->get_setup_result());
@@ -325,8 +317,8 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
                 resolution_scale = renderer_context->get_resolution_scale();
             }
             else if (const auto* config_action = std::get_if<UpdateConfigAction>(&action)) {
-                ultramodern::GraphicsConfig new_config = cur_config;
-                if (old_config != new_config) {
+                auto new_config = ultramodern::renderer::get_graphics_config();
+                if (*old_config != *new_config) {
                     renderer_context->update_config(old_config, new_config);
                     old_config = new_config;
                 }
@@ -507,29 +499,6 @@ void ultramodern::send_si_message(RDRAM_ARG1) {
     osSendMesg(PASS_RDRAM events_context.si.mq, events_context.si.msg, OS_MESG_NOBLOCK);
 }
 
-std::string get_graphics_api_name(ultramodern::GraphicsApi api) {
-    if (api == ultramodern::GraphicsApi::Auto) {
-#if defined(_WIN32)
-        api = ultramodern::GraphicsApi::D3D12;
-#elif defined(__gnu_linux__)
-        api = ultramodern::GraphicsApi::Vulkan;
-#elif defined(__APPLE__)
-        api = ultramodern::GraphicsApi::Vulkan;
-#else
-        static_assert(false && "Unimplemented")
-#endif
-    }
-
-    switch (api) {
-        case ultramodern::GraphicsApi::D3D12:
-            return "D3D12";
-        case ultramodern::GraphicsApi::Vulkan:
-            return "Vulkan";
-        default:
-            return "[Unknown graphics API]";
-    }
-}
-
 void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle) {
     moodycamel::LightweightSemaphore gfx_thread_ready;
     moodycamel::LightweightSemaphore task_thread_ready;
@@ -552,14 +521,16 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle)
 
         const std::string driver_os_suffix = "\nPlease make sure your GPU drivers and your OS are up to date.";
         switch (rt64_setup_result) {
+            case ultramodern::renderer::SetupResult::Success:
+                break;
             case ultramodern::renderer::SetupResult::DynamicLibrariesNotFound:
                 show_rt64_error("Failed to load dynamic libraries. Make sure the DLLs are next to the recomp executable.");
                 break;
             case ultramodern::renderer::SetupResult::InvalidGraphicsAPI:
-                show_rt64_error(get_graphics_api_name(cur_config.load().api_option) + " is not supported on this platform. Please select a different graphics API.");
+                show_rt64_error(ultramodern::renderer::get_graphics_config()->get_graphics_api_name() + " is not supported on this platform. Please select a different graphics API.");
                 break;
             case ultramodern::renderer::SetupResult::GraphicsAPINotFound:
-                show_rt64_error("Unable to initialize " + get_graphics_api_name(cur_config.load().api_option) + "." + driver_os_suffix);
+                show_rt64_error("Unable to initialize " + ultramodern::renderer::get_graphics_config()->get_graphics_api_name() + "." + driver_os_suffix);
                 break;
             case ultramodern::renderer::SetupResult::GraphicsDeviceNotFound:
                 show_rt64_error("Unable to find compatible graphics device." + driver_os_suffix);

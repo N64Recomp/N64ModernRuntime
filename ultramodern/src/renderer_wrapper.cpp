@@ -17,3 +17,16 @@ std::unique_ptr<ultramodern::renderer::RendererContext> ultramodern::renderer::c
 
     return render_callbacks.create_render_context(rdram, window_handle, developer_mode);
 }
+
+
+static std::unique_ptr<const ultramodern::renderer::GraphicsConfig> graphic_config{};
+static std::mutex graphic_config_mutex;
+
+void ultramodern::renderer::set_graphics_config(const GraphicsConfig* config) {
+    std::lock_guard<std::mutex> lock(graphic_config_mutex);
+    graphic_config.reset(config);
+}
+
+const ultramodern::renderer::GraphicsConfig* ultramodern::renderer::get_graphics_config() {
+    return graphic_config.get();
+}

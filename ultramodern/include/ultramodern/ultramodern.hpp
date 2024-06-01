@@ -9,13 +9,15 @@
 #undef MOODYCAMEL_DELETE_FUNCTION
 #define MOODYCAMEL_DELETE_FUNCTION = delete
 #include "lightweightsemaphore.h"
+
 #include "ultra64.h"
 
 #include "ultramodern/error_handling.hpp"
 #include "ultramodern/events.hpp"
 #include "ultramodern/input.hpp"
-#include "ultramodern/rsp.hpp"
 #include "ultramodern/renderer_context.hpp"
+#include "ultramodern/rsp.hpp"
+#include "ultramodern/threads.hpp"
 
 struct UltraThreadContext {
     std::thread host_thread;
@@ -144,7 +146,8 @@ void set_callbacks(
     const input::callbacks_t& input_callbacks,
     const gfx_callbacks_t& gfx_callbacks,
     const events::callbacks_t& events_callbacks,
-    const error_handling::callbacks_t& error_handling_callbacks
+    const error_handling::callbacks_t& error_handling_callbacks,
+    const threads::callbacks_t& threads_callbacks
 );
 } // namespace ultramodern
 

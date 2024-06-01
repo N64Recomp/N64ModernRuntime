@@ -1,6 +1,5 @@
 #include <memory>
 #include <cstring>
-// #include <Windows.h>
 
 #define HLSL_CPU
 #include "hle/rt64_application.h"
@@ -11,6 +10,7 @@ ultramodern::RT64Context::~RT64Context() = default;
 
 static RT64::UserConfiguration::Antialiasing device_max_msaa = RT64::UserConfiguration::Antialiasing::None;
 static bool sample_positions_supported = false;
+static bool high_precision_fb_enabled = false;
 
 static uint8_t DMEM[0x1000];
 static uint8_t IMEM[0x1000];
@@ -58,6 +58,19 @@ RT64::UserConfiguration::Antialiasing compute_max_supported_aa(RT64::RenderSampl
     return RT64::UserConfiguration::Antialiasing::None;
 }
 
+RT64::UserConfiguration::InternalColorFormat to_rt64(ultramodern::HighPrecisionFramebuffer option) {
+    switch (option) {
+        case ultramodern::HighPrecisionFramebuffer::Off:
+            return RT64::UserConfiguration::InternalColorFormat::Standard;
+        case ultramodern::HighPrecisionFramebuffer::On:
+            return RT64::UserConfiguration::InternalColorFormat::High;
+        case ultramodern::HighPrecisionFramebuffer::Auto:
+            return RT64::UserConfiguration::InternalColorFormat::Automatic;
+        default:
+            return RT64::UserConfiguration::InternalColorFormat::OptionCount;
+    }
+}
+
 void set_application_user_config(RT64::Application* application, const ultramodern::GraphicsConfig& config) {
     switch (config.res_option) {
         default:
@@ -95,6 +108,7 @@ void set_application_user_config(RT64::Application* application, const ultramode
     application->userConfig.antialiasing = config.msaa_option;
     application->userConfig.refreshRate = config.rr_option;
     application->userConfig.refreshRateTarget = config.rr_manual_value;
+    application->userConfig.internalColorFormat = to_rt64(config.hpfb_option);
 }
 
 ultramodern::RT64SetupResult map_setup_result(RT64::Application::SetupResult rt64_result) {
@@ -223,6 +237,8 @@ ultramodern::RT64Context::RT64Context(uint8_t* rdram, ultramodern::WindowHandle 
         device_max_msaa = RT64::UserConfiguration::Antialiasing::None;
         sample_positions_supported = false;
     }
+
+    high_precision_fb_enabled = app->shaderLibrary->usesHDR;
 }
 
 void ultramodern::RT64Context::send_dl(const OSTask* task) {
@@ -268,6 +284,24 @@ uint32_t ultramodern::RT64Context::get_display_framerate() {
     return app->presentQueue->ext.sharedResources->swapChainRate;
 }
 
+float ultramodern::RT64Context::get_resolution_scale() {
+    constexpr int ReferenceHeight = 240;
+    switch (app->userConfig.resolution) {
+        case RT64::UserConfiguration::Resolution::WindowIntegerScale:
+            if (app->sharedQueueResources->swapChainHeight > 0) {
+                return std::max(float((app->sharedQueueResources->swapChainHeight + ReferenceHeight - 1) / ReferenceHeight), 1.0f);
+            }
+            else {
+                return 1.0f;
+            }
+        case RT64::UserConfiguration::Resolution::Manual:
+            return float(app->userConfig.resolutionMultiplier);
+        case RT64::UserConfiguration::Resolution::Original:
+        default:
+            return 1.0f;
+    }
+}
+
 void ultramodern::RT64Context::load_shader_cache(std::span<const char> cache_binary) {
     // TODO figure out how to avoid a copy here.
     std::istringstream cache_stream{std::string{cache_binary.data(), cache_binary.size()}};
@@ -284,4 +318,8 @@ RT64::UserConfiguration::Antialiasing ultramodern::RT64MaxMSAA() {
 
 bool ultramodern::RT64SamplePositionsSupported() {
     return sample_positions_supported;
+}
+
+bool ultramodern::RT64HighPrecisionFBEnabled() {
+    return high_precision_fb_enabled;
 }

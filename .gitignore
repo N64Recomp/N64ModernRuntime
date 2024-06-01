@@ -7,3 +7,4 @@ temp/
 *.z64
 *.n64
 *.v64
+.DS_Store

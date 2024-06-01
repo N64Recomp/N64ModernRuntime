@@ -16,7 +16,8 @@ namespace recomp {
         std::span<const char> cache_data;
         bool is_enabled;
 
-        void (*entrypoint)();
+        gpr entrypoint_address;
+        void (*entrypoint)(uint8_t* rdram, recomp_context* context);
 
         std::u8string stored_filename() const;
     };
@@ -29,6 +30,7 @@ namespace recomp {
 		IncorrectVersion,
 		OtherError
 	};
+	void register_config_path(std::filesystem::path path);
 	bool register_game(const recomp::GameEntry& entry);
 	void register_patch(const char* patch, std::size_t size);
 	void check_all_stored_roms();
@@ -41,12 +43,7 @@ namespace recomp {
 	void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
 	void start(ultramodern::WindowHandle window_handle, const recomp::rsp::callbacks_t& rsp_callbacks, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input_callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks, const ultramodern::events::callbacks_t& thread_callbacks, const ultramodern::error_handling::callbacks_t& error_handling_callbacks_);
 	void start_game(const std::u8string& game_id);
-	std::filesystem::path get_app_folder_path();
 	std::u8string current_game_id();
-
-	// TODO: implement both
-	const std::u8string& get_program_id();
-	void set_program_id(const std::u8string& program_id);
 }
 
 #endif

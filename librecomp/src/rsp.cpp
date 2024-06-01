@@ -53,7 +53,7 @@ bool recomp::rsp::run_task(uint8_t* rdram, const OSTask* task) {
 
     // Ensure that the ucode exited correctly
     if (exit_reason != RspExitReason::Broke) {
-        fprintf(stderr, "RSP ucode %" PRIu32 " exited unexpectedly. exit_reason: %i\n", task->t.type, exit_reason);
+        fprintf(stderr, "RSP ucode %" PRIu32 " exited unexpectedly. exit_reason: %i\n", task->t.type, static_cast<int>(exit_reason));
         assert(exit_reason == RspExitReason::Broke);
         return false;
     }

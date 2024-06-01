@@ -11,12 +11,6 @@
 #include <mutex>
 #include <array>
 
-#ifdef _WIN32
-#include <Shlobj.h>
-#elif defined(__linux__)
-#include <pwd.h>
-#endif
-
 #include "recomp.h"
 #include "recomp_overlays.h"
 #include "recomp_game.h"
@@ -46,11 +40,16 @@ std::mutex patch_data_mutex;
 std::mutex current_game_mutex;
 
 // Global variables
+std::filesystem::path config_path;
 std::vector<char> patch_data;
 std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
 
 std::u8string recomp::GameEntry::stored_filename() const {
     return game_id + u8".z64";
+}
+
+void recomp::register_config_path(std::filesystem::path path) {
+    config_path = path;
 }
 
 bool recomp::register_game(const recomp::GameEntry& entry) {
@@ -61,6 +60,7 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
 
 void recomp::register_patch(const char* patch, std::size_t size) {
     std::lock_guard<std::mutex> lock(patch_data_mutex);
+    patch_data.resize(size);
     std::memcpy(patch_data.data(), patch, size);
 }
 
@@ -97,39 +97,12 @@ bool write_file(const std::filesystem::path& path, const std::vector<uint8_t>& d
     return true;
 }
 
-std::filesystem::path recomp::get_app_folder_path() {
-    std::filesystem::path recomp_dir{};
-
-#if defined(_WIN32)
-    // Deduce local app data path.
-   PWSTR known_path = NULL;
-   HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &known_path);
-   if (result == S_OK) {
-       recomp_dir = std::filesystem::path{known_path} / recomp::get_program_id();
-   }
-
-   CoTaskMemFree(known_path);
-#elif defined(__linux__)
-    const char *homedir;
-
-   if ((homedir = getenv("HOME")) == nullptr) {
-       homedir = getpwuid(getuid())->pw_dir;
-   }
-
-   if (homedir != nullptr) {
-       recomp_dir = std::filesystem::path{homedir} / (std::u8string{u8".config/"} + recomp::get_program_id());
-   }
-#endif
-
-    return recomp_dir;
-}
-
 bool check_stored_rom(const recomp::GameEntry& game_entry) {
-    std::vector stored_rom_data = read_file(recomp::get_app_folder_path() / game_entry.stored_filename());
+    std::vector stored_rom_data = read_file(config_path / game_entry.stored_filename());
 
     if (!check_hash(stored_rom_data, game_entry.rom_hash)) {
         // Incorrect hash, remove the stored ROM file if it exists.
-        std::filesystem::remove(recomp::get_app_folder_path() / game_entry.stored_filename());
+        std::filesystem::remove(config_path / game_entry.stored_filename());
         return false;
     }
 
@@ -157,11 +130,11 @@ bool recomp::load_stored_rom(std::u8string& game_id) {
         return false;
     }
     
-    std::vector<uint8_t> stored_rom_data = read_file(recomp::get_app_folder_path() / find_it->second.stored_filename());
+    std::vector<uint8_t> stored_rom_data = read_file(config_path / find_it->second.stored_filename());
 
     if (!check_hash(stored_rom_data, find_it->second.rom_hash)) {
         // The ROM no longer has the right hash, delete it.
-        std::filesystem::remove(recomp::get_app_folder_path() / find_it->second.stored_filename());
+        std::filesystem::remove(config_path / find_it->second.stored_filename());
         return false;
     }
 
@@ -272,7 +245,7 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
         }
     }
 
-    write_file(recomp::get_app_folder_path() / game_entry.stored_filename(), rom_data);
+    write_file(config_path / game_entry.stored_filename(), rom_data);
     
     return recomp::RomValidationError::Good;
 }
@@ -346,23 +319,15 @@ void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t ar
     func(rdram, &ctx);
 }
 
-// Recomp generation functions
-extern "C" void recomp_entrypoint(uint8_t * rdram, recomp_context * ctx);
-gpr get_entrypoint_address();
-const char* get_rom_name();
-
 void read_patch_data(uint8_t* rdram, gpr patch_data_address) {
     for (size_t i = 0; i < patch_data.size(); i++) {
         MEM_B(i, patch_data_address) = patch_data[i];
     }
 }
 
-void init(uint8_t* rdram, recomp_context* ctx) {
+void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
     // Initialize the overlays
     init_overlays();
-
-    // Get entrypoint from recomp function
-    gpr entrypoint = get_entrypoint_address();
 
     // Load overlays in the first 1MB
     load_overlays(0x1000, (int32_t)entrypoint, 1024 * 1024);
@@ -407,6 +372,7 @@ void recomp::start_game(const std::u8string& game_id) {
     std::lock_guard<std::mutex> lock(current_game_mutex);
     current_game = game_id;
     game_status.store(GameStatus::Running);
+    game_status.notify_all();
 }
 
 bool ultramodern::is_game_started() {
@@ -479,13 +445,15 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
                         ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
                     }
 
+                    ultramodern::init_saving(rdram);
+
                     auto find_it = game_roms.find(current_game.value());
                     const recomp::GameEntry& game_entry = find_it->second;
 
                     ultramodern::load_shader_cache(game_entry.cache_data);
-                    init(rdram, &context);
+                    init(rdram, &context, game_entry.entrypoint_address);
                     try {
-                        recomp_entrypoint(rdram, &context);
+                        game_entry.entrypoint(rdram, &context);
                     } catch (ultramodern::thread_terminated& terminated) {
 
                     }

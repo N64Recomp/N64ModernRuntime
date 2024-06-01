@@ -129,6 +129,9 @@ ultramodern::RT64Context::RT64Context(uint8_t* rdram, ultramodern::WindowHandle 
 #elif defined(__linux__)
     appCore.window.display = window_handle.display;
     appCore.window.window = window_handle.window;
+#elif defined(__APPLE__)
+    appCore.window.window = window_handle.window;
+    appCore.window.view = window_handle.view;
 #endif
 
     appCore.checkInterrupts = dummy_check_interrupts;

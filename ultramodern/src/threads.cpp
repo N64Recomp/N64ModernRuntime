@@ -111,6 +111,12 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
     //         break;
     // }
 }
+#elif defined(__APPLE__)
+void ultramodern::set_native_thread_name(const std::string& name) {
+    pthread_setname_np(name.c_str());
+}
+
+void ultramodern::set_native_thread_priority(ThreadPriority pri) {}
 #endif
 
 std::atomic_int temporary_threads = 0;

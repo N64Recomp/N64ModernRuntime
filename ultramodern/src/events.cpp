@@ -217,7 +217,11 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
         if (!ultramodern::rsp::run_task(PASS_RDRAM task)) {
             fprintf(stderr, "Failed to execute task type: %" PRIu32 "\n", task->t.type);
             assert(false);
+#       ifdef __APPLE__
+            std::_Exit(EXIT_FAILURE);
+#       else
             std::quick_exit(EXIT_FAILURE);
+#       endif
         }
 
         // Tell the game that the RSP has completed
@@ -507,6 +511,8 @@ std::string get_graphics_api_name(ultramodern::GraphicsApi api) {
 #if defined(_WIN32)
         api = ultramodern::GraphicsApi::D3D12;
 #elif defined(__gnu_linux__)
+        api = ultramodern::GraphicsApi::Vulkan;
+#elif defined(__APPLE__)
         api = ultramodern::GraphicsApi::Vulkan;
 #else
         static_assert(false && "Unimplemented")

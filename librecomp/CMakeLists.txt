@@ -1,14 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(librecomp)
 
-# Check for headers
-include(CheckIncludeFile)
-check_include_file("malloc.h" HAVE_MALLOC_H)
-
-if(HAVE_MALLOC_H)
-    add_compile_definitions(HAVE_MALLOC_H)
-endif()
-
 # Define the library
 add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ai.cpp"

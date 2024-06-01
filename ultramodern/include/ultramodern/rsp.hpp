@@ -1,13 +1,9 @@
-#ifndef __RSP_STUFF_HPP__
-#define __RSP_STUFF_HPP__
-
-// TODO: rename
+#ifndef __RSP_HPP__
+#define __RSP_HPP__
 
 #include <cstdint>
 
 #include "ultra64.h"
-
-// TODO: Move these to ultramodern namespace?
 
 namespace ultramodern {
     namespace rsp {

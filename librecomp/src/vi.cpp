@@ -17,6 +17,10 @@ extern "C" void osViBlack_recomp(uint8_t* rdram, recomp_context* ctx) {
     osViBlack((uint32_t)ctx->r4);
 }
 
+extern "C" void osViRepeatLine_recomp(uint8_t* rdram, recomp_context* ctx) {
+    osViRepeatLine((uint32_t)ctx->r4);
+}
+
 extern "C" void osViSetSpecialFeatures_recomp(uint8_t* rdram, recomp_context* ctx) {
     osViSetSpecialFeatures((uint32_t)ctx->r4);
 }

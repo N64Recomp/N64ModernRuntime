@@ -4,7 +4,7 @@
 #include <vector>
 
 #include "recomp.h"
-#include "recomp_overlays.h"
+#include "overlays.h"
 #include "sections.h"
 
 static recomp::overlay_section_table_data_t sections_info {};

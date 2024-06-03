@@ -1,4 +1,4 @@
-#include "recomp_files.h"
+#include "files.h"
 
 constexpr std::u8string_view backup_suffix = u8".bak";
 constexpr std::u8string_view temp_suffix = u8".temp";

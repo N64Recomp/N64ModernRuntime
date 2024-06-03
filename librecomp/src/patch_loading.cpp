@@ -3,7 +3,7 @@
 #include <vector>
 #include "recomp.h"
 #include "sections.h"
-#include "recomp_overlays.h"
+#include "overlays.h"
 
 static SectionTableEntry* code_sections = nullptr;
 

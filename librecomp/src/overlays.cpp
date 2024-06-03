@@ -5,7 +5,7 @@
 
 #include "recomp.h"
 #include "overlays.hpp"
-#include "sections.hpp"
+#include "sections.h"
 
 static recomp::overlay_section_table_data_t sections_info {};
 static recomp::overlays_by_index_t overlays_info {};

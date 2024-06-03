@@ -51,7 +51,7 @@ namespace ultramodern {
                 virtual float get_resolution_scale() const = 0;
                 virtual void load_shader_cache(std::span<const char> cache_binary) = 0;
 
-            private:
+            protected:
                 SetupResult setup_result;
         };
 

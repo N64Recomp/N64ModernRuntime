@@ -14,7 +14,7 @@
 #include "ultra64.h"
 #include "ultramodern/ultramodern.hpp"
 #include "config.hpp"
-#include "rt64_layer.h"
+#include "rt64_layer.hpp"
 #include "ultramodern/rsp.hpp"
 
 static ultramodern::events::callbacks_t events_callbacks{};

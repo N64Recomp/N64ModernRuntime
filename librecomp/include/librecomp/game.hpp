@@ -5,7 +5,7 @@
 #include <filesystem>
 
 #include "recomp.h"
-#include "rsp.h"
+#include "rsp.hpp"
 #include <ultramodern/ultramodern.hpp>
 
 namespace recomp {

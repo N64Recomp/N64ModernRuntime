@@ -2,7 +2,7 @@
 #include <cstring>
 #include <cinttypes>
 
-#include "rsp.h"
+#include "rsp.hpp"
 
 static recomp::rsp::callbacks_t rsp_callbacks {};
 

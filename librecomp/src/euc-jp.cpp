@@ -28,7 +28,7 @@
 #include <codecvt>
 #include <string>
 #include <string_view>
-#include "euc-jp.h"
+#include "euc-jp.hpp"
 
 namespace Encoding {
     // JIS X 0201 to Unicode

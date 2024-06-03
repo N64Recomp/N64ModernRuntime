@@ -3,7 +3,7 @@
 
 #include <cstdio>
 
-#include "rsp_vu.h"
+#include "rsp_vu.hpp"
 #include "recomp.h"
 #include "ultramodern/ultra64.h"
 

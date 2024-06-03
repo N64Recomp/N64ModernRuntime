@@ -12,8 +12,8 @@
 #include <array>
 
 #include "recomp.h"
-#include "recomp_overlays.h"
-#include "recomp_game.h"
+#include "overlays.hpp"
+#include "game.hpp"
 #include "xxHash/xxh3.h"
 #include "ultramodern/ultramodern.hpp"
 #include "ultramodern/error_handling.hpp"

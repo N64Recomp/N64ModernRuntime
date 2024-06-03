@@ -29,6 +29,9 @@ target_include_directories(librecomp PUBLIC
     "${PROJECT_SOURCE_DIR}/../thirdparty"
     "${PROJECT_SOURCE_DIR}/../thirdparty/concurrentqueue"
 )
+target_include_directories(librecomp PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/include/librecomp"
+)
 
 target_compile_options(librecomp PRIVATE -Wno-deprecated-declarations)
 

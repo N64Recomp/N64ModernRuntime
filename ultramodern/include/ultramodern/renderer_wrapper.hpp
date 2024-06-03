@@ -23,7 +23,7 @@ namespace ultramodern {
                 virtual std::string get_graphics_api_name() const = 0;
                 virtual std::optional<uint32_t> get_target_framerate() const = 0;
 
-                auto operator<=>(const GraphicsConfig& rhs) const = default;
+                virtual bool is_equal(const GraphicsConfig& rhs) const = 0;
         };
 
         enum class SetupResult {

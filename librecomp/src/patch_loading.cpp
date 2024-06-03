@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <vector>
 #include "recomp.h"
-#include "sections.h"
-#include "overlays.h"
+#include "sections.hpp"
+#include "overlays.hpp"
 
 static SectionTableEntry* code_sections = nullptr;
 

@@ -2,7 +2,7 @@
 #define __RECOMP_OVERLAYS_H__
 
 #include <cstdint>
-#include "sections.h"
+#include "sections.hpp"
 
 namespace recomp {
     struct overlay_section_table_data_t {

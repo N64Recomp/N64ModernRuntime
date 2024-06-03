@@ -5,8 +5,8 @@
 #include <string>
 #include <mutex>
 #include "recomp.h"
-#include "game.h"
-#include "files.h"
+#include "game.hpp"
+#include "files.hpp"
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
 

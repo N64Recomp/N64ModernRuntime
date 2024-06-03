@@ -3,7 +3,7 @@
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
 #include "recomp.h"
-#include "euc-jp.h"
+#include "euc-jp.hpp"
 
 extern "C" void __checkHardware_msp_recomp(uint8_t * rdram, recomp_context * ctx) {
     ctx->r2 = 0;

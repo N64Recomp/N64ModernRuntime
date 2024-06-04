@@ -1,4 +1,5 @@
 #include <cassert>
+#include <mutex>
 
 #include "ultramodern/renderer_context.hpp"
 #include "ultramodern/ultramodern.hpp"

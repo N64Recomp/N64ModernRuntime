@@ -21,7 +21,7 @@ namespace ultramodern {
                 virtual ~GraphicsConfig() = default;
 
                 virtual std::string get_graphics_api_name() const = 0;
-                virtual std::optional<uint32_t> get_target_framerate() const = 0;
+                virtual std::optional<uint32_t> get_target_framerate(uint32_t original) const = 0;
 
         		auto operator<=>(const GraphicsConfig& rhs) const = default;
 
@@ -38,7 +38,7 @@ namespace ultramodern {
 
         class RendererContext {
             public:
-                virtual ~RendererContext() = 0;
+                virtual ~RendererContext() = default;
 
                 virtual bool valid() = 0;
                 virtual SetupResult get_setup_result() const { return setup_result; }

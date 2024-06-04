@@ -5,7 +5,7 @@
 
 static ultramodern::renderer::callbacks_t render_callbacks{};
 
-void set_callbacks(const ultramodern::renderer::callbacks_t& callbacks) {
+void ultramodern::renderer::set_callbacks(const callbacks_t& callbacks) {
     render_callbacks = callbacks;
 }
 

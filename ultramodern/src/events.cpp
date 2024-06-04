@@ -227,7 +227,7 @@ std::atomic_uint32_t display_refresh_rate = 60;
 std::atomic<float> resolution_scale = 1.0f;
 
 uint32_t ultramodern::get_target_framerate(uint32_t original) {
-    auto maybe_framerate = ultramodern::renderer::get_graphics_config()->get_target_framerate();
+    auto maybe_framerate = ultramodern::renderer::get_graphics_config()->get_target_framerate(original);
 
     if (maybe_framerate.has_value()) {
         return maybe_framerate.value();

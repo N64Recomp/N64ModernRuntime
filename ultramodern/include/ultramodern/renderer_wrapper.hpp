@@ -7,6 +7,7 @@
 #include <span>
 
 #include "ultra64.h"
+#include "config.hpp"
 
 namespace ultramodern {
 
@@ -14,20 +15,6 @@ namespace ultramodern {
     struct WindowHandle;
 
     namespace renderer {
-        class GraphicsConfig {
-            public:
-                bool developer_mode;
-
-                virtual ~GraphicsConfig() = default;
-
-                virtual std::string get_graphics_api_name() const = 0;
-                virtual std::optional<uint32_t> get_target_framerate(uint32_t original) const = 0;
-
-        		auto operator<=>(const GraphicsConfig& rhs) const = default;
-
-                virtual bool is_equal(const GraphicsConfig& rhs) const = 0;
-        };
-
         enum class SetupResult {
             Success,
             DynamicLibrariesNotFound,
@@ -43,7 +30,7 @@ namespace ultramodern {
                 virtual bool valid() = 0;
                 virtual SetupResult get_setup_result() const { return setup_result; }
 
-                virtual void update_config(const GraphicsConfig* old_config, const GraphicsConfig* new_config) = 0;
+                virtual void update_config(const GraphicsConfig& old_config, const GraphicsConfig& new_config) = 0;
 
                 virtual void enable_instant_present() = 0;
                 virtual void send_dl(const OSTask* task) = 0;
@@ -66,10 +53,6 @@ namespace ultramodern {
         void set_callbacks(const callbacks_t& callbacks);
 
         std::unique_ptr<RendererContext> create_render_context(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
-
-
-        void set_graphics_config(std::unique_ptr<const GraphicsConfig>&& config);
-        const GraphicsConfig* get_graphics_config();
     }
 }
 

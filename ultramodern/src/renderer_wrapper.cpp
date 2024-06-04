@@ -21,22 +21,56 @@ std::unique_ptr<ultramodern::renderer::RendererContext> ultramodern::renderer::c
 }
 
 
-static std::unique_ptr<const ultramodern::renderer::GraphicsConfig> graphic_config{};
+static ultramodern::renderer::GraphicsConfig graphic_config{};
 static std::mutex graphic_config_mutex;
 
-void ultramodern::renderer::set_graphics_config(std::unique_ptr<const GraphicsConfig>&& config) {
+void ultramodern::renderer::set_graphics_config(const GraphicsConfig& config) {
     std::lock_guard<std::mutex> lock(graphic_config_mutex);
-    graphic_config.swap(config);
+    graphic_config = config;
     ultramodern::trigger_config_action();
 }
 
-const ultramodern::renderer::GraphicsConfig* ultramodern::renderer::get_graphics_config() {
+const ultramodern::renderer::GraphicsConfig& ultramodern::renderer::get_graphics_config() {
     std::lock_guard<std::mutex> lock(graphic_config_mutex);
-    auto ptr = graphic_config.get();
-    if (ptr == nullptr) {
-        error_handling::message_box("[Error] The graphic configuration was not registered");
-        // TODO: should we make a macro for this?
-        error_handling::quick_exit(__FILE__, __LINE__, __func__);
+    return graphic_config;
+}
+
+ultramodern::renderer::GraphicsConfig::~GraphicsConfig() = default;
+
+std::string ultramodern::renderer::GraphicsConfig::get_graphics_api_name() const {
+    ultramodern::renderer::GraphicsApi api = api_option;
+
+    if (api == ultramodern::renderer::GraphicsApi::Auto) {
+#if defined(_WIN32)
+        api = ultramodern::renderer::GraphicsApi::D3D12;
+#elif defined(__gnu_linux__)
+        api = ultramodern::renderer::GraphicsApi::Vulkan;
+#elif defined(__APPLE__)
+        // TODO: Add MoltenVK option for Mac?
+        api = ultramodern::renderer::GraphicsApi::Vulkan;
+#else
+        static_assert(false && "Unimplemented")
+#endif
     }
-    return ptr;
+
+    switch (api) {
+        case ultramodern::renderer::GraphicsApi::D3D12:
+            return "D3D12";
+        case ultramodern::renderer::GraphicsApi::Vulkan:
+            return "Vulkan";
+        default:
+            return "[Unknown graphics API]";
+    }
+}
+
+std::optional<uint32_t> ultramodern::renderer::GraphicsConfig::get_target_framerate(uint32_t original) const {
+    switch (rr_option) {
+    default:
+    case ultramodern::renderer::RefreshRate::Original:
+        return original;
+    case ultramodern::renderer::RefreshRate::Manual:
+        return rr_manual_value;
+    case ultramodern::renderer::RefreshRate::Display:
+        return {};
+    }
 }

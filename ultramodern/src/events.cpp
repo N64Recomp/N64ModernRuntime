@@ -230,13 +230,13 @@ uint32_t ultramodern::get_target_framerate(uint32_t original) {
     auto& config = ultramodern::renderer::get_graphics_config();
 
     switch (config.rr_option) {
-    default:
-    case ultramodern::renderer::RefreshRate::Original:
-        return original;
-    case ultramodern::renderer::RefreshRate::Manual:
-        return config.rr_manual_value;
-    case ultramodern::renderer::RefreshRate::Display:
-        return display_refresh_rate.load();
+        case ultramodern::renderer::RefreshRate::Original:
+        default:
+            return original;
+        case ultramodern::renderer::RefreshRate::Manual:
+            return config.rr_manual_value;
+        case ultramodern::renderer::RefreshRate::Display:
+            return display_refresh_rate.load();
     }
 }
 

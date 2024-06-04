@@ -131,6 +131,10 @@ void set_audio_callbacks(const audio_callbacks_t& callbacks);
 /**
  * Register all the callbacks used by `ultramodern`, most of them being optional.
  *
+ * The following arguments contain mandatory callbacks that need to be registered (i.e., can't be `nullptr`):
+ * - `rsp_callbacks`
+ * - `renderer_callbacks`
+ *
  * It must be called only once and it must be called before `ultramodern::preinit`.
  */
 void set_callbacks(

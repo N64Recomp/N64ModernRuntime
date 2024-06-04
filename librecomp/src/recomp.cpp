@@ -391,7 +391,7 @@ void ultramodern::quit() {
 }
 
 void recomp::start(
-    ultramodern::WindowHandle window_handle,
+    ultramodern::renderer::WindowHandle window_handle,
     const recomp::rsp::callbacks_t& rsp_callbacks,
     const ultramodern::renderer::callbacks_t& renderer_callbacks,
     const ultramodern::audio_callbacks_t& audio_callbacks,
@@ -419,7 +419,7 @@ void recomp::start(
         gfx_data = gfx_callbacks.create_gfx();
     }
 
-    if (window_handle == ultramodern::WindowHandle{}) {
+    if (window_handle == ultramodern::renderer::WindowHandle{}) {
         if (gfx_callbacks.create_window) {
             window_handle = gfx_callbacks.create_window(gfx_data);
         }
@@ -432,7 +432,7 @@ void recomp::start(
     std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(ultramodern::rdram_size);
     std::memset(rdram_buffer.get(), 0, ultramodern::rdram_size);
 
-    std::thread game_thread{[](ultramodern::WindowHandle window_handle, uint8_t* rdram) {
+    std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");
 
         ultramodern::set_native_thread_name("Game Start Thread");

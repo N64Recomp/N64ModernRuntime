@@ -258,7 +258,7 @@ void ultramodern::trigger_config_action() {
 
 std::atomic<ultramodern::renderer::SetupResult> renderer_setup_result = ultramodern::renderer::SetupResult::Success;
 
-void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready, ultramodern::WindowHandle window_handle) {
+void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready, ultramodern::renderer::WindowHandle window_handle) {
     bool enabled_instant_present = false;
     using namespace std::chrono_literals;
 
@@ -497,7 +497,7 @@ void ultramodern::send_si_message(RDRAM_ARG1) {
     osSendMesg(PASS_RDRAM events_context.si.mq, events_context.si.msg, OS_MESG_NOBLOCK);
 }
 
-void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle) {
+void ultramodern::init_events(RDRAM_ARG ultramodern::renderer::WindowHandle window_handle) {
     moodycamel::LightweightSemaphore gfx_thread_ready;
     moodycamel::LightweightSemaphore task_thread_ready;
     events_context.rdram = rdram;

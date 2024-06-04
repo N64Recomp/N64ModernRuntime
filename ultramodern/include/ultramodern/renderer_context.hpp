@@ -6,15 +6,49 @@
 #include <optional>
 #include <span>
 
+#if defined(_WIN32)
+#   define WIN32_LEAN_AND_MEAN
+#   include <Windows.h>
+#elif defined(__ANDROID__)
+#   include "android/native_window.h"
+#elif defined(__linux__)
+#   include "X11/Xlib.h"
+#   undef None
+#   undef Status
+#   undef LockMask
+#   undef Always
+#   undef Success
+#endif
+
 #include "ultra64.h"
 #include "config.hpp"
 
 namespace ultramodern {
-
-    // TODO: should we move the WindowHandle definition here?
-    struct WindowHandle;
-
     namespace renderer {
+
+#if defined(_WIN32)
+        // Native HWND handle to the target window.
+        struct WindowHandle {
+            HWND window;
+            DWORD thread_id = (DWORD)-1;
+            auto operator<=>(const WindowHandle&) const = default;
+        };
+#elif defined(__ANDROID__)
+        using WindowHandle = ANativeWindow*;
+#elif defined(__linux__)
+        struct WindowHandle {
+            Display* display;
+            Window window;
+            auto operator<=>(const WindowHandle&) const = default;
+        };
+#elif defined(__APPLE__)
+        struct WindowHandle {
+            void* window;
+            void* view;
+            auto operator<=>(const WindowHandle&) const = default;
+        };
+#endif
+
         enum class SetupResult {
             Success,
             DynamicLibrariesNotFound,
@@ -68,6 +102,5 @@ namespace ultramodern {
         std::string get_graphics_api_name(const GraphicsConfig& config);
     }
 }
-
 
 #endif

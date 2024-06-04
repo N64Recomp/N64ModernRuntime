@@ -19,7 +19,7 @@ void ultramodern::set_callbacks(
     ultramodern::error_handling::set_callbacks(error_handling_callbacks);
 }
 
-void ultramodern::preinit(RDRAM_ARG ultramodern::WindowHandle window_handle) {
+void ultramodern::preinit(RDRAM_ARG ultramodern::renderer::WindowHandle window_handle) {
     ultramodern::set_main_thread();
     ultramodern::init_events(PASS_RDRAM window_handle);
     ultramodern::init_timers(PASS_RDRAM1);

@@ -42,7 +42,7 @@ namespace recomp {
 	void do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes);
 	void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
     void start(
-        ultramodern::WindowHandle window_handle,
+        ultramodern::renderer::WindowHandle window_handle,
         const recomp::rsp::callbacks_t& rsp_callbacks,
         const ultramodern::renderer::callbacks_t& renderer_callbacks,
         const ultramodern::audio_callbacks_t& audio_callbacks,

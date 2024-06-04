@@ -30,7 +30,7 @@ namespace ultramodern {
                 virtual bool valid() = 0;
                 virtual SetupResult get_setup_result() const { return setup_result; }
 
-                virtual void update_config(const GraphicsConfig& old_config, const GraphicsConfig& new_config) = 0;
+                virtual bool update_config(const GraphicsConfig& old_config, const GraphicsConfig& new_config) = 0;
 
                 virtual void enable_instant_present() = 0;
                 virtual void send_dl(const OSTask* task) = 0;

@@ -312,8 +312,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
             }
             else if (const auto* config_action = std::get_if<UpdateConfigAction>(&action)) {
                 auto new_config = ultramodern::renderer::get_graphics_config();
-                if (old_config != new_config) {
-                    renderer_context->update_config(old_config, new_config);
+                if (renderer_context->update_config(old_config, new_config)) {
                     old_config = new_config;
                 }
             }

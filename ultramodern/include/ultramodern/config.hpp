@@ -71,10 +71,9 @@ namespace ultramodern {
             int rr_manual_value;
             int ds_option;
 
-            virtual ~GraphicsConfig();
+            virtual ~GraphicsConfig() = default;
 
-            virtual std::string get_graphics_api_name() const;
-            virtual std::optional<uint32_t> get_target_framerate(uint32_t original) const;
+            std::string get_graphics_api_name() const;
 
             auto operator<=>(const GraphicsConfig& rhs) const = default;
         };

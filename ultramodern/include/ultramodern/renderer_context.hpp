@@ -46,13 +46,26 @@ namespace ultramodern {
 
         struct callbacks_t {
             using create_render_context_t = std::unique_ptr<RendererContext>(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
+            using get_graphics_api_name_t = std::string(const GraphicsConfig& config);
 
+            /**
+             * Instances a subclass of RendererContext that is used to render the game.
+             *
+             * This callback is mandatory for using the library.
+             */
             create_render_context_t *create_render_context;
+
+            /**
+             * This callback is optional. If not provided a library default will be used.
+             */
+            get_graphics_api_name_t *get_graphics_api_name;
         };
 
         void set_callbacks(const callbacks_t& callbacks);
 
         std::unique_ptr<RendererContext> create_render_context(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
+
+        std::string get_graphics_api_name(const GraphicsConfig& config);
     }
 }
 

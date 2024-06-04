@@ -227,12 +227,17 @@ std::atomic_uint32_t display_refresh_rate = 60;
 std::atomic<float> resolution_scale = 1.0f;
 
 uint32_t ultramodern::get_target_framerate(uint32_t original) {
-    auto maybe_framerate = ultramodern::renderer::get_graphics_config().get_target_framerate(original);
+    auto& config = ultramodern::renderer::get_graphics_config();
 
-    if (maybe_framerate.has_value()) {
-        return maybe_framerate.value();
+    switch (config.rr_option) {
+    default:
+    case ultramodern::renderer::RefreshRate::Original:
+        return original;
+    case ultramodern::renderer::RefreshRate::Manual:
+        return config.rr_manual_value;
+    case ultramodern::renderer::RefreshRate::Display:
+        return display_refresh_rate.load();
     }
-    return display_refresh_rate.load();
 }
 
 uint32_t ultramodern::get_display_refresh_rate() {
@@ -520,10 +525,10 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle)
                 show_renderer_error("Failed to load dynamic libraries. Make sure the DLLs are next to the recomp executable.");
                 break;
             case ultramodern::renderer::SetupResult::InvalidGraphicsAPI:
-                show_renderer_error(ultramodern::renderer::get_graphics_config().get_graphics_api_name() + " is not supported on this platform. Please select a different graphics API.");
+                show_renderer_error(ultramodern::renderer::get_graphics_api_name(ultramodern::renderer::get_graphics_config()) + " is not supported on this platform. Please select a different graphics API.");
                 break;
             case ultramodern::renderer::SetupResult::GraphicsAPINotFound:
-                show_renderer_error("Unable to initialize " + ultramodern::renderer::get_graphics_config().get_graphics_api_name() + "." + driver_os_suffix);
+                show_renderer_error("Unable to initialize " + ultramodern::renderer::get_graphics_api_name(ultramodern::renderer::get_graphics_config()) + "." + driver_os_suffix);
                 break;
             case ultramodern::renderer::SetupResult::GraphicsDeviceNotFound:
                 show_renderer_error("Unable to find compatible graphics device." + driver_os_suffix);

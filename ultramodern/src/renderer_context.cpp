@@ -1,6 +1,6 @@
 #include <cassert>
 
-#include "ultramodern/renderer_wrapper.hpp"
+#include "ultramodern/renderer_context.hpp"
 #include "ultramodern/ultramodern.hpp"
 
 static ultramodern::renderer::callbacks_t render_callbacks{};

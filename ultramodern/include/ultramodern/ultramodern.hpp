@@ -29,7 +29,7 @@
 #include "ultramodern/events.hpp"
 #include "ultramodern/input.hpp"
 #include "ultramodern/rsp.hpp"
-#include "ultramodern/renderer_wrapper.hpp"
+#include "ultramodern/renderer_context.hpp"
 
 struct UltraThreadContext {
     std::thread host_thread;

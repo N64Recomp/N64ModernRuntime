@@ -15,7 +15,7 @@
 #include "ultramodern/ultramodern.hpp"
 
 #include "ultramodern/rsp.hpp"
-#include "ultramodern/renderer_wrapper.hpp"
+#include "ultramodern/renderer_context.hpp"
 
 static ultramodern::events::callbacks_t events_callbacks{};
 

@@ -18,10 +18,12 @@ namespace ultramodern {
             public:
                 bool developer_mode;
 
-                virtual ~GraphicsConfig() = 0;
+                virtual ~GraphicsConfig() = default;
 
                 virtual std::string get_graphics_api_name() const = 0;
                 virtual std::optional<uint32_t> get_target_framerate() const = 0;
+
+        		auto operator<=>(const GraphicsConfig& rhs) const = default;
 
                 virtual bool is_equal(const GraphicsConfig& rhs) const = 0;
         };
@@ -66,7 +68,7 @@ namespace ultramodern {
         std::unique_ptr<RendererContext> create_render_context(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
 
 
-        void set_graphics_config(const GraphicsConfig* config);
+        void set_graphics_config(std::unique_ptr<const GraphicsConfig>&& config);
         const GraphicsConfig* get_graphics_config();
     }
 }

@@ -24,10 +24,9 @@ std::unique_ptr<ultramodern::renderer::RendererContext> ultramodern::renderer::c
 static std::unique_ptr<const ultramodern::renderer::GraphicsConfig> graphic_config{};
 static std::mutex graphic_config_mutex;
 
-void ultramodern::renderer::set_graphics_config(const GraphicsConfig* config) {
+void ultramodern::renderer::set_graphics_config(std::unique_ptr<const GraphicsConfig>&& config) {
     std::lock_guard<std::mutex> lock(graphic_config_mutex);
-    assert(config != nullptr);
-    graphic_config.reset(config);
+    graphic_config.swap(config);
 }
 
 const ultramodern::renderer::GraphicsConfig* ultramodern::renderer::get_graphics_config() {

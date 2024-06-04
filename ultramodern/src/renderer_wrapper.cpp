@@ -27,6 +27,7 @@ static std::mutex graphic_config_mutex;
 void ultramodern::renderer::set_graphics_config(std::unique_ptr<const GraphicsConfig>&& config) {
     std::lock_guard<std::mutex> lock(graphic_config_mutex);
     graphic_config.swap(config);
+    ultramodern::trigger_config_action();
 }
 
 const ultramodern::renderer::GraphicsConfig* ultramodern::renderer::get_graphics_config() {

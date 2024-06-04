@@ -247,6 +247,10 @@ void ultramodern::load_shader_cache(std::span<const char> cache_data) {
     events_context.action_queue.enqueue(LoadShaderCacheAction{cache_data});
 }
 
+void ultramodern::trigger_config_action() {
+    events_context.action_queue.enqueue(UpdateConfigAction{});
+}
+
 std::atomic<ultramodern::renderer::SetupResult> renderer_setup_result = ultramodern::renderer::SetupResult::Success;
 
 void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready, ultramodern::WindowHandle window_handle) {
@@ -308,7 +312,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
             }
             else if (const auto* config_action = std::get_if<UpdateConfigAction>(&action)) {
                 auto new_config = ultramodern::renderer::get_graphics_config();
-                if (!old_config->is_equal(*new_config)) {
+                if (!new_config->is_equal(*old_config)) {
                     renderer_context->update_config(old_config, new_config);
                     old_config = new_config;
                 }

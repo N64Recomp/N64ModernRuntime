@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
+
 project(librecomp)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Define the library
 add_library(librecomp STATIC
@@ -33,6 +37,10 @@ target_include_directories(librecomp PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include/librecomp"
 )
 
-target_compile_options(librecomp PRIVATE -Wno-deprecated-declarations)
+target_compile_options(librecomp PRIVATE
+#    -Wall
+#    -Wextra
+    -Wno-unused-parameter
+)
 
 target_link_libraries(librecomp PRIVATE ultramodern)

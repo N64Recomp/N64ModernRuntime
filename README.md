@@ -28,3 +28,14 @@ Librecomp is a library meant to be used to bridge the gap between code generated
 * Overlay handling
 * PI DMA (ROM reads)
 * EEPROM, SRAM and Flashram saving (these may be partially moved to ultramodern in the future)
+
+## Building
+
+It is recommended to reference this project on your `CMakeLists.txt` file. Note that this project has been developed with `clang` 15, older versions may not work.
+
+For building locally this project (ie, developing new features for the libraries of this project), the following is recommneded:
+
+```bash
+cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Debug
+cmake --build build -j $(nproc) --config Debug
+```

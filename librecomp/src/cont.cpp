@@ -28,26 +28,13 @@ void set_input_callbacks(const ultramodern::input_callbacks_t& callbacks) {
 static int max_controllers = 0;
 
 extern "C" void osContInit_recomp(uint8_t* rdram, recomp_context* ctx) {
-    PTR(void) bitpattern = _arg<1, PTR(void)>(rdram, ctx);
-    PTR(void) status = _arg<2, PTR(void)>(rdram, ctx);
+    PTR(OSMesgQueue) mq = _arg<0, PTR(OSMesgQueue)>(rdram, ctx);
+    PTR(u8) bitpattern = _arg<1, PTR(u8)>(rdram, ctx);
+    PTR(OSContStatus) data = _arg<2, PTR(OSContStatus)>(rdram, ctx);
 
-    // Set bit 0 to indicate that controller 0 is present
-    MEM_B(0, bitpattern) = 0x01;
+    s32 ret = osContInit(PASS_RDRAM mq, bitpattern, data);
 
-    // Mark controller 0 as present
-    MEM_H(0, status) = 0x0005; // type: CONT_TYPE_NORMAL (from joybus)
-    MEM_B(2, status) = 0x00; // status: 0 (from joybus)
-    MEM_B(3, status) = 0x00; // errno: 0 (from libultra)
-
-    max_controllers = 4;
-
-    // Mark controllers 1-3 as not connected
-    for (size_t controller = 1; controller < max_controllers; controller++) {
-        // Libultra doesn't write status or type for absent controllers
-        MEM_B(4 * controller + 3, status) = 0x80 >> 4; // errno: CONT_NO_RESPONSE_ERROR >> 4
-    }
-
-    _return<s32>(ctx, 0);
+    _return<s32>(ctx, ret);
 }
 
 extern "C" void osContStartReadData_recomp(uint8_t* rdram, recomp_context* ctx) {
@@ -90,18 +77,9 @@ extern "C" void osContStartQuery_recomp(uint8_t * rdram, recomp_context * ctx) {
 }
 
 extern "C" void osContGetQuery_recomp(uint8_t * rdram, recomp_context * ctx) {
-    PTR(void) status = _arg<0, PTR(void)>(rdram, ctx);
+    PTR(OSContStatus) data = _arg<0, PTR(OSContStatus)>(rdram, ctx);
 
-    // Mark controller 0 as present
-    MEM_H(0, status) = 0x0005; // type: CONT_TYPE_NORMAL (from joybus)
-    MEM_B(2, status) = 0x01; // status: 0x01 (from joybus, indicates that a pak is plugged into the controller)
-    MEM_B(3, status) = 0x00; // errno: 0 (from libultra)
-
-    // Mark controllers 1-3 as not connected
-    for (size_t controller = 1; controller < max_controllers; controller++) {
-        // Libultra doesn't write status or type for absent controllers
-        MEM_B(4 * controller + 3, status) = 0x80 >> 4; // errno: CONT_NO_RESPONSE_ERROR >> 4
-    }
+    osContGetQuery(PASS_RDRAM data);
 }
 
 extern "C" void osContSetCh_recomp(uint8_t* rdram, recomp_context* ctx) {

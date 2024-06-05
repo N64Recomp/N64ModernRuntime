@@ -214,6 +214,26 @@ typedef struct {
     OSViFieldRegs  fldRegs[2];
 } OSViMode;
 
+// Controller
+
+typedef struct {
+    // These three members reversed due to endianness
+    u8 err_no;
+    u8 status;                 /* Controller status */
+    u16 type;                   /* Controller Type */
+} OSContStatus;
+
+typedef struct {
+    // These three members reversed due to endianness
+    s8 stick_y; /* -80 <= stick_y <= 80 */
+    s8 stick_x; /* -80 <= stick_x <= 80 */
+    u16 button;
+    // Padding due to endianness
+    u8 padding[3];
+    u8 err_no;
+} OSContPad;
+
+
 ///////////////
 // Functions //
 ///////////////
@@ -254,6 +274,16 @@ OSTime osGetTime();
 int osSetTimer(RDRAM_ARG PTR(OSTimer) timer, OSTime countdown, OSTime interval, PTR(OSMesgQueue) mq, OSMesg msg);
 int osStopTimer(RDRAM_ARG PTR(OSTimer) timer);
 u32 osVirtualToPhysical(PTR(void) addr);
+
+/* Controller interface */
+
+s32 osContInit(RDRAM_ARG PTR(OSMesgQueue), PTR(u8), PTR(OSContStatus));
+s32 osContReset(RDRAM_ARG PTR(OSMesgQueue), PTR(OSContStatus));
+s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue));
+s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue));
+s32 osContSetCh(RDRAM_ARG u8);
+void osContGetQuery(RDRAM_ARG PTR(OSContStatus));
+void osContGetReadData(RDRAM_ARG PTR(OSContPad));
 
 #ifdef __cplusplus
 } // extern "C"

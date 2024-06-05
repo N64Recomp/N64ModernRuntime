@@ -34,7 +34,7 @@ static void __osContGetInitData(u8* pattern, OSContStatus *data) {
 
     // Mark controller 0 as present
     data[0].type = 0x0005; // type: CONT_TYPE_NORMAL (from joybus)
-    data[0].status = 0x00; // status: 0 (from joybus)
+    data[0].status = 0x01; // status: 0x01 (from joybus, indicates that a pak is plugged into the controller)
     data[0].err_no = 0x00; // errno: 0 (from libultra)
 
     // Mark controllers 1-3 as not connected

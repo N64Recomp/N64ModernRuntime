@@ -10,8 +10,6 @@ extern "C" void recomp_measure_latency(uint8_t* rdram, recomp_context* ctx) {
     ultramodern::measure_input_latency();
 }
 
-static int max_controllers = 0;
-
 extern "C" void osContInit_recomp(uint8_t* rdram, recomp_context* ctx) {
     PTR(OSMesgQueue) mq = _arg<0, PTR(OSMesgQueue)>(rdram, ctx);
     PTR(u8) bitpattern = _arg<1, PTR(u8)>(rdram, ctx);

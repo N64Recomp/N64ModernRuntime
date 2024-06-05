@@ -37,6 +37,15 @@ extern "C" void osContInit_recomp(uint8_t* rdram, recomp_context* ctx) {
     _return<s32>(ctx, ret);
 }
 
+extern "C" void osContReset_recomp(uint8_t* rdram, recomp_context* ctx) {
+    PTR(OSMesgQueue) mq = _arg<0, PTR(OSMesgQueue)>(rdram, ctx);
+    PTR(OSContStatus) data = _arg<1, PTR(OSContStatus)>(rdram, ctx);
+
+    s32 ret = osContReset(PASS_RDRAM mq, data);
+
+    _return<s32>(ctx, ret);
+}
+
 extern "C" void osContStartReadData_recomp(uint8_t* rdram, recomp_context* ctx) {
     if (input_callbacks.poll_input) {
         input_callbacks.poll_input();
@@ -73,7 +82,11 @@ extern "C" void osContGetReadData_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osContStartQuery_recomp(uint8_t * rdram, recomp_context * ctx) {
-    ultramodern::send_si_message(rdram);
+    PTR(OSMesgQueue) mq = _arg<0, PTR(OSMesgQueue)>(rdram, ctx);
+
+    s32 ret = osContStartQuery(PASS_RDRAM mq);
+
+    _return<s32>(ctx, ret);
 }
 
 extern "C" void osContGetQuery_recomp(uint8_t * rdram, recomp_context * ctx) {
@@ -83,8 +96,11 @@ extern "C" void osContGetQuery_recomp(uint8_t * rdram, recomp_context * ctx) {
 }
 
 extern "C" void osContSetCh_recomp(uint8_t* rdram, recomp_context* ctx) {
-    max_controllers = (std::min)(_arg<0, u8>(rdram, ctx), u8(4));
-    _return<s32>(ctx, 0);
+    u8 ch = _arg<0, u8>(rdram, ctx);
+
+    s32 ret = osContSetCh(PASS_RDRAM ch);
+
+    _return<s32>(ctx, ret);
 }
 
 extern "C" void __osMotorAccess_recomp(uint8_t* rdram, recomp_context* ctx) {

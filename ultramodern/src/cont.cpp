@@ -2,12 +2,15 @@
 
 #include "ultramodern/input.hpp"
 #include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
 
 static ultramodern::input::callbacks_t input_callbacks {};
 
 void ultramodern::input::set_callbacks(const callbacks_t& callbacks) {
     input_callbacks = callbacks;
 }
+
+#define MAXCONTROLLERS 4
 
 static int max_controllers = 0;
 
@@ -31,27 +34,31 @@ extern "C" s32 osContInit(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(u8) bitpattern_, PT
     u8 *bitpattern = TO_PTR(u8, bitpattern_);
     OSContStatus *data = TO_PTR(OSContStatus, data_);
 
-    max_controllers = 4;
+    max_controllers = MAXCONTROLLERS;
 
     __osContGetInitData(bitpattern, data);
 
     return 0;
 }
 
-extern "C" s32 osContResetRDRAM_ARG (PTR(OSMesgQueue) , PTR(OSContStatus) ) {
+extern "C" s32 osContReset(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(OSContStatus) data) {
     assert(false);
 }
 
-extern "C" s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue) ) {
+extern "C" s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue) mq) {
+    ultramodern::send_si_message(PASS_RDRAM1);
+
+    return 0;
+}
+
+extern "C" s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue) mq) {
     assert(false);
 }
 
-extern "C" s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue) ) {
-    assert(false);
-}
+extern "C" s32 osContSetCh(RDRAM_ARG u8 ch) {
+    max_controllers = (std::min)(ch, u8(MAXCONTROLLERS));
 
-extern "C" s32 osContSetCh(RDRAM_ARG u8) {
-    assert(false);
+    return 0;
 }
 
 extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
@@ -61,6 +68,6 @@ extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
     __osContGetInitData(&pattern, data);
 }
 
-extern "C" void osContGetReadData(RDRAM_ARG PTR(OSContPad) ) {
+extern "C" void osContGetReadData(RDRAM_ARG PTR(OSContPad) data) {
     assert(false);
 }

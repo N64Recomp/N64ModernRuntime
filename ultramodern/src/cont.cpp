@@ -10,9 +10,23 @@ void ultramodern::input::set_callbacks(const callbacks_t& callbacks) {
     input_callbacks = callbacks;
 }
 
+static std::chrono::high_resolution_clock::time_point input_poll_time;
+
+static void update_poll_time() {
+    input_poll_time = std::chrono::high_resolution_clock::now();
+}
+
+void ultramodern::measure_input_latency() {
+#if 0
+    printf("Delta: %ld micros\n", std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - input_poll_time));
+#endif
+}
+
 #define MAXCONTROLLERS 4
 
 static int max_controllers = 0;
+
+/* Plain controller */
 
 static void __osContGetInitData(u8* pattern, OSContStatus *data) {
     // Set bit 0 to indicate that controller 0 is present
@@ -52,7 +66,14 @@ extern "C" s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue) mq) {
 }
 
 extern "C" s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue) mq) {
-    assert(false);
+    if (input_callbacks.poll_input != nullptr) {
+        input_callbacks.poll_input();
+    }
+    update_poll_time();
+
+    ultramodern::send_si_message(rdram);
+
+    return 0;
 }
 
 extern "C" s32 osContSetCh(RDRAM_ARG u8 ch) {
@@ -62,12 +83,61 @@ extern "C" s32 osContSetCh(RDRAM_ARG u8 ch) {
 }
 
 extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
-    u8 pattern;
     OSContStatus *data = TO_PTR(OSContStatus, data_);
+    u8 pattern;
 
     __osContGetInitData(&pattern, data);
 }
 
-extern "C" void osContGetReadData(RDRAM_ARG PTR(OSContPad) data) {
-    assert(false);
+extern "C" void osContGetReadData(RDRAM_ARG PTR(OSContPad) data_) {
+    OSContPad *data = TO_PTR(OSContPad, data_);
+    uint16_t buttons = 0;
+    float x = 0.0f;
+    float y = 0.0f;
+
+    if (input_callbacks.get_input != nullptr) {
+        input_callbacks.get_input(&buttons, &x, &y);
+    }
+
+    if (max_controllers > 0) {
+        // button
+        data[0].button = buttons;
+        data[0].stick_x = (int8_t)(127 * x);
+        data[0].stick_y = (int8_t)(127 * y);
+        data[0].err_no = 0;
+    }
+    for (int controller = 1; controller < max_controllers; controller++) {
+        data[controller].err_no = 0x80 >> 4; // errno: CONT_NO_RESPONSE_ERROR >> 4
+    }
+}
+
+/* Rumble */
+
+s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(OSPfs) pfs_, int channel) {
+    OSPfs *pfs = TO_PTR(OSPfs, pfs_);
+
+    pfs->channel = channel;
+
+    return 0;
+}
+
+s32 osMotorStop(RDRAM_ARG PTR(OSPfs) pfs) {
+    return __osMotorAccess(PASS_RDRAM pfs, false);
+}
+
+s32 osMotorStart(RDRAM_ARG PTR(OSPfs) pfs) {
+    return __osMotorAccess(PASS_RDRAM pfs, true);
+}
+
+s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs) pfs_, s32 flag) {
+    OSPfs *pfs = TO_PTR(OSPfs, pfs_);
+
+    // Only respect accesses to controller 0.
+    if (pfs->channel == 0) {
+        if (input_callbacks.set_rumble != nullptr) {
+            input_callbacks.set_rumble(flag);
+        }
+    }
+
+    return 0;
 }

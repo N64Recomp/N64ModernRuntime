@@ -183,7 +183,7 @@ void set_callbacks(const rsp::callbacks_t& rsp_callbacks, const audio_callbacks_
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-#define debug_printf(...)
-//#define debug_printf(...) printf(__VA_ARGS__);
+// #define debug_printf(...)
+#define debug_printf(...) printf(__VA_ARGS__);
 
 #endif

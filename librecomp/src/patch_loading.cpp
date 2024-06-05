@@ -4,6 +4,7 @@
 #include "recomp.h"
 #include "sections.h"
 #include "overlays.hpp"
+#include "ultramodern/ultramodern.hpp"
 
 static SectionTableEntry* code_sections = nullptr;
 
@@ -14,5 +15,9 @@ void recomp::register_patch_section(SectionTableEntry* sections) {
 }
 
 void recomp::load_patch_functions() {
+    if (code_sections == nullptr) {
+        debug_printf("[Patch] No patch section was registered\n");
+        return;
+    }
     load_special_overlay(code_sections[0], code_sections[0].ram_addr);
 }

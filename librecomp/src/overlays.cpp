@@ -143,9 +143,9 @@ extern "C" void unload_overlays(int32_t ram_addr, uint32_t size) {
 }
 
 void init_overlays() {
-    section_addresses = (int32_t *)malloc(sections_info.total_num_sections * sizeof(int32_t));
+    section_addresses = (int32_t *)malloc(sections_info.num_code_sections * sizeof(int32_t));
 
-    for (size_t section_index = 0; section_index < sections_info.total_num_sections; section_index++) {
+    for (size_t section_index = 0; section_index < sections_info.num_code_sections; section_index++) {
         section_addresses[sections_info.code_sections[section_index].index] = sections_info.code_sections[section_index].ram_addr;
     }
 

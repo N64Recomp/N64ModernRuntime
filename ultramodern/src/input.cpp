@@ -78,7 +78,7 @@ extern "C" s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue) mq) {
 }
 
 extern "C" s32 osContSetCh(RDRAM_ARG u8 ch) {
-    max_controllers = (std::min)(ch, u8(MAXCONTROLLERS));
+    max_controllers = std::min(ch, u8(MAXCONTROLLERS));
 
     return 0;
 }

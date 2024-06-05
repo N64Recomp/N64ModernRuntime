@@ -16,8 +16,6 @@ namespace ultramodern {
         };
 
         void set_callbacks(const callbacks_t& callbacks);
-
-
     }
 }
 

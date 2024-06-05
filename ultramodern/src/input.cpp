@@ -57,6 +57,7 @@ extern "C" s32 osContInit(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(u8) bitpattern_, PT
 
 extern "C" s32 osContReset(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(OSContStatus) data) {
     assert(false);
+    return 0;
 }
 
 extern "C" s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue) mq) {

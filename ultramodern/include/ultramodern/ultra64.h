@@ -214,6 +214,48 @@ typedef struct {
     OSViFieldRegs  fldRegs[2];
 } OSViMode;
 
+/*
+ * Structure for file system
+ */
+typedef struct {
+    int status;
+    PTR(OSMesgQueue) queue;
+    int channel;
+    u8 id[32]; // TODO: funky endianness here
+    u8 label[32]; // TODO: funky endianness here
+    int version;
+    int dir_size;
+    int inode_table; /* block location */
+    int minode_table; /* mirrioring inode_table */
+    int dir_table; /* block location */
+    int inode_start_page; /* page # */
+    // Padding and reversed members due to endianness
+    u8 padding[2];
+    u8 activebank;
+    u8 banks;
+} OSPfs;
+
+
+// Controller
+
+typedef struct {
+    // These three members reversed due to endianness
+    u8 err_no;
+    u8 status;                 /* Controller status */
+    u16 type;                   /* Controller Type */
+} OSContStatus;
+
+typedef struct {
+    // These three members reversed due to endianness
+    s8 stick_y; /* -80 <= stick_y <= 80 */
+    s8 stick_x; /* -80 <= stick_x <= 80 */
+    u16 button;
+    // Padding due to endianness
+    u8 padding[3];
+    u8 err_no;
+} OSContPad;
+
+
 ///////////////
 // Functions //
 ///////////////
@@ -254,6 +296,23 @@ OSTime osGetTime();
 int osSetTimer(RDRAM_ARG PTR(OSTimer) timer, OSTime countdown, OSTime interval, PTR(OSMesgQueue) mq, OSMesg msg);
 int osStopTimer(RDRAM_ARG PTR(OSTimer) timer);
 u32 osVirtualToPhysical(PTR(void) addr);
+
+/* Controller interface */
+
+s32 osContInit(RDRAM_ARG PTR(OSMesgQueue), PTR(u8), PTR(OSContStatus));
+s32 osContReset(RDRAM_ARG PTR(OSMesgQueue), PTR(OSContStatus));
+s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue));
+s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue));
+s32 osContSetCh(RDRAM_ARG u8);
+void osContGetQuery(RDRAM_ARG PTR(OSContStatus));
+void osContGetReadData(RDRAM_ARG PTR(OSContPad));
+
+/* Rumble PAK interface */
+
+s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue), PTR(OSPfs), int);
+s32 osMotorStop(RDRAM_ARG PTR(OSPfs));
+s32 osMotorStart(RDRAM_ARG PTR(OSPfs));
+s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs), s32);
 
 #ifdef __cplusplus
 } // extern "C"

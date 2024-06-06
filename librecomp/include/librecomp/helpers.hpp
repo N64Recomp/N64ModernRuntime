@@ -39,11 +39,17 @@ T _arg(uint8_t* rdram, recomp_context* ctx) {
 template <typename T>
 void _return(recomp_context* ctx, T val) {
     static_assert(sizeof(T) <= 4 && "Only 32-bit value returns supported currently");
-    if (std::is_same_v<T, float>) {
+    if constexpr (std::is_same_v<T, float>) {
         ctx->f0.fl = val;
     }
-    else if (std::is_integral_v<T> && sizeof(T) <= 4) {
+    else if constexpr (std::is_integral_v<T> && sizeof(T) <= 4) {
         ctx->r2 = int32_t(val);
+    }
+    else {
+        // static_assert in else workaround
+        [] <bool flag = false>() {
+            static_assert(flag, "Unsupported type");
+        }();
     }
 }
 

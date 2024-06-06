@@ -27,6 +27,7 @@
 
 #include "ultramodern/error_handling.hpp"
 #include "ultramodern/events.hpp"
+#include "ultramodern/input.hpp"
 #include "ultramodern/rsp.hpp"
 
 struct UltraThreadContext {
@@ -142,17 +143,6 @@ struct audio_callbacks_t {
     set_frequency_t* set_frequency;
 };
 
-// TODO: These functions are currently called by librecomp, but will get called by ultramodern in the future
-// Input
-struct input_callbacks_t {
-    using poll_input_t = void(void);
-    using get_input_t = void(uint16_t*, float*, float*);
-    using set_rumble_t = void(bool);
-    poll_input_t* poll_input;
-    get_input_t* get_input;
-    set_rumble_t* set_rumble;
-};
-
 // TODO: Most of the members of this struct are not used by ultramodern. Should we move them to librecomp instead?
 struct gfx_callbacks_t {
     using gfx_data_t = void*;
@@ -178,7 +168,7 @@ void set_audio_callbacks(const audio_callbacks_t& callbacks);
  *
  * It must be called only once and it must be called before `ultramodern::preinit`.
  */
-void set_callbacks(const rsp::callbacks_t& rsp_callbacks, const audio_callbacks_t& audio_callbacks, const input_callbacks_t& input_callbacks, const gfx_callbacks_t& gfx_callbacks, const events::callbacks_t& events_callbacks, const error_handling::callbacks_t& error_handling_callbacks);
+void set_callbacks(const rsp::callbacks_t& rsp_callbacks, const audio_callbacks_t& audio_callbacks, const input::callbacks_t& input_callbacks, const gfx_callbacks_t& gfx_callbacks, const events::callbacks_t& events_callbacks, const error_handling::callbacks_t& error_handling_callbacks);
 } // namespace ultramodern
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

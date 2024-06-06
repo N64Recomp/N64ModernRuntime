@@ -142,12 +142,12 @@ extern "C" void osContGetReadData(RDRAM_ARG PTR(OSContPad) data_) {
         }
 
         if (got_response) {
-            data[0].button = buttons;
-            data[0].stick_x = (int8_t)(127 * x);
-            data[0].stick_y = (int8_t)(127 * y);
-            data[0].err_no = 0;
+            data[controller].button = buttons;
+            data[controller].stick_x = (int8_t)(127 * x);
+            data[controller].stick_y = (int8_t)(127 * y);
+            data[controller].err_no = 0;
         } else {
-            data[controller].err_no = 0x80 >> 4; // errno: CONT_NO_RESPONSE_ERROR >> 4
+            data[controller].err_no =  CONT_NO_RESPONSE_ERROR; // CHNL_ERR_NORESP >> 4
         }
     }
 }

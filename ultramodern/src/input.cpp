@@ -92,23 +92,25 @@ extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
 
 extern "C" void osContGetReadData(RDRAM_ARG PTR(OSContPad) data_) {
     OSContPad *data = TO_PTR(OSContPad, data_);
-    uint16_t buttons = 0;
-    float x = 0.0f;
-    float y = 0.0f;
 
-    if (input_callbacks.get_input != nullptr) {
-        input_callbacks.get_input(&buttons, &x, &y);
-    }
+    for (int controller = 0; controller < max_controllers; controller++) {
+        uint16_t buttons = 0;
+        float x = 0.0f;
+        float y = 0.0f;
+        bool got_response = false;
 
-    if (max_controllers > 0) {
-        // button
-        data[0].button = buttons;
-        data[0].stick_x = (int8_t)(127 * x);
-        data[0].stick_y = (int8_t)(127 * y);
-        data[0].err_no = 0;
-    }
-    for (int controller = 1; controller < max_controllers; controller++) {
-        data[controller].err_no = 0x80 >> 4; // errno: CONT_NO_RESPONSE_ERROR >> 4
+        if (input_callbacks.get_input != nullptr) {
+            got_response = input_callbacks.get_input(controller, &buttons, &x, &y);
+        }
+
+        if (got_response) {
+            data[0].button = buttons;
+            data[0].stick_x = (int8_t)(127 * x);
+            data[0].stick_y = (int8_t)(127 * y);
+            data[0].err_no = 0;
+        } else {
+            data[controller].err_no = 0x80 >> 4; // errno: CONT_NO_RESPONSE_ERROR >> 4
+        }
     }
 }
 
@@ -133,11 +135,8 @@ s32 osMotorStart(RDRAM_ARG PTR(OSPfs) pfs) {
 s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs) pfs_, s32 flag) {
     OSPfs *pfs = TO_PTR(OSPfs, pfs_);
 
-    // Only respect accesses to controller 0.
-    if (pfs->channel == 0) {
-        if (input_callbacks.set_rumble != nullptr) {
-            input_callbacks.set_rumble(flag);
-        }
+    if (input_callbacks.set_rumble != nullptr) {
+        input_callbacks.set_rumble(pfs->channel, flag);
     }
 
     return 0;

@@ -128,9 +128,7 @@ extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
     __osContGetInitData(&pattern, data);
 }
 
-extern "C" void osContGetReadData(RDRAM_ARG PTR(OSContPad) data_) {
-    OSContPad *data = TO_PTR(OSContPad, data_);
-
+extern "C" void osContGetReadData(OSContPad *data) {
     for (int controller = 0; controller < max_controllers; controller++) {
         uint16_t buttons = 0;
         float x = 0.0f;

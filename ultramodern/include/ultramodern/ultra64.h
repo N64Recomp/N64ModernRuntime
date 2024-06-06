@@ -246,12 +246,9 @@ typedef struct {
 } OSContStatus;
 
 typedef struct {
-    // These three members reversed due to endianness
-    s8 stick_y; /* -80 <= stick_y <= 80 */
-    s8 stick_x; /* -80 <= stick_x <= 80 */
     u16 button;
-    // Padding due to endianness
-    u8 padding[3];
+    s8 stick_x; /* -80 <= stick_x <= 80 */
+    s8 stick_y; /* -80 <= stick_y <= 80 */
     u8 err_no;
 } OSContPad;
 
@@ -305,7 +302,7 @@ s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue));
 s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue));
 s32 osContSetCh(RDRAM_ARG u8);
 void osContGetQuery(RDRAM_ARG PTR(OSContStatus));
-void osContGetReadData(RDRAM_ARG PTR(OSContPad));
+void osContGetReadData(OSContPad *);
 
 /* Rumble PAK interface */
 

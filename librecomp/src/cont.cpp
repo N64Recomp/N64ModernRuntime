@@ -2,6 +2,8 @@
 
 #include "helpers.hpp"
 
+#define MAXCONTROLLERS 4
+
 extern "C" void recomp_set_current_frame_poll_id(uint8_t* rdram, recomp_context* ctx) {
     // TODO reimplement the system for tagging polls with IDs to handle games with multithreaded input polling.
 }
@@ -40,7 +42,16 @@ extern "C" void osContStartReadData_recomp(uint8_t* rdram, recomp_context* ctx) 
 extern "C" void osContGetReadData_recomp(uint8_t* rdram, recomp_context* ctx) {
     PTR(OSContPad) data = _arg<0, PTR(OSContPad)>(rdram, ctx);
 
-    osContGetReadData(PASS_RDRAM data);
+    OSContPad dummy_data[MAXCONTROLLERS];
+
+    osContGetReadData(dummy_data);
+
+    for (int controller = 0; controller < MAXCONTROLLERS; controller++) {
+        MEM_H(6 * controller + 0, data) = dummy_data[controller].button;
+        MEM_B(6 * controller + 2, data) = dummy_data[controller].stick_x;
+        MEM_B(6 * controller + 3, data) = dummy_data[controller].stick_y;
+        MEM_B(6 * controller + 4, data) = dummy_data[controller].err_no;
+    }
 }
 
 extern "C" void osContStartQuery_recomp(uint8_t * rdram, recomp_context * ctx) {

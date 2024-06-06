@@ -1,18 +1,32 @@
 #include <algorithm>
+#include <cassert>
 #include <cstdio>
+#include <cstring>
 #include <unordered_map>
 #include <vector>
+
+#include "ultramodern/ultramodern.hpp"
 
 #include "recomp.h"
 #include "overlays.hpp"
 #include "sections.h"
 
-static recomp::overlay_section_table_data_t sections_info {};
-static recomp::overlays_by_index_t overlays_info {};
+static recomp::overlays::overlay_section_table_data_t sections_info {};
+static recomp::overlays::overlays_by_index_t overlays_info {};
 
-void recomp::register_overlays(const recomp::overlay_section_table_data_t& sections, const recomp::overlays_by_index_t& overlays) {
+static SectionTableEntry* patch_code_sections = nullptr;
+static std::vector<char> patch_data;
+
+void recomp::overlays::register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays) {
     sections_info = sections;
     overlays_info = overlays;
+}
+
+void recomp::overlays::register_patch(const char* patch, std::size_t size, SectionTableEntry* sections) {
+    patch_code_sections = sections;
+
+    patch_data.resize(size);
+    std::memcpy(patch_data.data(), patch, size);
 }
 
 struct LoadedSection {
@@ -44,13 +58,26 @@ void load_overlay(size_t section_table_index, int32_t ram) {
     section_addresses[section.index] = ram;
 }
 
-void load_special_overlay(const SectionTableEntry& section, int32_t ram) {
+static void load_special_overlay(const SectionTableEntry& section, int32_t ram) {
     for (size_t function_index = 0; function_index < section.num_funcs; function_index++) {
         const FuncEntry& func = section.funcs[function_index];
         func_map[ram + func.offset] = func.func;
     }
 }
 
+static void load_patch_functions() {
+    if (patch_code_sections == nullptr) {
+        debug_printf("[Patch] No patch section was registered\n");
+        return;
+    }
+    load_special_overlay(patch_code_sections[0], patch_code_sections[0].ram_addr);
+}
+
+void recomp::overlays::read_patch_data(uint8_t* rdram, gpr patch_data_address) {
+    for (size_t i = 0; i < patch_data.size(); i++) {
+        MEM_B(i, patch_data_address) = patch_data[i];
+    }
+}
 
 extern "C" {
 int32_t* section_addresses = nullptr;
@@ -142,7 +169,7 @@ extern "C" void unload_overlays(int32_t ram_addr, uint32_t size) {
     }
 }
 
-void init_overlays() {
+void recomp::overlays::init_overlays() {
     section_addresses = (int32_t *)calloc(sections_info.total_num_sections, sizeof(int32_t));
 
     for (size_t section_index = 0; section_index < sections_info.num_code_sections; section_index++) {
@@ -156,7 +183,7 @@ void init_overlays() {
         }
     );
 
-    recomp::load_patch_functions();
+    load_patch_functions();
 }
 
 extern "C" recomp_func_t * get_function(int32_t addr) {

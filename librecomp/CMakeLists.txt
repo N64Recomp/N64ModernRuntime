@@ -17,7 +17,6 @@ add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/math_routines.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/overlays.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/pak.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/patch_loading.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/pi.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/print.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp.cpp"

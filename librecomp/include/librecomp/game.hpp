@@ -32,7 +32,6 @@ namespace recomp {
 	};
 	void register_config_path(std::filesystem::path path);
 	bool register_game(const recomp::GameEntry& entry);
-	void register_patch(const char* patch, std::size_t size);
 	void check_all_stored_roms();
 	bool load_stored_rom(std::u8string& game_id);
 	RomValidationError select_rom(const std::filesystem::path& rom_path, std::u8string& game_id);

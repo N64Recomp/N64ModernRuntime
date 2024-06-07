@@ -19,7 +19,7 @@ namespace recomp {
 
         void register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays);
 
-        void register_patch(const char* patch_data, std::size_t patch_size, SectionTableEntry* code_sections);
+        void register_patches(const char* patch_data, std::size_t patch_size, SectionTableEntry* code_sections);
         void read_patch_data(uint8_t* rdram, gpr patch_data_address);
 
         void init_overlays();

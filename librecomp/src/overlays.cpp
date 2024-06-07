@@ -22,7 +22,7 @@ void recomp::overlays::register_overlays(const overlay_section_table_data_t& sec
     overlays_info = overlays;
 }
 
-void recomp::overlays::register_patch(const char* patch, std::size_t size, SectionTableEntry* sections) {
+void recomp::overlays::register_patches(const char* patch, std::size_t size, SectionTableEntry* sections) {
     patch_code_sections = sections;
 
     patch_data.resize(size);

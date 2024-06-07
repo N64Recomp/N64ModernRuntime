@@ -34,3 +34,7 @@ target_compile_options(ultramodern PRIVATE
 #    -Wextra
     -Wno-unused-parameter
 )
+
+if (WIN32)
+    add_compile_definitions(NOMINMAX)
+endif()

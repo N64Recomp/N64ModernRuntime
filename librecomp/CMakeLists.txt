@@ -43,4 +43,8 @@ target_compile_options(librecomp PRIVATE
     -Wno-unused-parameter
 )
 
+if (WIN32)
+    add_compile_definitions(NOMINMAX)
+endif()
+
 target_link_libraries(librecomp PRIVATE ultramodern)

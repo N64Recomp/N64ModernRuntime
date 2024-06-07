@@ -215,7 +215,7 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
 
         if (!ultramodern::rsp::run_task(PASS_RDRAM task)) {
             fprintf(stderr, "Failed to execute task type: %" PRIu32 "\n", task->t.type);
-            ultramodern::error_handling::quick_exit(__FILE__, __LINE__, __func__);
+            ULTRAMODERN_QUICK_EXIT();
         }
 
         // Tell the game that the RSP has completed

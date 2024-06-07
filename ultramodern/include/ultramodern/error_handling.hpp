@@ -3,6 +3,8 @@
 
 #include <cstdlib>
 
+#define ULTRAMODERN_QUICK_EXIT() ultramodern::error_handling::quick_exit(__FILE__, __LINE__, __func__)
+
 namespace ultramodern {
     namespace error_handling {
         struct callbacks_t {

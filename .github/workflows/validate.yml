@@ -28,7 +28,6 @@ jobs:
         with:
           key: ${{ runner.os }}-z64re-ccache-${{ matrix.type }}-${{ matrix.arch }}
       - name: Install Linux Dependencies
-        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y ninja-build libsdl2-dev libgtk-3-dev lld llvm clang-15
@@ -48,7 +47,6 @@ jobs:
           sudo cp -av /usr/local/lib/libSDL* /lib/x86_64-linux-gnu/
           echo ::endgroup::
       - name: Generate CMake Project
-        if: runner.os != 'Windows'
         run: |
           # enable ccache
           export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"          
@@ -89,7 +87,11 @@ jobs:
         run: |
           # enable ccache
           set $env:PATH="$env:USERPROFILE/.cargo/bin;$env:PATH"
-          cmake -DCMAKE_BUILD_TYPE=${{ matrix.type }} -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER=clang-cl -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build -DCMAKE_CXX_FLAGS="-Xclang -fcxx-exceptions"
+
+          # remove LLVM from PATH so it doesn't overshadow the one provided by VS
+          $env:PATH = ($env:PATH -split ';' | Where-Object { $_ -ne 'C:\Program Files\LLVM\bin' }) -join ';'
+
+          cmake -DCMAKE_BUILD_TYPE=${{ matrix.type }} -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_C_COMPILER=clang-cl -DCMAKE_MAKE_PROGRAM=ninja -G Ninja -S . -B cmake-build -DCMAKE_CXX_FLAGS="-Xclang -fexceptions -Xclang -fcxx-exceptions"
       - name: Build ultramodern
         run: |
           # enable ccache

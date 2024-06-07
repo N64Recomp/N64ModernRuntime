@@ -19,7 +19,7 @@ Ultramodern is a reimplementation of much of the core functionality of libultra.
 
 Platform-specific I/O is handled via callbacks that are provided by the project using ultramodern. This includes reading from controllers and playing back audio samples.
 
-ultramodern expects the user to provide and regiter a graphics renderer. The recommended one is [RT64](https://github.com/rt64/rt64).
+ultramodern expects the user to provide and register a graphics renderer. The recommended one is [RT64](https://github.com/rt64/rt64).
 
 ## Librecomp
 
@@ -31,9 +31,9 @@ Librecomp is a library meant to be used to bridge the gap between code generated
 
 ## Building
 
-It is recommended to reference this project on your `CMakeLists.txt` file. Note that this project has been developed with `clang` 15, older versions may not work.
+The recommended usage of these libraries is to include them in your project's CMakeLists.txt file via add_subdirectory. This project requires C++20 support and was developed using Clang 15, older versions of clang may not work. Recent enough versions of MSVC and GCC should work as well, but are not regularly tested.
 
-For building locally this project (ie, developing new features for the libraries of this project), the following is recommneded:
+These libraries can be built in a standalone environment (ie, developing new features for the libraries of this project) via the following:
 
 ```bash
 cmake -B build -G Ninja -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Debug

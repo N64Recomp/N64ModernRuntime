@@ -204,7 +204,9 @@ void ultramodern::init_saving(RDRAM_ARG1) {
 }
 
 void ultramodern::join_saving_thread() {
-    save_context.saving_thread.join();
+    if (save_context.saving_thread.joinable()) {
+        save_context.saving_thread.join();
+    }
 }
 
 void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_addr, uint32_t size, uint32_t direction) {

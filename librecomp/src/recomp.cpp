@@ -36,12 +36,10 @@ enum GameStatus {
 
 // Mutexes
 std::mutex game_roms_mutex;
-std::mutex patch_data_mutex;
 std::mutex current_game_mutex;
 
 // Global variables
 std::filesystem::path config_path;
-std::vector<char> patch_data;
 std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
 
 std::u8string recomp::GameEntry::stored_filename() const {
@@ -56,12 +54,6 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
     std::lock_guard<std::mutex> lock(game_roms_mutex);
     game_roms.insert({ entry.game_id, entry });
     return true;
-}
-
-void recomp::register_patch(const char* patch, std::size_t size) {
-    std::lock_guard<std::mutex> lock(patch_data_mutex);
-    patch_data.resize(size);
-    std::memcpy(patch_data.data(), patch, size);
 }
 
 bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
@@ -319,15 +311,9 @@ void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t ar
     func(rdram, &ctx);
 }
 
-void read_patch_data(uint8_t* rdram, gpr patch_data_address) {
-    for (size_t i = 0; i < patch_data.size(); i++) {
-        MEM_B(i, patch_data_address) = patch_data[i];
-    }
-}
-
 void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
     // Initialize the overlays
-    init_overlays();
+    recomp::overlays::init_overlays();
 
     // Load overlays in the first 1MB
     load_overlays(0x1000, (int32_t)entrypoint, 1024 * 1024);
@@ -336,10 +322,7 @@ void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
     recomp::do_rom_read(rdram, entrypoint, 0x10001000, 0x100000);
 
     // Read in any extra data from patches
-    read_patch_data(rdram, (gpr)(s32)0x80801000);
-
-    // Set up stack pointer
-    ctx->r29 = 0xFFFFFFFF803FFFF0u;
+    recomp::overlays::read_patch_data(rdram, (gpr)(s32)0x80801000);
 
     // Set up context floats
     ctx->f_odd = &ctx->f0.u32h;

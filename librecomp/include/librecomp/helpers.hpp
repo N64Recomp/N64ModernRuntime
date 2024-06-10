@@ -5,7 +5,7 @@
 #include <ultramodern/ultra64.h>
 
 template<int index, typename T>
-T _arg(uint8_t* rdram, recomp_context* ctx) {
+T _arg(uint8_t *rdram, recomp_context *ctx) {
     static_assert(index < 4, "Only args 0 through 3 supported");
     gpr raw_arg = (&ctx->r4)[index];
     if constexpr (std::is_same_v<T, float>) {
@@ -15,13 +15,14 @@ T _arg(uint8_t* rdram, recomp_context* ctx) {
         }
         else {
             // static_assert in else workaround
-            [] <bool flag = false>() {
+            []<bool flag = false>() {
                 static_assert(flag, "Floats in a2/a3 not supported");
-            }();
+            }
+            ();
         }
     }
     else if constexpr (std::is_pointer_v<T>) {
-        static_assert (!std::is_pointer_v<std::remove_pointer_t<T>>, "Double pointers not supported");
+        static_assert(!std::is_pointer_v<std::remove_pointer_t<T>>, "Double pointers not supported");
         return TO_PTR(std::remove_pointer_t<T>, raw_arg);
     }
     else if constexpr (std::is_integral_v<T>) {
@@ -30,14 +31,15 @@ T _arg(uint8_t* rdram, recomp_context* ctx) {
     }
     else {
         // static_assert in else workaround
-        [] <bool flag = false>() {
+        []<bool flag = false>() {
             static_assert(flag, "Unsupported type");
-        }();
+        }
+        ();
     }
 }
 
-template <typename T>
-void _return(recomp_context* ctx, T val) {
+template<typename T>
+void _return(recomp_context *ctx, T val) {
     static_assert(sizeof(T) <= 4 && "Only 32-bit value returns supported currently");
     if constexpr (std::is_same_v<T, float>) {
         ctx->f0.fl = val;
@@ -47,9 +49,10 @@ void _return(recomp_context* ctx, T val) {
     }
     else {
         // static_assert in else workaround
-        [] <bool flag = false>() {
+        []<bool flag = false>() {
             static_assert(flag, "Unsupported type");
-        }();
+        }
+        ();
     }
 }
 

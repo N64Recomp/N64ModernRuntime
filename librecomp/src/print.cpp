@@ -2,34 +2,35 @@
 
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
-#include "recomp.h"
+
 #include "euc-jp.hpp"
+#include "recomp.h"
 
-extern "C" void __checkHardware_msp_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void __checkHardware_msp_recomp(uint8_t *rdram, recomp_context *ctx) {
     ctx->r2 = 0;
 }
 
-extern "C" void __checkHardware_kmc_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void __checkHardware_kmc_recomp(uint8_t *rdram, recomp_context *ctx) {
     ctx->r2 = 0;
 }
 
-extern "C" void __checkHardware_isv_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void __checkHardware_isv_recomp(uint8_t *rdram, recomp_context *ctx) {
     ctx->r2 = 0;
 }
 
-extern "C" void __osInitialize_msp_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void __osInitialize_msp_recomp(uint8_t *rdram, recomp_context *ctx) {
 }
 
-extern "C" void __osInitialize_kmc_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void __osInitialize_kmc_recomp(uint8_t *rdram, recomp_context *ctx) {
 }
 
-extern "C" void __osInitialize_isv_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void __osInitialize_isv_recomp(uint8_t *rdram, recomp_context *ctx) {
 }
 
-extern "C" void isPrintfInit_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void isPrintfInit_recomp(uint8_t *rdram, recomp_context *ctx) {
 }
 
-extern "C" void __osRdbSend_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void __osRdbSend_recomp(uint8_t *rdram, recomp_context *ctx) {
     gpr buf = ctx->r4;
     size_t size = ctx->r5;
     u32 type = (u32)ctx->r6;
@@ -45,16 +46,16 @@ extern "C" void __osRdbSend_recomp(uint8_t * rdram, recomp_context * ctx) {
     ctx->r2 = size;
 }
 
-extern "C" void is_proutSyncPrintf_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void is_proutSyncPrintf_recomp(uint8_t *rdram, recomp_context *ctx) {
     // Buffering to speed up print performance
     static std::vector<char> print_buffer;
 
     gpr buf = ctx->r5;
     size_t size = ctx->r6;
 
-    //for (size_t i = 0; i < size; i++) {
-    //    // Add the new character to the buffer
-    //    char cur_char = MEM_B(i, buf);
+    // for (size_t i = 0; i < size; i++) {
+    //     // Add the new character to the buffer
+    //     char cur_char = MEM_B(i, buf);
 
     //    // If the new character is a newline, flush the buffer
     //    if (cur_char == '\n') {
@@ -66,7 +67,7 @@ extern "C" void is_proutSyncPrintf_recomp(uint8_t * rdram, recomp_context * ctx)
     //    }
     //}
 
-    //fwrite(to_print.get(), size, 1, stdout);
+    // fwrite(to_print.get(), size, 1, stdout);
 
     ctx->r2 = 1;
 }

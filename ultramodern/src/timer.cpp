@@ -1,14 +1,14 @@
+#include "blockingconcurrentqueue.h"
+#include <set>
 #include <thread>
 #include <variant>
-#include <set>
-#include "blockingconcurrentqueue.h"
 
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include "Windows.h"
+#    define WIN32_LEAN_AND_MEAN
+#    include "Windows.h"
 #endif
 
 // Start time for the program
@@ -70,8 +70,8 @@ void timer_thread(RDRAM_ARG1) {
 
     // Lambda comparator function to keep the set ordered
     auto timer_sort = [PASS_RDRAM1](PTR(OSTimer) a_, PTR(OSTimer) b_) {
-        OSTimer* a = TO_PTR(OSTimer, a_);
-        OSTimer* b = TO_PTR(OSTimer, b_);
+        OSTimer *a = TO_PTR(OSTimer, a_);
+        OSTimer *b = TO_PTR(OSTimer, b_);
 
         // Order by timestamp if the timers have different timestamps
         if (a->timestamp != b->timestamp) {
@@ -83,14 +83,15 @@ void timer_thread(RDRAM_ARG1) {
     };
 
     // Ordered set of timers that are currently active
-    std::set<PTR(OSTimer), decltype(timer_sort)> active_timers{timer_sort};
-    
+    std::set<PTR(OSTimer), decltype(timer_sort)> active_timers{ timer_sort };
+
     // Lambda to process a timer action to handle adding and removing timers
     auto process_timer_action = [&](const Action& action) {
         // Determine the action type and act on it
-        if (const auto* add_action = std::get_if<AddTimerAction>(&action)) {
+        if (const auto *add_action = std::get_if<AddTimerAction>(&action)) {
             active_timers.insert(add_action->timer);
-        } else if (const auto* remove_action = std::get_if<RemoveTimerAction>(&action)) {
+        }
+        else if (const auto *remove_action = std::get_if<RemoveTimerAction>(&action)) {
             active_timers.erase(remove_action->timer);
         }
     };
@@ -110,7 +111,7 @@ void timer_thread(RDRAM_ARG1) {
 
         // Get the timer that's closest to running out
         PTR(OSTimer) cur_timer_ = *active_timers.begin();
-        OSTimer* cur_timer = TO_PTR(OSTimer, cur_timer_);
+        OSTimer *cur_timer = TO_PTR(OSTimer, cur_timer_);
 
         // Remove the timer from the queue (it may get readded if waiting is interrupted)
         active_timers.erase(cur_timer_);
@@ -120,7 +121,7 @@ void timer_thread(RDRAM_ARG1) {
 
         // Wait for either the duration to complete or a new action to come through
         if (wait_duration.count() >= 0 && timer_context.action_queue.wait_dequeue_timed(cur_action, wait_duration)) {
-            // Timer was interrupted by a new action 
+            // Timer was interrupted by a new action
             // Add the current timer back to the queue (done first in case the action is to remove this timer)
             active_timers.insert(cur_timer_);
             // Process the new action
@@ -169,13 +170,14 @@ extern "C" OSTime osGetTime() {
 }
 
 extern "C" int osSetTimer(RDRAM_ARG PTR(OSTimer) t_, OSTime countdown, OSTime interval, PTR(OSMesgQueue) mq, OSMesg msg) {
-    OSTimer* t = TO_PTR(OSTimer, t_);
+    OSTimer *t = TO_PTR(OSTimer, t_);
 
     // Determine the time when this timer will trigger off
     if (countdown == 0) {
         // Set the timestamp based on the interval
         t->timestamp = interval + time_now();
-    } else {
+    }
+    else {
         t->timestamp = countdown + time_now();
     }
     t->interval = interval;
@@ -214,7 +216,7 @@ void ultramodern::sleep_until(const std::chrono::high_resolution_clock::time_poi
 #else
 
 void ultramodern::sleep_milliseconds(uint32_t millis) {
-    std::this_thread::sleep_for(std::chrono::milliseconds{millis});
+    std::this_thread::sleep_for(std::chrono::milliseconds{ millis });
 }
 
 void ultramodern::sleep_until(const std::chrono::high_resolution_clock::time_point& time_point) {

@@ -10,8 +10,8 @@ void ultramodern::renderer::set_callbacks(const callbacks_t& callbacks) {
     render_callbacks = callbacks;
 }
 
-
-std::unique_ptr<ultramodern::renderer::RendererContext> ultramodern::renderer::create_render_context(uint8_t* rdram, WindowHandle window_handle, bool developer_mode) {
+std::unique_ptr<ultramodern::renderer::RendererContext>
+ultramodern::renderer::create_render_context(uint8_t *rdram, WindowHandle window_handle, bool developer_mode) {
     if (render_callbacks.create_render_context == nullptr) {
         error_handling::message_box("[Error] The mandatory render callback `create_render_context` was not registered");
         ULTRAMODERN_QUICK_EXIT();
@@ -26,7 +26,6 @@ std::string ultramodern::renderer::get_graphics_api_name(const GraphicsConfig& c
     }
     return config.get_graphics_api_name();
 }
-
 
 static ultramodern::renderer::GraphicsConfig graphic_config{};
 static std::mutex graphic_config_mutex;

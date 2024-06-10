@@ -1,21 +1,21 @@
-#include <thread>
 #include <atomic>
 #include <chrono>
 #include <cinttypes>
-#include <variant>
-#include <unordered_map>
-#include <utility>
+#include <cstring>
 #include <mutex>
 #include <queue>
-#include <cstring>
+#include <thread>
+#include <unordered_map>
+#include <utility>
+#include <variant>
 
 #include "blockingconcurrentqueue.h"
 
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
 
-#include "ultramodern/rsp.hpp"
 #include "ultramodern/renderer_context.hpp"
+#include "ultramodern/rsp.hpp"
 
 static ultramodern::events::callbacks_t events_callbacks{};
 
@@ -31,8 +31,7 @@ struct SwapBuffersAction {
     uint32_t origin;
 };
 
-struct UpdateConfigAction {
-};
+struct UpdateConfigAction {};
 
 struct LoadShaderCacheAction {
     std::span<const char> data;
@@ -69,14 +68,14 @@ static struct {
     } si;
     // The same message queue may be used for multiple events, so share a mutex for all of them
     std::mutex message_mutex;
-    uint8_t* rdram;
+    uint8_t *rdram;
     moodycamel::BlockingConcurrentQueue<Action> action_queue{};
-    moodycamel::BlockingConcurrentQueue<OSTask*> sp_task_queue{};
-    moodycamel::ConcurrentQueue<OSThread*> deleted_threads{};
+    moodycamel::BlockingConcurrentQueue<OSTask *> sp_task_queue{};
+    moodycamel::ConcurrentQueue<OSThread *> deleted_threads{};
 } events_context{};
 
 extern "C" void osSetEventMesg(RDRAM_ARG OSEvent event_id, PTR(OSMesgQueue) mq_, OSMesg msg) {
-    OSMesgQueue* mq = TO_PTR(OSMesgQueue, mq_);
+    OSMesgQueue *mq = TO_PTR(OSMesgQueue, mq_);
     std::lock_guard lock{ events_context.message_mutex };
 
     switch (event_id) {
@@ -107,7 +106,6 @@ extern "C" void osViSetEvent(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, u32 ret
 
 uint64_t total_vis = 0;
 
-
 extern std::atomic_bool exited;
 
 void set_dummy_vi();
@@ -124,15 +122,16 @@ void vi_thread_func() {
     while (!exited) {
         // Determine the next VI time (more accurate than adding 16ms each VI interrupt)
         auto next = ultramodern::get_start() + (total_vis * 1000000us) / (60 * ultramodern::get_speed_multiplier());
-        //if (next > std::chrono::high_resolution_clock::now()) {
-        //    printf("Sleeping for %" PRIu64 " us to get from %" PRIu64 " us to %" PRIu64 " us \n",
-        //        (next - std::chrono::high_resolution_clock::now()) / 1us,
-        //        (std::chrono::high_resolution_clock::now() - events_context.start) / 1us,
-        //        (next - events_context.start) / 1us);
-        //} else {
-        //    printf("No need to sleep\n");
-        //}
-        // Detect if there's more than a second to wait and wait a fixed amount instead for the next VI if so, as that usually means the system clock went back in time.
+        // if (next > std::chrono::high_resolution_clock::now()) {
+        //     printf("Sleeping for %" PRIu64 " us to get from %" PRIu64 " us to %" PRIu64 " us \n",
+        //         (next - std::chrono::high_resolution_clock::now()) / 1us,
+        //         (std::chrono::high_resolution_clock::now() - events_context.start) / 1us,
+        //         (next - events_context.start) / 1us);
+        // } else {
+        //     printf("No need to sleep\n");
+        // }
+        //  Detect if there's more than a second to wait and wait a fixed amount instead for the next VI if so, as that usually means the
+        //  system clock went back in time.
         if (std::chrono::floor<std::chrono::seconds>(next - std::chrono::high_resolution_clock::now()) > 1s) {
             // printf("Skipping the next VI wait\n");
             next = std::chrono::high_resolution_clock::now();
@@ -141,7 +140,7 @@ void vi_thread_func() {
         // Calculate how many VIs have passed
         uint64_t new_total_vis = (ultramodern::time_since_start() * (60 * ultramodern::get_speed_multiplier()) / 1000ms) + 1;
         if (new_total_vis > total_vis + 1) {
-            //printf("Skipped % " PRId64 " frames in VI interupt thread!\n", new_total_vis - total_vis - 1);
+            // printf("Skipped % " PRId64 " frames in VI interupt thread!\n", new_total_vis - total_vis - 1);
         }
         total_vis = new_total_vis;
 
@@ -149,14 +148,14 @@ void vi_thread_func() {
 
         {
             std::lock_guard lock{ events_context.message_mutex };
-            uint8_t* rdram = events_context.rdram;
+            uint8_t *rdram = events_context.rdram;
             if (remaining_retraces == 0) {
                 remaining_retraces = events_context.vi.retrace_count;
 
                 if (ultramodern::is_game_started()) {
                     if (events_context.vi.mq != NULLPTR) {
                         if (osSendMesg(PASS_RDRAM events_context.vi.mq, events_context.vi.msg, OS_MESG_NOBLOCK) == -1) {
-                            //printf("Game skipped a VI frame!\n");
+                            // printf("Game skipped a VI frame!\n");
                         }
                     }
                 }
@@ -174,7 +173,7 @@ void vi_thread_func() {
             }
             if (events_context.ai.mq != NULLPTR) {
                 if (osSendMesg(PASS_RDRAM events_context.ai.mq, events_context.ai.msg, OS_MESG_NOBLOCK) == -1) {
-                    //printf("Game skipped a AI frame!\n");
+                    // printf("Game skipped a AI frame!\n");
                 }
             }
         }
@@ -186,18 +185,18 @@ void vi_thread_func() {
 }
 
 void sp_complete() {
-    uint8_t* rdram = events_context.rdram;
+    uint8_t *rdram = events_context.rdram;
     std::lock_guard lock{ events_context.message_mutex };
     osSendMesg(PASS_RDRAM events_context.sp.mq, events_context.sp.msg, OS_MESG_NOBLOCK);
 }
 
 void dp_complete() {
-    uint8_t* rdram = events_context.rdram;
+    uint8_t *rdram = events_context.rdram;
     std::lock_guard lock{ events_context.message_mutex };
     osSendMesg(PASS_RDRAM events_context.dp.mq, events_context.dp.msg, OS_MESG_NOBLOCK);
 }
 
-void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready) {
+void task_thread_func(uint8_t *rdram, moodycamel::LightweightSemaphore *thread_ready) {
     ultramodern::set_native_thread_name("SP Task Thread");
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::Normal);
 
@@ -206,7 +205,7 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
 
     while (true) {
         // Wait until an RSP task has been sent
-        OSTask* task;
+        OSTask *task;
         events_context.sp_task_queue.wait_dequeue(task);
 
         if (task == nullptr) {
@@ -249,7 +248,7 @@ float ultramodern::get_resolution_scale() {
 }
 
 void ultramodern::load_shader_cache(std::span<const char> cache_data) {
-    events_context.action_queue.enqueue(LoadShaderCacheAction{cache_data});
+    events_context.action_queue.enqueue(LoadShaderCacheAction{ cache_data });
 }
 
 void ultramodern::trigger_config_action() {
@@ -258,7 +257,7 @@ void ultramodern::trigger_config_action() {
 
 std::atomic<ultramodern::renderer::SetupResult> renderer_setup_result = ultramodern::renderer::SetupResult::Success;
 
-void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready, ultramodern::renderer::WindowHandle window_handle) {
+void gfx_thread_func(uint8_t *rdram, moodycamel::LightweightSemaphore *thread_ready, ultramodern::renderer::WindowHandle window_handle) {
     bool enabled_instant_present = false;
     using namespace std::chrono_literals;
 
@@ -267,7 +266,8 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
 
     auto old_config = ultramodern::renderer::get_graphics_config();
 
-    auto renderer_context = ultramodern::renderer::create_render_context(rdram, window_handle, ultramodern::renderer::get_graphics_config().developer_mode);
+    auto renderer_context =
+        ultramodern::renderer::create_render_context(rdram, window_handle, ultramodern::renderer::get_graphics_config().developer_mode);
 
     if (!renderer_context->valid()) {
         renderer_setup_result.store(renderer_context->get_setup_result());
@@ -290,7 +290,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
         Action action;
         if (events_context.action_queue.wait_dequeue_timed(action, 1ms)) {
             // Determine the action type and act on it
-            if (const auto* task_action = std::get_if<SpTaskAction>(&action)) {
+            if (const auto *task_action = std::get_if<SpTaskAction>(&action)) {
                 // Turn on instant present if the game has been started and it hasn't been turned on yet.
                 if (ultramodern::is_game_started() && !enabled_instant_present) {
                     renderer_context->enable_instant_present();
@@ -307,21 +307,22 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
                 renderer_context->send_dl(&task_action->task);
                 auto renderer_end = std::chrono::high_resolution_clock::now();
                 dp_complete();
-                // printf("Renderer ProcessDList time: %d us\n", static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(renderer_end - renderer_start).count()));
+                // printf("Renderer ProcessDList time: %d us\n",
+                // static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(renderer_end - renderer_start).count()));
             }
-            else if (const auto* swap_action = std::get_if<SwapBuffersAction>(&action)) {
+            else if (const auto *swap_action = std::get_if<SwapBuffersAction>(&action)) {
                 events_context.vi.current_buffer = events_context.vi.next_buffer;
                 renderer_context->update_screen(swap_action->origin);
                 display_refresh_rate = renderer_context->get_display_framerate();
                 resolution_scale = renderer_context->get_resolution_scale();
             }
-            else if (const auto* config_action = std::get_if<UpdateConfigAction>(&action)) {
+            else if (const auto *config_action = std::get_if<UpdateConfigAction>(&action)) {
                 auto new_config = ultramodern::renderer::get_graphics_config();
                 if (renderer_context->update_config(old_config, new_config)) {
                     old_config = new_config;
                 }
             }
-            else if (const auto* load_shader_cache_action = std::get_if<LoadShaderCacheAction>(&action)) {
+            else if (const auto *load_shader_cache_action = std::get_if<LoadShaderCacheAction>(&action)) {
                 renderer_context->load_shader_cache(load_shader_cache_action->data);
             }
         }
@@ -368,7 +369,8 @@ void set_dummy_vi() {
 extern "C" void osViSwapBuffer(RDRAM_ARG PTR(void) frameBufPtr) {
     if (vi_black) {
         VI_H_START_REG = 0;
-    } else {
+    }
+    else {
         VI_H_START_REG = hstart;
     }
     events_context.vi.next_buffer = frameBufPtr;
@@ -376,7 +378,7 @@ extern "C" void osViSwapBuffer(RDRAM_ARG PTR(void) frameBufPtr) {
 }
 
 extern "C" void osViSetMode(RDRAM_ARG PTR(OSViMode) mode_) {
-    OSViMode* mode = TO_PTR(OSViMode, mode_);
+    OSViMode *mode = TO_PTR(OSViMode, mode_);
     VI_STATUS_REG = mode->comRegs.ctrl;
     VI_WIDTH_REG = mode->comRegs.width;
     // burst
@@ -395,29 +397,29 @@ extern "C" void osViSetMode(RDRAM_ARG PTR(OSViMode) mode_) {
     VI_INTR_REG = mode->fldRegs[0].vIntr;
 }
 
-#define VI_CTRL_TYPE_16             0x00002
-#define VI_CTRL_TYPE_32             0x00003
-#define VI_CTRL_GAMMA_DITHER_ON     0x00004
-#define VI_CTRL_GAMMA_ON            0x00008
-#define VI_CTRL_DIVOT_ON            0x00010
-#define VI_CTRL_SERRATE_ON          0x00040
-#define VI_CTRL_ANTIALIAS_MASK      0x00300
-#define VI_CTRL_ANTIALIAS_MODE_1    0x00100
-#define VI_CTRL_ANTIALIAS_MODE_2    0x00200
-#define VI_CTRL_ANTIALIAS_MODE_3    0x00300
-#define VI_CTRL_PIXEL_ADV_MASK      0x01000
-#define VI_CTRL_PIXEL_ADV_1         0x01000
-#define VI_CTRL_PIXEL_ADV_2         0x02000
-#define VI_CTRL_PIXEL_ADV_3         0x03000
-#define VI_CTRL_DITHER_FILTER_ON    0x10000
+#define VI_CTRL_TYPE_16 0x00002
+#define VI_CTRL_TYPE_32 0x00003
+#define VI_CTRL_GAMMA_DITHER_ON 0x00004
+#define VI_CTRL_GAMMA_ON 0x00008
+#define VI_CTRL_DIVOT_ON 0x00010
+#define VI_CTRL_SERRATE_ON 0x00040
+#define VI_CTRL_ANTIALIAS_MASK 0x00300
+#define VI_CTRL_ANTIALIAS_MODE_1 0x00100
+#define VI_CTRL_ANTIALIAS_MODE_2 0x00200
+#define VI_CTRL_ANTIALIAS_MODE_3 0x00300
+#define VI_CTRL_PIXEL_ADV_MASK 0x01000
+#define VI_CTRL_PIXEL_ADV_1 0x01000
+#define VI_CTRL_PIXEL_ADV_2 0x02000
+#define VI_CTRL_PIXEL_ADV_3 0x03000
+#define VI_CTRL_DITHER_FILTER_ON 0x10000
 
-#define OS_VI_GAMMA_ON          0x0001
-#define OS_VI_GAMMA_OFF         0x0002
-#define OS_VI_GAMMA_DITHER_ON   0x0004
-#define OS_VI_GAMMA_DITHER_OFF  0x0008
-#define OS_VI_DIVOT_ON          0x0010
-#define OS_VI_DIVOT_OFF         0x0020
-#define OS_VI_DITHER_FILTER_ON  0x0040
+#define OS_VI_GAMMA_ON 0x0001
+#define OS_VI_GAMMA_OFF 0x0002
+#define OS_VI_GAMMA_DITHER_ON 0x0004
+#define OS_VI_GAMMA_DITHER_OFF 0x0008
+#define OS_VI_DIVOT_ON 0x0010
+#define OS_VI_DIVOT_OFF 0x0020
+#define OS_VI_DITHER_FILTER_ON 0x0040
 #define OS_VI_DITHER_FILTER_OFF 0x0080
 
 extern "C" void osViSetSpecialFeatures(uint32_t func) {
@@ -452,7 +454,7 @@ extern "C" void osViSetSpecialFeatures(uint32_t func) {
 
     if ((func & OS_VI_DITHER_FILTER_OFF) != 0) {
         VI_STATUS_REG &= ~VI_CTRL_DITHER_FILTER_ON;
-        //VI_STATUS_REG |= __osViNext->modep->comRegs.ctrl & VI_CTRL_ANTIALIAS_MASK;
+        // VI_STATUS_REG |= __osViNext->modep->comRegs.ctrl & VI_CTRL_ANTIALIAS_MASK;
     }
 }
 
@@ -481,7 +483,7 @@ extern "C" PTR(void) osViGetCurrentFramebuffer() {
 }
 
 void ultramodern::submit_rsp_task(RDRAM_ARG PTR(OSTask) task_) {
-    OSTask* task = TO_PTR(OSTask, task_);
+    OSTask *task = TO_PTR(OSTask, task_);
 
     // Send gfx tasks to the graphics action queue
     if (task->t.type == M_GFXTASK) {
@@ -525,10 +527,14 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::renderer::WindowHandle wind
                 show_renderer_error("Failed to load dynamic libraries. Make sure the DLLs are next to the recomp executable.");
                 break;
             case ultramodern::renderer::SetupResult::InvalidGraphicsAPI:
-                show_renderer_error(ultramodern::renderer::get_graphics_api_name(ultramodern::renderer::get_graphics_config()) + " is not supported on this platform. Please select a different graphics API.");
+                show_renderer_error(
+                    ultramodern::renderer::get_graphics_api_name(ultramodern::renderer::get_graphics_config()) +
+                    " is not supported on this platform. Please select a different graphics API.");
                 break;
             case ultramodern::renderer::SetupResult::GraphicsAPINotFound:
-                show_renderer_error("Unable to initialize " + ultramodern::renderer::get_graphics_api_name(ultramodern::renderer::get_graphics_config()) + "." + driver_os_suffix);
+                show_renderer_error(
+                    "Unable to initialize " + ultramodern::renderer::get_graphics_api_name(ultramodern::renderer::get_graphics_config()) +
+                    "." + driver_os_suffix);
                 break;
             case ultramodern::renderer::SetupResult::GraphicsDeviceNotFound:
                 show_renderer_error("Unable to find compatible graphics device." + driver_os_suffix);

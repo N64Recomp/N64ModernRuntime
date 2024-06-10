@@ -1,8 +1,8 @@
 #ifndef __CONFIG_HPP__
 #define __CONFIG_HPP__
 
-#include <string>
 #include <optional>
+#include <string>
 
 #include "json/json.hpp"
 
@@ -130,7 +130,7 @@ namespace ultramodern {
             {ultramodern::renderer::HighPrecisionFramebuffer::Off, "Off"},
         });
         // clang-format on
-    }
-}
+    } // namespace renderer
+} // namespace ultramodern
 
 #endif

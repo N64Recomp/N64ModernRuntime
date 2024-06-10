@@ -24,23 +24,61 @@ void ultramodern::measure_input_latency() {
 
 #define MAXCONTROLLERS 4
 
+#define CONT_NO_RESPONSE_ERROR 0x8
+
+#define CONT_TYPE_NORMAL 0x0005
+#define CONT_TYPE_MOUSE  0x0002
+#define CONT_TYPE_VOICE  0x0100
+
 static int max_controllers = 0;
 
 /* Plain controller */
 
+static u16 get_controller_type(ultramodern::input::Device device_type) {
+    switch (device_type) {
+    case ultramodern::input::Device::None:
+        return 0;
+
+    case ultramodern::input::Device::Controller:
+        return CONT_TYPE_NORMAL;
+
+#if 0
+    case ultramodern::input::Device::Mouse:
+        return CONT_TYPE_MOUSE;
+
+    case ultramodern::input::Device::VRU:
+        return CONT_TYPE_VOICE;
+#endif
+    }
+
+    return 0;
+}
+
 static void __osContGetInitData(u8* pattern, OSContStatus *data) {
-    // Set bit 0 to indicate that controller 0 is present
-    *pattern = 0x01;
+    *pattern = 0x00;
 
-    // Mark controller 0 as present
-    data[0].type = 0x0005; // type: CONT_TYPE_NORMAL (from joybus)
-    data[0].status = 0x01; // status: 0x01 (from joybus, indicates that a pak is plugged into the controller)
-    data[0].err_no = 0x00; // errno: 0 (from libultra)
+    for (int controller = 0; controller < max_controllers; controller++) {
+        ultramodern::input::connected_device_info_t device_info{};
 
-    // Mark controllers 1-3 as not connected
-    for (int controller = 1; controller < max_controllers; controller++) {
-        // Libultra doesn't write status or type for absent controllers
-        data[controller].err_no = 0x80 >> 4; // errno: CONT_NO_RESPONSE_ERROR >> 4
+        if (input_callbacks.get_connected_device_info != nullptr) {
+            device_info = input_callbacks.get_connected_device_info(controller);
+        }
+
+        if (device_info.connected_device != ultramodern::input::Device::None) {
+            // Mark controller as present
+
+            data[controller].type = get_controller_type(device_info.connected_device);
+            data[controller].status = device_info.connected_pak != ultramodern::input::Pak::None;
+            data[controller].err_no = 0x00;
+
+            *pattern = 1 << controller;
+        }
+        else {
+            // Mark controller as not connected
+
+            // Libultra doesn't write status or type for absent controllers
+            data[controller].err_no = CONT_NO_RESPONSE_ERROR; // CHNL_ERR_NORESP >> 4
+        }
     }
 }
 
@@ -90,25 +128,25 @@ extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
     __osContGetInitData(&pattern, data);
 }
 
-extern "C" void osContGetReadData(RDRAM_ARG PTR(OSContPad) data_) {
-    OSContPad *data = TO_PTR(OSContPad, data_);
-    uint16_t buttons = 0;
-    float x = 0.0f;
-    float y = 0.0f;
+extern "C" void osContGetReadData(OSContPad *data) {
+    for (int controller = 0; controller < max_controllers; controller++) {
+        uint16_t buttons = 0;
+        float x = 0.0f;
+        float y = 0.0f;
+        bool got_response = false;
 
-    if (input_callbacks.get_input != nullptr) {
-        input_callbacks.get_input(&buttons, &x, &y);
-    }
+        if (input_callbacks.get_input != nullptr) {
+            got_response = input_callbacks.get_input(controller, &buttons, &x, &y);
+        }
 
-    if (max_controllers > 0) {
-        // button
-        data[0].button = buttons;
-        data[0].stick_x = (int8_t)(127 * x);
-        data[0].stick_y = (int8_t)(127 * y);
-        data[0].err_no = 0;
-    }
-    for (int controller = 1; controller < max_controllers; controller++) {
-        data[controller].err_no = 0x80 >> 4; // errno: CONT_NO_RESPONSE_ERROR >> 4
+        if (got_response) {
+            data[controller].button = buttons;
+            data[controller].stick_x = (int8_t)(127 * x);
+            data[controller].stick_y = (int8_t)(127 * y);
+            data[controller].err_no = 0;
+        } else {
+            data[controller].err_no =  CONT_NO_RESPONSE_ERROR; // CHNL_ERR_NORESP >> 4
+        }
     }
 }
 
@@ -133,11 +171,9 @@ s32 osMotorStart(RDRAM_ARG PTR(OSPfs) pfs) {
 s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs) pfs_, s32 flag) {
     OSPfs *pfs = TO_PTR(OSPfs, pfs_);
 
-    // Only respect accesses to controller 0.
-    if (pfs->channel == 0) {
-        if (input_callbacks.set_rumble != nullptr) {
-            input_callbacks.set_rumble(flag);
-        }
+    if (input_callbacks.set_rumble != nullptr) {
+        // TODO: Should we check if the Rumble Pak is connected? Or just rumble regardless of the connected Pak?
+        input_callbacks.set_rumble(pfs->channel, flag);
     }
 
     return 0;

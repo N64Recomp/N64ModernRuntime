@@ -2,8 +2,8 @@
 
 #include "blockingconcurrentqueue.h"
 
-#include "ultra64.h"
-#include "ultramodern.hpp"
+#include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
 
 struct QueuedMessage {
     PTR(OSMesgQueue) mq;

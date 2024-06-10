@@ -11,11 +11,11 @@
 
 #include "blockingconcurrentqueue.h"
 
-#include "ultra64.h"
+#include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
-#include "config.hpp"
-#include "rt64_layer.hpp"
+
 #include "ultramodern/rsp.hpp"
+#include "ultramodern/renderer_context.hpp"
 
 static ultramodern::events::callbacks_t events_callbacks{};
 
@@ -213,15 +213,9 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
             return;
         }
 
-
         if (!ultramodern::rsp::run_task(PASS_RDRAM task)) {
             fprintf(stderr, "Failed to execute task type: %" PRIu32 "\n", task->t.type);
-            assert(false);
-#       ifdef __APPLE__
-            std::_Exit(EXIT_FAILURE);
-#       else
-            std::quick_exit(EXIT_FAILURE);
-#       endif
+            ULTRAMODERN_QUICK_EXIT();
         }
 
         // Tell the game that the RSP has completed
@@ -229,30 +223,19 @@ void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_r
     }
 }
 
-static std::atomic<ultramodern::GraphicsConfig> cur_config{};
-
-void ultramodern::set_graphics_config(const ultramodern::GraphicsConfig& config) {
-    cur_config = config;
-    events_context.action_queue.enqueue(UpdateConfigAction{});
-}
-
-ultramodern::GraphicsConfig ultramodern::get_graphics_config() {
-    return cur_config;
-}
-
 std::atomic_uint32_t display_refresh_rate = 60;
 std::atomic<float> resolution_scale = 1.0f;
 
 uint32_t ultramodern::get_target_framerate(uint32_t original) {
-    ultramodern::GraphicsConfig graphics_config = ultramodern::get_graphics_config();
+    auto& config = ultramodern::renderer::get_graphics_config();
 
-    switch (graphics_config.rr_option) {
-        case RT64::UserConfiguration::RefreshRate::Original:
+    switch (config.rr_option) {
+        case ultramodern::renderer::RefreshRate::Original:
         default:
             return original;
-        case RT64::UserConfiguration::RefreshRate::Manual:
-            return graphics_config.rr_manual_value;
-        case RT64::UserConfiguration::RefreshRate::Display:
+        case ultramodern::renderer::RefreshRate::Manual:
+            return config.rr_manual_value;
+        case ultramodern::renderer::RefreshRate::Display:
             return display_refresh_rate.load();
     }
 }
@@ -269,22 +252,25 @@ void ultramodern::load_shader_cache(std::span<const char> cache_data) {
     events_context.action_queue.enqueue(LoadShaderCacheAction{cache_data});
 }
 
-std::atomic<ultramodern::RT64SetupResult> rt64_setup_result = ultramodern::RT64SetupResult::Success;
+void ultramodern::trigger_config_action() {
+    events_context.action_queue.enqueue(UpdateConfigAction{});
+}
 
-void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready, ultramodern::WindowHandle window_handle) {
+std::atomic<ultramodern::renderer::SetupResult> renderer_setup_result = ultramodern::renderer::SetupResult::Success;
+
+void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready, ultramodern::renderer::WindowHandle window_handle) {
     bool enabled_instant_present = false;
     using namespace std::chrono_literals;
 
     ultramodern::set_native_thread_name("Gfx Thread");
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::Normal);
 
-    ultramodern::GraphicsConfig old_config = ultramodern::get_graphics_config();
+    auto old_config = ultramodern::renderer::get_graphics_config();
 
-    ultramodern::RT64Context rt64{rdram, window_handle, cur_config.load().developer_mode};
+    auto renderer_context = ultramodern::renderer::create_render_context(rdram, window_handle, ultramodern::renderer::get_graphics_config().developer_mode);
 
-    if (!rt64.valid()) {
-        // TODO move recomp code out of ultramodern.
-        rt64_setup_result.store(rt64.get_setup_result());
+    if (!renderer_context->valid()) {
+        renderer_setup_result.store(renderer_context->get_setup_result());
         // Notify the caller thread that this thread is ready.
         thread_ready->signal();
         return;
@@ -307,7 +293,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
             if (const auto* task_action = std::get_if<SpTaskAction>(&action)) {
                 // Turn on instant present if the game has been started and it hasn't been turned on yet.
                 if (ultramodern::is_game_started() && !enabled_instant_present) {
-                    rt64.enable_instant_present();
+                    renderer_context->enable_instant_present();
                     enabled_instant_present = true;
                 }
                 // Tell the game that the RSP completed instantly. This will allow it to queue other task types, but it won't
@@ -317,32 +303,31 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
                 sp_complete();
                 ultramodern::measure_input_latency();
 
-                auto rt64_start = std::chrono::high_resolution_clock::now();
-                rt64.send_dl(&task_action->task);
-                auto rt64_end = std::chrono::high_resolution_clock::now();
+                auto renderer_start = std::chrono::high_resolution_clock::now();
+                renderer_context->send_dl(&task_action->task);
+                auto renderer_end = std::chrono::high_resolution_clock::now();
                 dp_complete();
-                // printf("RT64 ProcessDList time: %d us\n", static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(rt64_end - rt64_start).count()));
+                // printf("Renderer ProcessDList time: %d us\n", static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(renderer_end - renderer_start).count()));
             }
             else if (const auto* swap_action = std::get_if<SwapBuffersAction>(&action)) {
                 events_context.vi.current_buffer = events_context.vi.next_buffer;
-                rt64.update_screen(swap_action->origin);
-                display_refresh_rate = rt64.get_display_framerate();
-                resolution_scale = rt64.get_resolution_scale();
+                renderer_context->update_screen(swap_action->origin);
+                display_refresh_rate = renderer_context->get_display_framerate();
+                resolution_scale = renderer_context->get_resolution_scale();
             }
             else if (const auto* config_action = std::get_if<UpdateConfigAction>(&action)) {
-                ultramodern::GraphicsConfig new_config = cur_config;
-                if (old_config != new_config) {
-                    rt64.update_config(old_config, new_config);
+                auto new_config = ultramodern::renderer::get_graphics_config();
+                if (renderer_context->update_config(old_config, new_config)) {
                     old_config = new_config;
                 }
             }
             else if (const auto* load_shader_cache_action = std::get_if<LoadShaderCacheAction>(&action)) {
-                rt64.load_shader_cache(load_shader_cache_action->data);
+                renderer_context->load_shader_cache(load_shader_cache_action->data);
             }
         }
     }
 
-    rt64.shutdown();
+    renderer_context->shutdown();
 }
 
 extern unsigned int VI_STATUS_REG;
@@ -512,30 +497,7 @@ void ultramodern::send_si_message(RDRAM_ARG1) {
     osSendMesg(PASS_RDRAM events_context.si.mq, events_context.si.msg, OS_MESG_NOBLOCK);
 }
 
-std::string get_graphics_api_name(ultramodern::GraphicsApi api) {
-    if (api == ultramodern::GraphicsApi::Auto) {
-#if defined(_WIN32)
-        api = ultramodern::GraphicsApi::D3D12;
-#elif defined(__gnu_linux__)
-        api = ultramodern::GraphicsApi::Vulkan;
-#elif defined(__APPLE__)
-        api = ultramodern::GraphicsApi::Vulkan;
-#else
-        static_assert(false && "Unimplemented")
-#endif
-    }
-
-    switch (api) {
-        case ultramodern::GraphicsApi::D3D12:
-            return "D3D12";
-        case ultramodern::GraphicsApi::Vulkan:
-            return "Vulkan";
-        default:
-            return "[Unknown graphics API]";
-    }
-}
-
-void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle) {
+void ultramodern::init_events(RDRAM_ARG ultramodern::renderer::WindowHandle window_handle) {
     moodycamel::LightweightSemaphore gfx_thread_ready;
     moodycamel::LightweightSemaphore task_thread_ready;
     events_context.rdram = rdram;
@@ -547,30 +509,32 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::WindowHandle window_handle)
     gfx_thread_ready.wait();
     task_thread_ready.wait();
 
-    ultramodern::RT64SetupResult setup_result = rt64_setup_result.load();
-    if (rt64_setup_result != ultramodern::RT64SetupResult::Success) {
-        auto show_rt64_error = [](const std::string& msg) {
+    ultramodern::renderer::SetupResult setup_result = renderer_setup_result.load();
+    if (renderer_setup_result != ultramodern::renderer::SetupResult::Success) {
+        auto show_renderer_error = [](const std::string& msg) {
             std::string error_msg = "An error has been encountered on startup: " + msg;
 
             ultramodern::error_handling::message_box(error_msg.c_str());
         };
 
         const std::string driver_os_suffix = "\nPlease make sure your GPU drivers and your OS are up to date.";
-        switch (rt64_setup_result) {
-            case ultramodern::RT64SetupResult::DynamicLibrariesNotFound:
-                show_rt64_error("Failed to load dynamic libraries. Make sure the DLLs are next to the recomp executable.");
+        switch (renderer_setup_result) {
+            case ultramodern::renderer::SetupResult::Success:
                 break;
-            case ultramodern::RT64SetupResult::InvalidGraphicsAPI:
-                show_rt64_error(get_graphics_api_name(cur_config.load().api_option) + " is not supported on this platform. Please select a different graphics API.");
+            case ultramodern::renderer::SetupResult::DynamicLibrariesNotFound:
+                show_renderer_error("Failed to load dynamic libraries. Make sure the DLLs are next to the recomp executable.");
                 break;
-            case ultramodern::RT64SetupResult::GraphicsAPINotFound:
-                show_rt64_error("Unable to initialize " + get_graphics_api_name(cur_config.load().api_option) + "." + driver_os_suffix);
+            case ultramodern::renderer::SetupResult::InvalidGraphicsAPI:
+                show_renderer_error(ultramodern::renderer::get_graphics_api_name(ultramodern::renderer::get_graphics_config()) + " is not supported on this platform. Please select a different graphics API.");
                 break;
-            case ultramodern::RT64SetupResult::GraphicsDeviceNotFound:
-                show_rt64_error("Unable to find compatible graphics device." + driver_os_suffix);
+            case ultramodern::renderer::SetupResult::GraphicsAPINotFound:
+                show_renderer_error("Unable to initialize " + ultramodern::renderer::get_graphics_api_name(ultramodern::renderer::get_graphics_config()) + "." + driver_os_suffix);
+                break;
+            case ultramodern::renderer::SetupResult::GraphicsDeviceNotFound:
+                show_renderer_error("Unable to find compatible graphics device." + driver_os_suffix);
                 break;
         }
-        throw std::runtime_error("Failed to initialize RT64");
+        throw std::runtime_error("Failed to initialize the renderer");
     }
 
     events_context.vi.thread = std::thread{ vi_thread_func };

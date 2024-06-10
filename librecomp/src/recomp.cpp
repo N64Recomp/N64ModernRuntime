@@ -390,7 +390,16 @@ void ultramodern::quit() {
     current_game.reset();
 }
 
-void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::callbacks_t& rsp_callbacks, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input::callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks_, const ultramodern::events::callbacks_t& thread_callbacks_, const ultramodern::error_handling::callbacks_t& error_handling_callbacks_) {
+void recomp::start(
+    ultramodern::renderer::WindowHandle window_handle,
+    const recomp::rsp::callbacks_t& rsp_callbacks,
+    const ultramodern::renderer::callbacks_t& renderer_callbacks,
+    const ultramodern::audio_callbacks_t& audio_callbacks,
+    const ultramodern::input::callbacks_t& input_callbacks,
+    const ultramodern::gfx_callbacks_t& gfx_callbacks_,
+    const ultramodern::events::callbacks_t& events_callbacks,
+    const ultramodern::error_handling::callbacks_t& error_handling_callbacks_
+) {
     recomp::check_all_stored_roms();
 
     recomp::rsp::set_callbacks(rsp_callbacks);
@@ -400,7 +409,7 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
         .run_task = recomp::rsp::run_task,
     };
 
-    ultramodern::set_callbacks(ultramodern_rsp_callbacks, audio_callbacks, input_callbacks, gfx_callbacks_, thread_callbacks_, error_handling_callbacks_);
+    ultramodern::set_callbacks(ultramodern_rsp_callbacks, renderer_callbacks, audio_callbacks, input_callbacks, gfx_callbacks_, events_callbacks, error_handling_callbacks_);
 
     ultramodern::gfx_callbacks_t gfx_callbacks = gfx_callbacks_;
 
@@ -410,7 +419,7 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
         gfx_data = gfx_callbacks.create_gfx();
     }
 
-    if (window_handle == ultramodern::WindowHandle{}) {
+    if (window_handle == ultramodern::renderer::WindowHandle{}) {
         if (gfx_callbacks.create_window) {
             window_handle = gfx_callbacks.create_window(gfx_data);
         }
@@ -423,7 +432,7 @@ void recomp::start(ultramodern::WindowHandle window_handle, const recomp::rsp::c
     std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(ultramodern::rdram_size);
     std::memset(rdram_buffer.get(), 0, ultramodern::rdram_size);
 
-    std::thread game_thread{[](ultramodern::WindowHandle window_handle, uint8_t* rdram) {
+    std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");
 
         ultramodern::set_native_thread_name("Game Start Thread");

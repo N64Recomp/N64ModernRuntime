@@ -41,7 +41,25 @@ namespace recomp {
 	void set_rom_contents(std::vector<uint8_t>&& new_rom);
 	void do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes);
 	void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
-	void start(ultramodern::WindowHandle window_handle, const recomp::rsp::callbacks_t& rsp_callbacks, const ultramodern::audio_callbacks_t& audio_callbacks, const ultramodern::input::callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks, const ultramodern::events::callbacks_t& thread_callbacks, const ultramodern::error_handling::callbacks_t& error_handling_callbacks_);
+
+	/**
+	 * The following arguments contain mandatory callbacks that need to be registered (i.e., can't be `nullptr`):
+	 * - `rsp_callbacks`
+	 * - `renderer_callbacks`
+	 *
+	 * It must be called only once and it must be called before `ultramodern::preinit`.
+	 */
+    void start(
+        ultramodern::renderer::WindowHandle window_handle,
+        const recomp::rsp::callbacks_t& rsp_callbacks,
+        const ultramodern::renderer::callbacks_t& renderer_callbacks,
+        const ultramodern::audio_callbacks_t& audio_callbacks,
+        const ultramodern::input::callbacks_t& input_callbacks,
+        const ultramodern::gfx_callbacks_t& gfx_callbacks,
+        const ultramodern::events::callbacks_t& events_callbacks,
+        const ultramodern::error_handling::callbacks_t& error_handling_callbacks_
+    );
+
 	void start_game(const std::u8string& game_id);
 	std::u8string current_game_id();
 }

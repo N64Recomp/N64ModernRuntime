@@ -11,24 +11,11 @@
 #include "lightweightsemaphore.h"
 #include "ultra64.h"
 
-#if defined(_WIN32)
-#   define WIN32_LEAN_AND_MEAN
-#   include <Windows.h>
-#elif defined(__ANDROID__)
-#   include "android/native_window.h"
-#elif defined(__linux__)
-#   include "X11/Xlib.h"
-#   undef None
-#   undef Status
-#   undef LockMask
-#   undef Always
-#   undef Success
-#endif
-
 #include "ultramodern/error_handling.hpp"
 #include "ultramodern/events.hpp"
 #include "ultramodern/input.hpp"
 #include "ultramodern/rsp.hpp"
+#include "ultramodern/renderer_context.hpp"
 
 struct UltraThreadContext {
     std::thread host_thread;
@@ -38,29 +25,6 @@ struct UltraThreadContext {
 
 namespace ultramodern {
 
-#if defined(_WIN32)
-    // Native HWND handle to the target window.
-    struct WindowHandle {
-        HWND window;
-        DWORD thread_id = (DWORD)-1;
-        auto operator<=>(const WindowHandle&) const = default;
-    };
-#elif defined(__ANDROID__)
-    using WindowHandle = ANativeWindow*;
-#elif defined(__linux__)
-    struct WindowHandle {
-        Display* display;
-        Window window;
-        auto operator<=>(const WindowHandle&) const = default;
-    };
-#elif defined(__APPLE__)
-    struct WindowHandle {
-        void* window;
-        void* view;
-        auto operator<=>(const WindowHandle&) const = default;
-    };
-#endif
-
 // We need a place in rdram to hold the PI handles, so pick an address in extended rdram
 constexpr uint32_t rdram_size = 1024 * 1024 * 16; // 16MB to give extra room for anything custom
 constexpr int32_t cart_handle = 0x80800000;
@@ -69,9 +33,9 @@ constexpr int32_t flash_handle = (int32_t)(drive_handle + sizeof(OSPiHandle));
 constexpr uint32_t save_size = 1024 * 1024 / 8; // Maximum save size, 1Mbit for flash
 
 // Initialization.
-void preinit(RDRAM_ARG WindowHandle window_handle);
+void preinit(RDRAM_ARG renderer::WindowHandle window_handle);
 void init_saving(RDRAM_ARG1);
-void init_events(RDRAM_ARG WindowHandle window_handle);
+void init_events(RDRAM_ARG renderer::WindowHandle window_handle);
 void init_timers(RDRAM_ARG1);
 void init_thread_cleanup();
 
@@ -127,6 +91,7 @@ uint32_t get_target_framerate(uint32_t original);
 uint32_t get_display_refresh_rate();
 float get_resolution_scale();
 void load_shader_cache(std::span<const char> cache_data);
+void trigger_config_action();
 
 // Audio
 void init_audio();
@@ -147,7 +112,7 @@ struct audio_callbacks_t {
 struct gfx_callbacks_t {
     using gfx_data_t = void*;
     using create_gfx_t = gfx_data_t();
-    using create_window_t = WindowHandle(gfx_data_t);
+    using create_window_t = renderer::WindowHandle(gfx_data_t);
     using update_gfx_t = void(gfx_data_t);
 
     create_gfx_t* create_gfx;
@@ -166,9 +131,21 @@ void set_audio_callbacks(const audio_callbacks_t& callbacks);
 /**
  * Register all the callbacks used by `ultramodern`, most of them being optional.
  *
+ * The following arguments contain mandatory callbacks that need to be registered (i.e., can't be `nullptr`):
+ * - `rsp_callbacks`
+ * - `renderer_callbacks`
+ *
  * It must be called only once and it must be called before `ultramodern::preinit`.
  */
-void set_callbacks(const rsp::callbacks_t& rsp_callbacks, const audio_callbacks_t& audio_callbacks, const input::callbacks_t& input_callbacks, const gfx_callbacks_t& gfx_callbacks, const events::callbacks_t& events_callbacks, const error_handling::callbacks_t& error_handling_callbacks);
+void set_callbacks(
+    const rsp::callbacks_t& rsp_callbacks,
+    const renderer::callbacks_t& renderer_callbacks,
+    const audio_callbacks_t& audio_callbacks,
+    const input::callbacks_t& input_callbacks,
+    const gfx_callbacks_t& gfx_callbacks,
+    const events::callbacks_t& events_callbacks,
+    const error_handling::callbacks_t& error_handling_callbacks
+);
 } // namespace ultramodern
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

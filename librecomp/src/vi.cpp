@@ -1,5 +1,6 @@
 #include <ultramodern/ultramodern.hpp>
 #include "recomp.h"
+#include "helpers.hpp"
 
 extern "C" void osViSetYScale_recomp(uint8_t* rdram, recomp_context * ctx) {
     osViSetYScale(ctx->f12.fl);

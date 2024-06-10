@@ -81,6 +81,7 @@ namespace ultramodern {
         const GraphicsConfig& get_graphics_config();
         void set_graphics_config(const GraphicsConfig& new_config);
 
+        // clang-format off
         NLOHMANN_JSON_SERIALIZE_ENUM(ultramodern::renderer::Resolution, {
             {ultramodern::renderer::Resolution::Original, "Original"},
             {ultramodern::renderer::Resolution::Original2x, "Original2x"},
@@ -128,6 +129,7 @@ namespace ultramodern {
             {ultramodern::renderer::HighPrecisionFramebuffer::On, "On"},
             {ultramodern::renderer::HighPrecisionFramebuffer::Off, "Off"},
         });
+        // clang-format on
     }
 }
 

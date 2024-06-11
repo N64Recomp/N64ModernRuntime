@@ -20,13 +20,6 @@ void ultramodern::threads::set_callbacks(const callbacks_t& callbacks) {
     threads_callbacks = callbacks;
 }
 
-ultramodern::threads::GameThreadType ultramodern::threads::get_game_thread_type(OSThread* t) {
-    if (threads_callbacks.get_game_thread_type == nullptr) {
-        return GameThreadType::Normal;
-    }
-    return threads_callbacks.get_game_thread_type(t);
-}
-
 std::string ultramodern::threads::get_game_thread_name(OSThread* t) {
     if (threads_callbacks.get_game_thread_name == nullptr) {
         return std::to_string(t->id);
@@ -141,9 +134,6 @@ void ultramodern::set_native_thread_name(const std::string& name) {
 void ultramodern::set_native_thread_priority(ThreadPriority pri) {}
 #endif
 
-std::atomic_int temporary_threads = 0;
-std::atomic_int permanent_threads = 0;
-
 void wait_for_resumed(RDRAM_ARG UltraThreadContext* thread_context) {
     TO_PTR(OSThread, ultramodern::this_thread())->context->running.wait();
     // If this thread's context was replaced by another thread or deleted, destroy it again from its own context.
@@ -190,17 +180,6 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
     ultramodern::set_native_thread_name("Game Thread " + ultramodern::threads::get_game_thread_name(self));
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::High);
 
-    switch (ultramodern::threads::get_game_thread_type(self)) {
-        case ultramodern::threads::GameThreadType::Normal:
-            break;
-        case ultramodern::threads::GameThreadType::Temporary:
-            temporary_threads.fetch_add(1);
-            break;
-        case ultramodern::threads::GameThreadType::Permanent:
-            permanent_threads.fetch_add(1);
-            break;
-    }
-
     // Signal the initialized semaphore to indicate that this thread can be started.
     thread_context->initialized.signal();
 
@@ -231,24 +210,6 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
 
     // Dispose of this thread now that it's completed or terminated.
     ultramodern::cleanup_thread(thread_context);
-
-    switch (ultramodern::threads::get_game_thread_type(self)) {
-        case ultramodern::threads::GameThreadType::Normal:
-            break;
-        case ultramodern::threads::GameThreadType::Temporary:
-            temporary_threads.fetch_sub(1);
-            break;
-        case ultramodern::threads::GameThreadType::Permanent:
-            break;
-    }
-}
-
-uint32_t ultramodern::permanent_thread_count() {
-    return permanent_threads.load();
-}
-
-uint32_t ultramodern::temporary_thread_count() {
-    return temporary_threads.load();
 }
 
 extern "C" void osStartThread(RDRAM_ARG PTR(OSThread) t_) {

@@ -60,8 +60,6 @@ void run_next_thread_and_wait(RDRAM_ARG1);
 void resume_thread_and_wait(RDRAM_ARG OSThread* t);
 void schedule_running_thread(RDRAM_ARG PTR(OSThread) t);
 void cleanup_thread(UltraThreadContext* thread_context);
-uint32_t permanent_thread_count();
-uint32_t temporary_thread_count();
 struct thread_terminated : std::exception {};
 
 enum class ThreadPriority {

@@ -95,14 +95,15 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
     // SetThreadPriority(GetCurrentThread(), nPriority);
 }
 #elif defined(__linux__)
-void ultramodern::set_native_thread_name(const std::string& name) {
-    // `pthread_setname_np` only accepts up to 16 characters including the null terminator.
-    if (name.length() > 15) {
-        debug_printf("[Thread] Truncating '%s' thread name up to 15 characters", name.c_str());
-    }
-    std::string new_name = name.substr(0, 15);
+#include <sys/prctl.h>
 
-    pthread_setname_np(pthread_self(), new_name.c_str());
+void ultramodern::set_native_thread_name(const std::string& name) {
+    if (name.length() > 15) {
+        // Linux only accepts up to 16 characters including the null terminator for a thread name.
+        debug_printf("[Thread] The thread name '%s' will be truncated to 15 characters", name.c_str());
+    }
+
+    prctl(PR_SET_NAME, name.c_str());
 }
 
 void ultramodern::set_native_thread_priority(ThreadPriority pri) {
@@ -134,7 +135,11 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
 }
 #elif defined(__APPLE__)
 void ultramodern::set_native_thread_name(const std::string& name) {
-    // TODO: figure out if Mac imposses similar restrictions to thread names like Linux does
+    if (name.length() > 15) {
+        // Macs seem to only accept up to 16 characters including the null terminator for a thread name.
+        debug_printf("[Thread] The thread name '%s' will be truncated to 15 characters", name.c_str());
+    }
+
     pthread_setname_np(name.c_str());
 }
 

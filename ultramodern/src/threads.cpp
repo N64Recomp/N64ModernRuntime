@@ -20,9 +20,9 @@ void ultramodern::threads::set_callbacks(const callbacks_t& callbacks) {
     threads_callbacks = callbacks;
 }
 
-std::string ultramodern::threads::get_game_thread_name(OSThread* t) {
+std::string ultramodern::threads::get_game_thread_name(const OSThread* t) {
     if (threads_callbacks.get_game_thread_name == nullptr) {
-        return std::to_string(t->id);
+        return "Game Thread " + std::to_string(t->id);
     }
     return threads_callbacks.get_game_thread_name(t);
 }
@@ -96,7 +96,13 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
 }
 #elif defined(__linux__)
 void ultramodern::set_native_thread_name(const std::string& name) {
-    pthread_setname_np(pthread_self(), name.c_str());
+    // `pthread_setname_np` only accepts up to 16 characters including the null terminator.
+    if (name.length() > 15) {
+        debug_printf("[Threads] Truncating '%s' thread name up to 15 characters", name.c_str());
+    }
+    std::string new_name = name.substr(0, 15);
+
+    pthread_setname_np(pthread_self(), new_name.c_str());
 }
 
 void ultramodern::set_native_thread_priority(ThreadPriority pri) {
@@ -128,6 +134,7 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
 }
 #elif defined(__APPLE__)
 void ultramodern::set_native_thread_name(const std::string& name) {
+    // TODO: figure out if Mac imposses similar restrictions to thread names like Linux does
     pthread_setname_np(name.c_str());
 }
 
@@ -177,7 +184,7 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
     is_game_thread = true;
 
     // Set the thread name
-    ultramodern::set_native_thread_name("Game Thread " + ultramodern::threads::get_game_thread_name(self));
+    ultramodern::set_native_thread_name(ultramodern::threads::get_game_thread_name(self));
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::High);
 
     // Signal the initialized semaphore to indicate that this thread can be started.

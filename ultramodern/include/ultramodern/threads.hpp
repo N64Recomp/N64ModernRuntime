@@ -8,10 +8,12 @@
 namespace ultramodern {
     namespace threads {
         struct callbacks_t {
-            using get_game_thread_name_t = std::string(OSThread* t);
+            using get_game_thread_name_t = std::string(const OSThread* t);
 
             /**
              * Allows to specifyin a custom name for each thread. Mainly for debugging purposes.
+             *
+             * For maximum cross-platform compatibility the returned name should be at most 15 bytes long (16 bytes including the null terminator).
              *
              * If this function is not provided then the thread id will be used as the name of the thread.
              */
@@ -20,7 +22,7 @@ namespace ultramodern {
 
         void set_callbacks(const callbacks_t& callbacks);
 
-        std::string get_game_thread_name(OSThread* t);
+        std::string get_game_thread_name(const OSThread* t);
     }
 }
 

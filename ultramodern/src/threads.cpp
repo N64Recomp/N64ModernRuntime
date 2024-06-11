@@ -98,7 +98,7 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
 void ultramodern::set_native_thread_name(const std::string& name) {
     // `pthread_setname_np` only accepts up to 16 characters including the null terminator.
     if (name.length() > 15) {
-        debug_printf("[Threads] Truncating '%s' thread name up to 15 characters", name.c_str());
+        debug_printf("[Thread] Truncating '%s' thread name up to 15 characters", name.c_str());
     }
     std::string new_name = name.substr(0, 15);
 

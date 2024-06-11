@@ -29,15 +29,15 @@ constexpr void update_bit(uint32_t& state, uint32_t flags, RDPStatusBit bit) {
 
 uint32_t rdp_state = 1 << (int)RDPStatusBit::BufferReady;
 
-extern "C" void osDpSetNextBuffer_recomp(uint8_t* rdram, recomp_context* ctx) {
+extern "C" void osDpSetNextBuffer_recomp(uint8_t *rdram, recomp_context *ctx) {
     assert(false);
 }
 
-extern "C" void osDpGetStatus_recomp(uint8_t* rdram, recomp_context* ctx) {
+extern "C" void osDpGetStatus_recomp(uint8_t *rdram, recomp_context *ctx) {
     ctx->r2 = rdp_state;
 }
 
-extern "C" void osDpSetStatus_recomp(uint8_t* rdram, recomp_context* ctx) {
+extern "C" void osDpSetStatus_recomp(uint8_t *rdram, recomp_context *ctx) {
     update_bit(rdp_state, ctx->r4, RDPStatusBit::XbusDmem);
     update_bit(rdp_state, ctx->r4, RDPStatusBit::Freeze);
     update_bit(rdp_state, ctx->r4, RDPStatusBit::Flush);

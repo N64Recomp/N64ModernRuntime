@@ -8,7 +8,7 @@
 namespace ultramodern {
     namespace error_handling {
         struct callbacks_t {
-            using message_box_t = void(const char* msg);
+            using message_box_t = void(const char *msg);
 
             /**
              * Show an OS dialog with the given `msg`.
@@ -20,10 +20,10 @@ namespace ultramodern {
 
         void set_callbacks(const callbacks_t& callbacks);
 
-        void message_box(const char* msg);
+        void message_box(const char *msg);
 
-        [[noreturn]] void quick_exit(const char* filename, int line, const char *func, int exit_status = EXIT_FAILURE);
-    }
-}
+        [[noreturn]] void quick_exit(const char *filename, int line, const char *func, int exit_status = EXIT_FAILURE);
+    } // namespace error_handling
+} // namespace ultramodern
 
 #endif

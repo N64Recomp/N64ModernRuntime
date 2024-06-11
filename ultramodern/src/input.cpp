@@ -4,7 +4,7 @@
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
 
-static ultramodern::input::callbacks_t input_callbacks {};
+static ultramodern::input::callbacks_t input_callbacks{};
 
 void ultramodern::input::set_callbacks(const callbacks_t& callbacks) {
     input_callbacks = callbacks;
@@ -27,8 +27,8 @@ void ultramodern::measure_input_latency() {
 #define CONT_NO_RESPONSE_ERROR 0x8
 
 #define CONT_TYPE_NORMAL 0x0005
-#define CONT_TYPE_MOUSE  0x0002
-#define CONT_TYPE_VOICE  0x0100
+#define CONT_TYPE_MOUSE 0x0002
+#define CONT_TYPE_VOICE 0x0100
 
 static int max_controllers = 0;
 
@@ -36,11 +36,11 @@ static int max_controllers = 0;
 
 static u16 get_controller_type(ultramodern::input::Device device_type) {
     switch (device_type) {
-    case ultramodern::input::Device::None:
-        return 0;
+        case ultramodern::input::Device::None:
+            return 0;
 
-    case ultramodern::input::Device::Controller:
-        return CONT_TYPE_NORMAL;
+        case ultramodern::input::Device::Controller:
+            return CONT_TYPE_NORMAL;
 
 #if 0
     case ultramodern::input::Device::Mouse:
@@ -54,7 +54,7 @@ static u16 get_controller_type(ultramodern::input::Device device_type) {
     return 0;
 }
 
-static void __osContGetInitData(u8* pattern, OSContStatus *data) {
+static void __osContGetInitData(u8 *pattern, OSContStatus *data) {
     *pattern = 0x00;
 
     for (int controller = 0; controller < max_controllers; controller++) {
@@ -144,8 +144,9 @@ extern "C" void osContGetReadData(OSContPad *data) {
             data[controller].stick_x = (int8_t)(127 * x);
             data[controller].stick_y = (int8_t)(127 * y);
             data[controller].err_no = 0;
-        } else {
-            data[controller].err_no =  CONT_NO_RESPONSE_ERROR; // CHNL_ERR_NORESP >> 4
+        }
+        else {
+            data[controller].err_no = CONT_NO_RESPONSE_ERROR; // CHNL_ERR_NORESP >> 4
         }
     }
 }

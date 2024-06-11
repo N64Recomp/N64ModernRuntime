@@ -1,22 +1,24 @@
+#include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <memory>
-#include <cmath>
-#include <unordered_map>
-#include <unordered_set>
 #include <fstream>
 #include <iostream>
-#include <optional>
+#include <memory>
 #include <mutex>
-#include <array>
+#include <optional>
+#include <unordered_map>
+#include <unordered_set>
 
-#include "recomp.h"
-#include "overlays.hpp"
-#include "game.hpp"
 #include "xxHash/xxh3.h"
-#include "ultramodern/ultramodern.hpp"
+
 #include "ultramodern/error_handling.hpp"
+#include "ultramodern/ultramodern.hpp"
+
+#include "game.hpp"
+#include "overlays.hpp"
+#include "recomp.h"
 
 #ifdef _MSC_VER
 inline uint32_t byteswap(uint32_t val) {
@@ -40,7 +42,7 @@ std::mutex current_game_mutex;
 
 // Global variables
 std::filesystem::path config_path;
-std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
+std::unordered_map<std::u8string, recomp::GameEntry> game_roms{};
 
 std::u8string recomp::GameEntry::stored_filename() const {
     return game_id + u8".z64";
@@ -64,14 +66,14 @@ bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
 static std::vector<uint8_t> read_file(const std::filesystem::path& path) {
     std::vector<uint8_t> ret;
 
-    std::ifstream file{ path, std::ios::binary};
+    std::ifstream file{ path, std::ios::binary };
 
     if (file.good()) {
         file.seekg(0, std::ios::end);
         ret.resize(file.tellg());
         file.seekg(0, std::ios::beg);
 
-        file.read(reinterpret_cast<char*>(ret.data()), ret.size());
+        file.read(reinterpret_cast<char *>(ret.data()), ret.size());
     }
 
     return ret;
@@ -84,7 +86,7 @@ bool write_file(const std::filesystem::path& path, const std::vector<uint8_t>& d
         return false;
     }
 
-    out_file.write(reinterpret_cast<const char*>(data.data()), data.size());
+    out_file.write(reinterpret_cast<const char *>(data.data()), data.size());
 
     return true;
 }
@@ -108,7 +110,7 @@ bool recomp::is_rom_valid(std::u8string& game_id) {
 }
 
 void recomp::check_all_stored_roms() {
-    for (const auto& cur_rom_entry: game_roms) {
+    for (const auto& cur_rom_entry : game_roms) {
         if (check_stored_rom(cur_rom_entry.second)) {
             valid_game_roms.insert(cur_rom_entry.first);
         }
@@ -121,7 +123,7 @@ bool recomp::load_stored_rom(std::u8string& game_id) {
     if (find_it == game_roms.end()) {
         return false;
     }
-    
+
     std::vector<uint8_t> stored_rom_data = read_file(config_path / find_it->second.stored_filename());
 
     if (!check_hash(stored_rom_data, find_it->second.rom_hash)) {
@@ -134,7 +136,7 @@ bool recomp::load_stored_rom(std::u8string& game_id) {
     return true;
 }
 
-const std::array<uint8_t, 4> first_rom_bytes { 0x80, 0x37, 0x12, 0x40 };
+const std::array<uint8_t, 4> first_rom_bytes{ 0x80, 0x37, 0x12, 0x40 };
 
 enum class ByteswapType {
     NotByteswapped,
@@ -149,25 +151,22 @@ ByteswapType check_rom_start(const std::vector<uint8_t>& rom_data) {
     }
 
     auto check_match = [&](uint8_t index0, uint8_t index1, uint8_t index2, uint8_t index3) {
-        return
-            rom_data[0] == first_rom_bytes[index0] &&
-            rom_data[1] == first_rom_bytes[index1] &&
-            rom_data[2] == first_rom_bytes[index2] &&
-            rom_data[3] == first_rom_bytes[index3];
+        return rom_data[0] == first_rom_bytes[index0] && rom_data[1] == first_rom_bytes[index1] && rom_data[2] == first_rom_bytes[index2] &&
+               rom_data[3] == first_rom_bytes[index3];
     };
 
     // Check if the ROM is already in the correct byte order.
-    if (check_match(0,1,2,3)) {
+    if (check_match(0, 1, 2, 3)) {
         return ByteswapType::NotByteswapped;
     }
 
     // Check if the ROM has been byteswapped in groups of 4 bytes.
-    if (check_match(3,2,1,0)) {
+    if (check_match(3, 2, 1, 0)) {
         return ByteswapType::Byteswapped4;
     }
 
     // Check if the ROM has been byteswapped in groups of 2 bytes.
-    if (check_match(1,0,3,2)) {
+    if (check_match(1, 0, 3, 2)) {
         return ByteswapType::Byteswapped2;
     }
 
@@ -223,12 +222,13 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
     }
 
     if (!check_hash(rom_data, game_entry.rom_hash)) {
-        const std::string_view name{ reinterpret_cast<const char*>(rom_data.data()) + 0x20, game_entry.internal_name.size()};
+        const std::string_view name{ reinterpret_cast<const char *>(rom_data.data()) + 0x20, game_entry.internal_name.size() };
         if (name == game_entry.internal_name) {
             return recomp::RomValidationError::IncorrectVersion;
         }
         else {
-            if (game_entry.is_enabled && std::string_view{ reinterpret_cast<const char*>(rom_data.data()) + 0x20, 19 } == game_entry.internal_name) {
+            if (game_entry.is_enabled &&
+                std::string_view{ reinterpret_cast<const char *>(rom_data.data()) + 0x20, 19 } == game_entry.internal_name) {
                 return recomp::RomValidationError::NotYet;
             }
             else {
@@ -238,11 +238,11 @@ recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_p
     }
 
     write_file(config_path / game_entry.stored_filename(), rom_data);
-    
+
     return recomp::RomValidationError::Good;
 }
 
-extern "C" void osGetMemSize_recomp(uint8_t * rdram, recomp_context * ctx) {
+extern "C" void osGetMemSize_recomp(uint8_t *rdram, recomp_context *ctx) {
     ctx->r2 = 8 * 1024 * 1024;
 }
 
@@ -250,7 +250,7 @@ enum class StatusReg {
     FR = 0x04000000,
 };
 
-extern "C" void cop0_status_write(recomp_context* ctx, gpr value) {
+extern "C" void cop0_status_write(recomp_context *ctx, gpr value) {
     uint32_t old_sr = ctx->status_reg;
     uint32_t new_sr = (uint32_t)value;
     uint32_t changed = old_sr ^ new_sr;
@@ -280,16 +280,16 @@ extern "C" void cop0_status_write(recomp_context* ctx, gpr value) {
         assert(false);
         exit(EXIT_FAILURE);
     }
-    
+
     // Update the status register in the context
     ctx->status_reg = new_sr;
 }
 
-extern "C" gpr cop0_status_read(recomp_context* ctx) {
+extern "C" gpr cop0_status_read(recomp_context *ctx) {
     return (gpr)(int32_t)ctx->status_reg;
 }
 
-extern "C" void switch_error(const char* func, uint32_t vram, uint32_t jtbl) {
+extern "C" void switch_error(const char *func, uint32_t vram, uint32_t jtbl) {
     printf("Switch-case out of bounds in %s at 0x%08X for jump table at 0x%08X\n", func, vram, jtbl);
     assert(false);
     exit(EXIT_FAILURE);
@@ -301,17 +301,17 @@ extern "C" void do_break(uint32_t vram) {
     exit(EXIT_FAILURE);
 }
 
-void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t arg) {
+void run_thread_function(uint8_t *rdram, uint64_t addr, uint64_t sp, uint64_t arg) {
     recomp_context ctx{};
     ctx.r29 = sp;
     ctx.r4 = arg;
     ctx.mips3_float_mode = 0;
     ctx.f_odd = &ctx.f0.u32h;
-    recomp_func_t* func = get_function(addr);
+    recomp_func_t *func = get_function(addr);
     func(rdram, &ctx);
 }
 
-void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
+void init(uint8_t *rdram, recomp_context *ctx, gpr entrypoint) {
     // Initialize the overlays
     recomp::overlays::init_overlays();
 
@@ -337,9 +337,9 @@ void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
     constexpr int32_t osVersion = 0x80000314;
     constexpr int32_t osMemSize = 0x80000318;
     constexpr int32_t osAppNMIBuffer = 0x8000031c;
-    MEM_W(osTvType, 0) = 1; // NTSC
-    MEM_W(osRomBase, 0) = 0xB0000000u; // standard rom base
-    MEM_W(osResetType, 0) = 0; // cold reset
+    MEM_W(osTvType, 0) = 1;                // NTSC
+    MEM_W(osRomBase, 0) = 0xB0000000u;     // standard rom base
+    MEM_W(osResetType, 0) = 0;             // cold reset
     MEM_W(osMemSize, 0) = 8 * 1024 * 1024; // 8MB
 }
 
@@ -374,25 +374,22 @@ void ultramodern::quit() {
 }
 
 void recomp::start(
-    ultramodern::renderer::WindowHandle window_handle,
-    const recomp::rsp::callbacks_t& rsp_callbacks,
-    const ultramodern::renderer::callbacks_t& renderer_callbacks,
-    const ultramodern::audio_callbacks_t& audio_callbacks,
-    const ultramodern::input::callbacks_t& input_callbacks,
-    const ultramodern::gfx_callbacks_t& gfx_callbacks_,
-    const ultramodern::events::callbacks_t& events_callbacks,
-    const ultramodern::error_handling::callbacks_t& error_handling_callbacks_
-) {
+    ultramodern::renderer::WindowHandle window_handle, const recomp::rsp::callbacks_t& rsp_callbacks,
+    const ultramodern::renderer::callbacks_t& renderer_callbacks, const ultramodern::audio_callbacks_t& audio_callbacks,
+    const ultramodern::input::callbacks_t& input_callbacks, const ultramodern::gfx_callbacks_t& gfx_callbacks_,
+    const ultramodern::events::callbacks_t& events_callbacks, const ultramodern::error_handling::callbacks_t& error_handling_callbacks_) {
     recomp::check_all_stored_roms();
 
     recomp::rsp::set_callbacks(rsp_callbacks);
 
-    static const ultramodern::rsp::callbacks_t ultramodern_rsp_callbacks {
+    static const ultramodern::rsp::callbacks_t ultramodern_rsp_callbacks{
         .init = recomp::rsp::constants_init,
         .run_task = recomp::rsp::run_task,
     };
 
-    ultramodern::set_callbacks(ultramodern_rsp_callbacks, renderer_callbacks, audio_callbacks, input_callbacks, gfx_callbacks_, events_callbacks, error_handling_callbacks_);
+    ultramodern::set_callbacks(
+        ultramodern_rsp_callbacks, renderer_callbacks, audio_callbacks, input_callbacks, gfx_callbacks_, events_callbacks,
+        error_handling_callbacks_);
 
     ultramodern::gfx_callbacks_t gfx_callbacks = gfx_callbacks_;
 
@@ -415,20 +412,20 @@ void recomp::start(
     std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(ultramodern::rdram_size);
     std::memset(rdram_buffer.get(), 0, ultramodern::rdram_size);
 
-    std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
-        debug_printf("[Recomp] Starting\n");
+    std::thread game_thread{
+        [](ultramodern::renderer::WindowHandle window_handle, uint8_t *rdram) {
+            debug_printf("[Recomp] Starting\n");
 
-        ultramodern::set_native_thread_name("Game Start Thread");
+            ultramodern::set_native_thread_name("Game Start Thread");
 
-        ultramodern::preinit(rdram, window_handle);
+            ultramodern::preinit(rdram, window_handle);
 
-        game_status.wait(GameStatus::None);
-        recomp_context context{};
+            game_status.wait(GameStatus::None);
+            recomp_context context{};
 
-        switch (game_status.load()) {
-            // TODO refactor this to allow a project to specify what entrypoint function to run for a give game.
-            case GameStatus::Running:
-                {
+            switch (game_status.load()) {
+                // TODO refactor this to allow a project to specify what entrypoint function to run for a give game.
+                case GameStatus::Running: {
                     if (!recomp::load_stored_rom(current_game.value())) {
                         ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
                     }
@@ -443,20 +440,21 @@ void recomp::start(
                     try {
                         game_entry.entrypoint(rdram, &context);
                     } catch (ultramodern::thread_terminated& terminated) {
-
                     }
-                }
-                break;
+                } break;
 
-            case GameStatus::Quit:
-                break;
+                case GameStatus::Quit:
+                    break;
 
-            case GameStatus::None:
-                break;
-        }
+                case GameStatus::None:
+                    break;
+            }
 
-        debug_printf("[Recomp] Quitting\n");
-    }, window_handle, rdram_buffer.get()};
+            debug_printf("[Recomp] Quitting\n");
+        },
+        window_handle,
+        rdram_buffer.get(),
+    };
 
     while (!exited) {
         ultramodern::sleep_milliseconds(1);

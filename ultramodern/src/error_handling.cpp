@@ -8,7 +8,7 @@ void ultramodern::error_handling::set_callbacks(const ultramodern::error_handlin
     error_handling_callbacks = callbacks;
 }
 
-void ultramodern::error_handling::message_box(const char* msg) {
+void ultramodern::error_handling::message_box(const char *msg) {
     // We print the message to stderr since the user may not have provided a message_box callback
 
     fprintf(stderr, "%s\n", msg);
@@ -18,7 +18,7 @@ void ultramodern::error_handling::message_box(const char* msg) {
     }
 }
 
-void ultramodern::error_handling::quick_exit(const char* filename, int line, const char *func, int exit_status) {
+void ultramodern::error_handling::quick_exit(const char *filename, int line, const char *func, int exit_status) {
     fprintf(stderr, "Exiting with exit status '%i'. Function %s, at file %s:%i, ", exit_status, func, filename, line);
 
 #ifdef __APPLE__

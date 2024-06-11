@@ -4,11 +4,11 @@
 #include <stdint.h>
 
 #ifdef __GNUC__
-#define UNUSED __attribute__((unused))
-#define ALIGNED(x) __attribute__((aligned(x)))
+#    define UNUSED __attribute__((unused))
+#    define ALIGNED(x) __attribute__((aligned(x)))
 #else
-#define UNUSED
-#define ALIGNED(x)
+#    define UNUSED
+#    define ALIGNED(x)
 #endif
 
 typedef int64_t s64;
@@ -23,60 +23,60 @@ typedef uint8_t u8;
 // TODO allow a compile-time flag to be set to switch between recomp mode and
 // fully native mode.
 #if 0 // For native compilation
-#  define PTR(x) x*
-#  define RDRAM_ARG
-#  define RDRAM_ARG1
-#  define PASS_RDRAM
-#  define PASS_RDRAM1
-#  define TO_PTR(type, var) var
-#  define GET_MEMBER(type, addr, member) (&addr->member)
-#  ifdef __cplusplus
-#    define NULLPTR nullptr
-#  endif
+#    define PTR(x) x *
+#    define RDRAM_ARG
+#    define RDRAM_ARG1
+#    define PASS_RDRAM
+#    define PASS_RDRAM1
+#    define TO_PTR(type, var) var
+#    define GET_MEMBER(type, addr, member) (&addr->member)
+#    ifdef __cplusplus
+#        define NULLPTR nullptr
+#    endif
 #else
-#  define PTR(x) int32_t
-#  define RDRAM_ARG uint8_t *rdram, 
-#  define RDRAM_ARG1 uint8_t *rdram
-#  define PASS_RDRAM rdram, 
-#  define PASS_RDRAM1 rdram
-#  define TO_PTR(type, var) ((type*)(&rdram[(uint64_t)var - 0xFFFFFFFF80000000]))
-#  define GET_MEMBER(type, addr, member) (addr + (intptr_t)&(((type*)nullptr)->member))
-#  ifdef __cplusplus
-#    define NULLPTR (PTR(void))0
-#  endif
+#    define PTR(x) int32_t
+#    define RDRAM_ARG uint8_t *rdram,
+#    define RDRAM_ARG1 uint8_t *rdram
+#    define PASS_RDRAM rdram,
+#    define PASS_RDRAM1 rdram
+#    define TO_PTR(type, var) ((type *)(&rdram[(uint64_t)var - 0xFFFFFFFF80000000]))
+#    define GET_MEMBER(type, addr, member) (addr + (intptr_t) & (((type *)nullptr)->member))
+#    ifdef __cplusplus
+#        define NULLPTR (PTR(void))0
+#    endif
 #endif
 
 #ifndef NULL
-#define NULL (PTR(void) 0)
+#    define NULL (PTR(void) 0)
 #endif
 
-#define OS_MESG_NOBLOCK     0
-#define OS_MESG_BLOCK       1
+#define OS_MESG_NOBLOCK 0
+#define OS_MESG_BLOCK 1
 
 typedef s32 OSPri;
 typedef s32 OSId;
 
-typedef u64	OSTime;
+typedef u64 OSTime;
 
-#define OS_EVENT_SW1              0     /* CPU SW1 interrupt */
-#define OS_EVENT_SW2              1     /* CPU SW2 interrupt */
-#define OS_EVENT_CART             2     /* Cartridge interrupt: used by rmon */
-#define OS_EVENT_COUNTER          3     /* Counter int: used by VI/Timer Mgr */
-#define OS_EVENT_SP               4     /* SP task done interrupt */
-#define OS_EVENT_SI               5     /* SI (controller) interrupt */
-#define OS_EVENT_AI               6     /* AI interrupt */
-#define OS_EVENT_VI               7     /* VI interrupt: used by VI/Timer Mgr */
-#define OS_EVENT_PI               8     /* PI interrupt: used by PI Manager */
-#define OS_EVENT_DP               9     /* DP full sync interrupt */
-#define OS_EVENT_CPU_BREAK        10    /* CPU breakpoint: used by rmon */
-#define OS_EVENT_SP_BREAK         11    /* SP breakpoint:  used by rmon */
-#define OS_EVENT_FAULT            12    /* CPU fault event: used by rmon */
-#define OS_EVENT_THREADSTATUS     13    /* CPU thread status: used by rmon */
-#define OS_EVENT_PRENMI           14    /* Pre NMI interrupt */
+#define OS_EVENT_SW1 0           /* CPU SW1 interrupt */
+#define OS_EVENT_SW2 1           /* CPU SW2 interrupt */
+#define OS_EVENT_CART 2          /* Cartridge interrupt: used by rmon */
+#define OS_EVENT_COUNTER 3       /* Counter int: used by VI/Timer Mgr */
+#define OS_EVENT_SP 4            /* SP task done interrupt */
+#define OS_EVENT_SI 5            /* SI (controller) interrupt */
+#define OS_EVENT_AI 6            /* AI interrupt */
+#define OS_EVENT_VI 7            /* VI interrupt: used by VI/Timer Mgr */
+#define OS_EVENT_PI 8            /* PI interrupt: used by PI Manager */
+#define OS_EVENT_DP 9            /* DP full sync interrupt */
+#define OS_EVENT_CPU_BREAK 10    /* CPU breakpoint: used by rmon */
+#define OS_EVENT_SP_BREAK 11     /* SP breakpoint:  used by rmon */
+#define OS_EVENT_FAULT 12        /* CPU fault event: used by rmon */
+#define OS_EVENT_THREADSTATUS 13 /* CPU thread status: used by rmon */
+#define OS_EVENT_PRENMI 14       /* Pre NMI interrupt */
 
-#define	M_GFXTASK	1
-#define	M_AUDTASK	2
-#define	M_VIDTASK	3
+#define M_GFXTASK 1
+#define M_AUDTASK 2
+#define M_VIDTASK 3
 #define M_NJPEGTASK 4
 
 /////////////
@@ -103,7 +103,7 @@ typedef struct OSThread_t {
     uint16_t state;
     OSId id;
     int32_t pad3;
-    UltraThreadContext* context; // An actual pointer regardless of platform
+    UltraThreadContext *context; // An actual pointer regardless of platform
     int32_t sp;
 } OSThread;
 
@@ -112,7 +112,7 @@ typedef PTR(void) OSMesg;
 
 typedef struct OSMesgQueue {
     PTR(OSThread) blocked_on_recv; /* Linked list of threads blocked on receiving from this queue */
-    PTR(OSThread) blocked_on_send; /* Linked list of threads blocked on sending to this queue */ 
+    PTR(OSThread) blocked_on_send; /* Linked list of threads blocked on sending to this queue */
     s32 validCount;                /* Number of messages in the queue */
     s32 first;                     /* Index of the first message in the ring buffer */
     s32 msgCount;                  /* Size of message buffer */
@@ -122,29 +122,29 @@ typedef struct OSMesgQueue {
 // RSP
 
 typedef struct {
-    u32	type;
-    u32	flags;
+    u32 type;
+    u32 flags;
 
     PTR(u64) ucode_boot;
-    u32	ucode_boot_size;
+    u32 ucode_boot_size;
 
     PTR(u64) ucode;
-    u32	ucode_size;
+    u32 ucode_size;
 
     PTR(u64) ucode_data;
-    u32	ucode_data_size;
+    u32 ucode_data_size;
 
     PTR(u64) dram_stack;
-    u32	dram_stack_size;
+    u32 dram_stack_size;
 
     PTR(u64) output_buff;
     PTR(u64) output_buff_size;
 
     PTR(u64) data_ptr;
-    u32	data_size;
+    u32 data_size;
 
     PTR(u64) yield_data_ptr;
-    u32	yield_data_size;
+    u32 yield_data_size;
 } OSTask_s;
 
 typedef union {
@@ -163,55 +163,55 @@ struct OSIoMesgHdr {
 };
 
 struct OSIoMesg {
-    OSIoMesgHdr	hdr;    /* Message header */
-    PTR(void) dramAddr;	/* RDRAM buffer address (DMA) */
-    u32 devAddr;	    /* Device buffer address (DMA) */
-    u32 size;		    /* DMA transfer size in bytes */
-    u32 piHandle;	    /* PI device handle */
+    OSIoMesgHdr hdr;    /* Message header */
+    PTR(void) dramAddr; /* RDRAM buffer address (DMA) */
+    u32 devAddr;        /* Device buffer address (DMA) */
+    u32 size;           /* DMA transfer size in bytes */
+    u32 piHandle;       /* PI device handle */
 };
 
 struct OSPiHandle {
-    PTR(OSPiHandle_s)    unused;        /* point to next handle on the table */
+    PTR(OSPiHandle_s) unused; /* point to next handle on the table */
     // These four members reversed due to endianness
-    u8                   relDuration;   /* domain release duration */
-    u8                   pageSize;      /* domain page size */
-    u8                   latency;       /* domain latency */
-    u8                   type;          /* DEVICE_TYPE_BULK for disk */
+    u8 relDuration; /* domain release duration */
+    u8 pageSize;    /* domain page size */
+    u8 latency;     /* domain latency */
+    u8 type;        /* DEVICE_TYPE_BULK for disk */
     // These three members reversed due to endianness
-    u16                  padding;       /* struct alignment padding */
-    u8                   domain;        /* which domain */
-    u8                   pulse;         /* domain pulse width */
-    u32                  baseAddress;   /* Domain address */
-    u32                  speed;         /* for roms only */
+    u16 padding;     /* struct alignment padding */
+    u8 domain;       /* which domain */
+    u8 pulse;        /* domain pulse width */
+    u32 baseAddress; /* Domain address */
+    u32 speed;       /* for roms only */
     /* The following are "private" elements" */
-    u32                  transferInfo[18];  /* for disk only */
+    u32 transferInfo[18]; /* for disk only */
 };
 
 typedef struct {
-    u32	ctrl;
-    u32	width;
-    u32	burst;
-    u32	vSync;
-    u32	hSync;
-    u32	leap;
-    u32	hStart;
-    u32	xScale;
-    u32	vCurrent;
+    u32 ctrl;
+    u32 width;
+    u32 burst;
+    u32 vSync;
+    u32 hSync;
+    u32 leap;
+    u32 hStart;
+    u32 xScale;
+    u32 vCurrent;
 } OSViCommonRegs;
 
 typedef struct {
-    u32	origin;
-    u32	yScale;
-    u32	vStart;
-    u32	vBurst;
-    u32	vIntr;
+    u32 origin;
+    u32 yScale;
+    u32 vStart;
+    u32 vBurst;
+    u32 vIntr;
 } OSViFieldRegs;
 
 typedef struct {
     u8 padding[3];
     u8 type;
     OSViCommonRegs comRegs;
-    OSViFieldRegs  fldRegs[2];
+    OSViFieldRegs fldRegs[2];
 } OSViMode;
 
 /*
@@ -221,13 +221,13 @@ typedef struct {
     int status;
     PTR(OSMesgQueue) queue;
     int channel;
-    u8 id[32]; // TODO: funky endianness here
+    u8 id[32];    // TODO: funky endianness here
     u8 label[32]; // TODO: funky endianness here
     int version;
     int dir_size;
-    int inode_table; /* block location */
-    int minode_table; /* mirrioring inode_table */
-    int dir_table; /* block location */
+    int inode_table;      /* block location */
+    int minode_table;     /* mirrioring inode_table */
+    int dir_table;        /* block location */
     int inode_start_page; /* page # */
     // Padding and reversed members due to endianness
     u8 padding[2];
@@ -235,14 +235,13 @@ typedef struct {
     u8 banks;
 } OSPfs;
 
-
 // Controller
 
 typedef struct {
     // These three members reversed due to endianness
     u8 err_no;
-    u8 status;                 /* Controller status */
-    u16 type;                   /* Controller Type */
+    u8 status; /* Controller status */
+    u16 type;  /* Controller Type */
 } OSContStatus;
 
 typedef struct {
@@ -251,7 +250,6 @@ typedef struct {
     s8 stick_y; /* -80 <= stick_y <= 80 */
     u8 err_no;
 } OSContPad;
-
 
 ///////////////
 // Functions //
@@ -263,7 +261,7 @@ extern "C" {
 
 void osInitialize(void);
 
-typedef void (thread_func_t)(PTR(void));
+typedef void(thread_func_t)(PTR(void));
 
 void osCreateThread(RDRAM_ARG PTR(OSThread) t, OSId id, PTR(thread_func_t) entry, PTR(void) arg, PTR(void) sp, OSPri p);
 void osStartThread(RDRAM_ARG PTR(OSThread) t);

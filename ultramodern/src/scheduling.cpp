@@ -19,8 +19,8 @@ void ultramodern::check_running_queue(RDRAM_ARG1) {
     // Check if there are any threads in the running queue.
     if (!thread_queue_empty(PASS_RDRAM running_queue)) {
         // Check if the highest priority thread in the queue is higher priority than the current thread.
-        OSThread* next_thread = TO_PTR(OSThread, ultramodern::thread_queue_peek(PASS_RDRAM running_queue));
-        OSThread* self = TO_PTR(OSThread, ultramodern::this_thread());
+        OSThread *next_thread = TO_PTR(OSThread, ultramodern::thread_queue_peek(PASS_RDRAM running_queue));
+        OSThread *self = TO_PTR(OSThread, ultramodern::this_thread());
         if (next_thread->priority > self->priority) {
             ultramodern::thread_queue_pop(PASS_RDRAM running_queue);
             // Swap to the higher priority thread.

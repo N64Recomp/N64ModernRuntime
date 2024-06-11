@@ -1,0 +1,60 @@
+IndentWidth: 4
+Language: Cpp
+UseTab: Never
+ColumnLimit: 140
+ReferenceAlignment: Left
+PointerAlignment: Right
+SpaceAfterCStyleCast: false
+Cpp11BracedListStyle: false
+SpaceBeforeCpp11BracedList: false
+
+# Cases inside switches are indented one level
+IndentCaseLabels: true
+
+# Do not indent access modifiers (public, protected, private)
+AccessModifierOffset: -4
+
+AlignAfterOpenBracket: AlwaysBreak
+
+AllowShortBlocksOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLambdasOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# Otherwise it would align escaped newlines to the column limit
+AlignEscapedNewlines: Left
+
+AlignTrailingComments: true
+SortIncludes: true
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+    AfterControlStatement: Never
+    AfterFunction: false
+    AfterNamespace: false
+    AfterStruct: false
+    AfterUnion: false
+    AfterExternBlock: false
+    BeforeElse: true
+
+# Adds a comment at the end of the namespace with its name
+FixNamespaceComments: true
+# Indent namespace's content
+NamespaceIndentation: All
+
+# Aligns preprocessor directives
+IndentPPDirectives: AfterHash
+
+# No space between template and <
+SpaceAfterTemplateKeyword: false
+# Newline after template
+AlwaysBreakTemplateDeclarations: Yes
+
+# Make the indentation of lambdas nicer
+LambdaBodyIndentation: Signature
+
+# Tags these macros as types
+TypenameMacros: ["PTR"]

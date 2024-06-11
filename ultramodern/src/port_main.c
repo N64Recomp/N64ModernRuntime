@@ -1,10 +1,10 @@
 #if 0
 
-#include <stdio.h>
-#include <stdlib.h>
-#include "ultra64.h"
+#    include "ultra64.h"
+#    include <stdio.h>
+#    include <stdlib.h>
 
-#define THREAD_STACK_SIZE 0x1000
+#    define THREAD_STACK_SIZE 0x1000
 
 u8 idle_stack[THREAD_STACK_SIZE] ALIGNED(16);
 u8 main_stack[THREAD_STACK_SIZE] ALIGNED(16);

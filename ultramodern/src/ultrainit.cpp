@@ -2,14 +2,9 @@
 #include "ultramodern/ultramodern.hpp"
 
 void ultramodern::set_callbacks(
-    const rsp::callbacks_t& rsp_callbacks,
-    const renderer::callbacks_t& renderer_callbacks,
-    const audio_callbacks_t& audio_callbacks,
-    const input::callbacks_t& input_callbacks,
-    const gfx_callbacks_t& gfx_callbacks,
-    const events::callbacks_t& thread_callbacks,
-    const error_handling::callbacks_t& error_handling_callbacks
-) {
+    const rsp::callbacks_t& rsp_callbacks, const renderer::callbacks_t& renderer_callbacks, const audio_callbacks_t& audio_callbacks,
+    const input::callbacks_t& input_callbacks, const gfx_callbacks_t& gfx_callbacks, const events::callbacks_t& thread_callbacks,
+    const error_handling::callbacks_t& error_handling_callbacks) {
     ultramodern::rsp::set_callbacks(rsp_callbacks);
     ultramodern::renderer::set_callbacks(renderer_callbacks);
     ultramodern::set_audio_callbacks(audio_callbacks);

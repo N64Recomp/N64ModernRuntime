@@ -7,21 +7,21 @@
 #include <span>
 
 #if defined(_WIN32)
-#   define WIN32_LEAN_AND_MEAN
-#   include <Windows.h>
+#    define WIN32_LEAN_AND_MEAN
+#    include <Windows.h>
 #elif defined(__ANDROID__)
-#   include "android/native_window.h"
+#    include "android/native_window.h"
 #elif defined(__linux__)
-#   include "X11/Xlib.h"
-#   undef None
-#   undef Status
-#   undef LockMask
-#   undef Always
-#   undef Success
+#    include "X11/Xlib.h"
+#    undef None
+#    undef Status
+#    undef LockMask
+#    undef Always
+#    undef Success
 #endif
 
-#include "ultra64.h"
 #include "config.hpp"
+#include "ultra64.h"
 
 namespace ultramodern {
     namespace renderer {
@@ -34,17 +34,17 @@ namespace ultramodern {
             auto operator<=>(const WindowHandle&) const = default;
         };
 #elif defined(__ANDROID__)
-        using WindowHandle = ANativeWindow*;
+        using WindowHandle = ANativeWindow *;
 #elif defined(__linux__)
         struct WindowHandle {
-            Display* display;
+            Display *display;
             Window window;
             auto operator<=>(const WindowHandle&) const = default;
         };
 #elif defined(__APPLE__)
         struct WindowHandle {
-            void* window;
-            void* view;
+            void *window;
+            void *view;
             auto operator<=>(const WindowHandle&) const = default;
         };
 #endif
@@ -58,28 +58,31 @@ namespace ultramodern {
         };
 
         class RendererContext {
-            public:
-                virtual ~RendererContext() = default;
+        public:
+            virtual ~RendererContext() = default;
 
-                virtual bool valid() = 0;
-                virtual SetupResult get_setup_result() const { return setup_result; }
+            virtual bool valid() = 0;
+            virtual SetupResult get_setup_result() const {
+                return setup_result;
+            }
 
-                virtual bool update_config(const GraphicsConfig& old_config, const GraphicsConfig& new_config) = 0;
+            virtual bool update_config(const GraphicsConfig& old_config, const GraphicsConfig& new_config) = 0;
 
-                virtual void enable_instant_present() = 0;
-                virtual void send_dl(const OSTask* task) = 0;
-                virtual void update_screen(uint32_t vi_origin) = 0;
-                virtual void shutdown() = 0;
-                virtual uint32_t get_display_framerate() const = 0;
-                virtual float get_resolution_scale() const = 0;
-                virtual void load_shader_cache(std::span<const char> cache_binary) = 0;
+            virtual void enable_instant_present() = 0;
+            virtual void send_dl(const OSTask *task) = 0;
+            virtual void update_screen(uint32_t vi_origin) = 0;
+            virtual void shutdown() = 0;
+            virtual uint32_t get_display_framerate() const = 0;
+            virtual float get_resolution_scale() const = 0;
+            virtual void load_shader_cache(std::span<const char> cache_binary) = 0;
 
-            protected:
-                SetupResult setup_result;
+        protected:
+            SetupResult setup_result;
         };
 
         struct callbacks_t {
-            using create_render_context_t = std::unique_ptr<RendererContext>(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
+            using create_render_context_t =
+                std::unique_ptr<RendererContext>(uint8_t *rdram, WindowHandle window_handle, bool developer_mode);
             using get_graphics_api_name_t = std::string(const GraphicsConfig& config);
 
             /**
@@ -97,10 +100,10 @@ namespace ultramodern {
 
         void set_callbacks(const callbacks_t& callbacks);
 
-        std::unique_ptr<RendererContext> create_render_context(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
+        std::unique_ptr<RendererContext> create_render_context(uint8_t *rdram, WindowHandle window_handle, bool developer_mode);
 
         std::string get_graphics_api_name(const GraphicsConfig& config);
-    }
-}
+    } // namespace renderer
+} // namespace ultramodern
 
 #endif

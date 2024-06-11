@@ -4,13 +4,13 @@ constexpr std::u8string_view backup_suffix = u8".bak";
 constexpr std::u8string_view temp_suffix = u8".temp";
 
 std::ifstream recomp::open_input_backup_file(const std::filesystem::path& filepath, std::ios_base::openmode mode) {
-    std::filesystem::path backup_path{filepath};
+    std::filesystem::path backup_path{ filepath };
     backup_path += backup_suffix;
-    return std::ifstream{backup_path, mode};
+    return std::ifstream{ backup_path, mode };
 }
 
 std::ifstream recomp::open_input_file_with_backup(const std::filesystem::path& filepath, std::ios_base::openmode mode) {
-    std::ifstream ret{filepath, mode};
+    std::ifstream ret{ filepath, mode };
 
     // Check if the file failed to open and open the corresponding backup file instead if so.
     if (!ret.good()) {
@@ -21,7 +21,7 @@ std::ifstream recomp::open_input_file_with_backup(const std::filesystem::path& f
 }
 
 std::ofstream recomp::open_output_file_with_backup(const std::filesystem::path& filepath, std::ios_base::openmode mode) {
-    std::filesystem::path temp_path{filepath};
+    std::filesystem::path temp_path{ filepath };
     temp_path += temp_suffix;
     std::ofstream temp_file_out{ temp_path, mode };
 
@@ -29,10 +29,10 @@ std::ofstream recomp::open_output_file_with_backup(const std::filesystem::path& 
 }
 
 bool recomp::finalize_output_file_with_backup(const std::filesystem::path& filepath) {
-    std::filesystem::path backup_path{filepath};
+    std::filesystem::path backup_path{ filepath };
     backup_path += backup_suffix;
 
-    std::filesystem::path temp_path{filepath};
+    std::filesystem::path temp_path{ filepath };
     temp_path += temp_suffix;
 
     std::error_code ec;

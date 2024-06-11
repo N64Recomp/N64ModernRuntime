@@ -10,16 +10,16 @@ namespace ultramodern {
             /**
              * Called in each VI.
              */
-            vi_callback_t* vi_callback;
+            vi_callback_t *vi_callback;
 
             /**
              * Called before entering the gfx main loop.
              */
-            gfx_init_callback_t* gfx_init_callback;
+            gfx_init_callback_t *gfx_init_callback;
         };
 
         void set_callbacks(const callbacks_t& callbacks);
-    }
-}
+    } // namespace events
+} // namespace ultramodern
 
 #endif

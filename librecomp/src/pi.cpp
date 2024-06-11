@@ -1,14 +1,16 @@
-#include <memory>
-#include <fstream>
 #include <array>
 #include <cstring>
-#include <string>
+#include <fstream>
+#include <memory>
 #include <mutex>
-#include "recomp.h"
-#include "game.hpp"
-#include "files.hpp"
+#include <string>
+
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
+
+#include "files.hpp"
+#include "game.hpp"
+#include "recomp.h"
 
 static std::vector<uint8_t> rom;
 
@@ -35,14 +37,14 @@ constexpr uint32_t phys_to_k1(uint32_t addr) {
     return addr | 0xA0000000;
 }
 
-extern "C" void __osPiGetAccess_recomp(uint8_t* rdram, recomp_context* ctx) {
+extern "C" void __osPiGetAccess_recomp(uint8_t *rdram, recomp_context *ctx) {
 }
 
-extern "C" void __osPiRelAccess_recomp(uint8_t* rdram, recomp_context* ctx) {
+extern "C" void __osPiRelAccess_recomp(uint8_t *rdram, recomp_context *ctx) {
 }
 
-extern "C" void osCartRomInit_recomp(uint8_t* rdram, recomp_context* ctx) {
-    OSPiHandle* handle = TO_PTR(OSPiHandle, ultramodern::cart_handle);
+extern "C" void osCartRomInit_recomp(uint8_t *rdram, recomp_context *ctx) {
+    OSPiHandle *handle = TO_PTR(OSPiHandle, ultramodern::cart_handle);
     handle->type = 0; // cart
     handle->baseAddress = phys_to_k1(rom_base);
     handle->domain = 0;
@@ -50,8 +52,8 @@ extern "C" void osCartRomInit_recomp(uint8_t* rdram, recomp_context* ctx) {
     ctx->r2 = (gpr)ultramodern::cart_handle;
 }
 
-extern "C" void osDriveRomInit_recomp(uint8_t * rdram, recomp_context * ctx) {
-    OSPiHandle* handle = TO_PTR(OSPiHandle, ultramodern::drive_handle);
+extern "C" void osDriveRomInit_recomp(uint8_t *rdram, recomp_context *ctx) {
+    OSPiHandle *handle = TO_PTR(OSPiHandle, ultramodern::drive_handle);
     handle->type = 1; // bulk
     handle->baseAddress = phys_to_k1(drive_base);
     handle->domain = 0;
@@ -59,28 +61,28 @@ extern "C" void osDriveRomInit_recomp(uint8_t * rdram, recomp_context * ctx) {
     ctx->r2 = (gpr)ultramodern::drive_handle;
 }
 
-extern "C" void osCreatePiManager_recomp(uint8_t* rdram, recomp_context* ctx) {
+extern "C" void osCreatePiManager_recomp(uint8_t *rdram, recomp_context *ctx) {
     ;
 }
 
-void recomp::do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes) {
+void recomp::do_rom_read(uint8_t *rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes) {
     // TODO use word copies when possible
 
     // TODO handle misaligned DMA
     assert((physical_addr & 0x1) == 0 && "Only PI DMA from aligned ROM addresses is currently supported");
     assert((ram_address & 0x7) == 0 && "Only PI DMA to aligned RDRAM addresses is currently supported");
     assert((num_bytes & 0x1) == 0 && "Only PI DMA with aligned sizes is currently supported");
-    uint8_t* rom_addr = rom.data() + physical_addr - rom_base;
+    uint8_t *rom_addr = rom.data() + physical_addr - rom_base;
     for (size_t i = 0; i < num_bytes; i++) {
         MEM_B(i, ram_address) = *rom_addr;
         rom_addr++;
     }
 }
 
-void recomp::do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr) {
+void recomp::do_rom_pio(uint8_t *rdram, gpr ram_address, uint32_t physical_addr) {
     assert((physical_addr & 0x3) == 0 && "PIO not 4-byte aligned in device, currently unsupported");
     assert((ram_address & 0x3) == 0 && "PIO not 4-byte aligned in RDRAM, currently unsupported");
-    uint8_t* rom_addr = rom.data() + physical_addr - rom_base;
+    uint8_t *rom_addr = rom.data() + physical_addr - rom_base;
     MEM_B(0, ram_address) = *rom_addr++;
     MEM_B(1, ram_address) = *rom_addr++;
     MEM_B(2, ram_address) = *rom_addr++;
@@ -99,7 +101,7 @@ const std::u8string save_folder = u8"saves";
 extern std::filesystem::path config_path;
 
 std::filesystem::path get_save_file_path() {
-    return config_path / save_folder / (std::u8string{recomp::current_game_id()} + u8".bin");
+    return config_path / save_folder / (std::u8string{ recomp::current_game_id() } + u8".bin");
 }
 
 void update_save_file() {
@@ -119,7 +121,8 @@ void update_save_file() {
         saving_failed = !recomp::finalize_output_file_with_backup(get_save_file_path());
     }
     if (saving_failed) {
-        ultramodern::error_handling::message_box("Failed to write to the save file. Check your file permissions and whether the save folder has been moved to Dropbox or similar, as this can cause issues.");
+        ultramodern::error_handling::message_box("Failed to write to the save file. Check your file permissions and whether the save "
+                                                 "folder has been moved to Dropbox or similar, as this can cause issues.");
     }
 }
 
@@ -148,18 +151,18 @@ void saving_thread_func(RDRAM_ARG1) {
     }
 }
 
-void save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
+void save_write_ptr(const void *in, uint32_t offset, uint32_t count) {
     {
-        std::lock_guard lock { save_context.save_buffer_mutex };
+        std::lock_guard lock{ save_context.save_buffer_mutex };
         memcpy(&save_context.save_buffer[offset], in, count);
     }
-    
+
     save_context.write_sempahore.signal();
 }
 
 void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
     {
-        std::lock_guard lock { save_context.save_buffer_mutex };
+        std::lock_guard lock{ save_context.save_buffer_mutex };
         for (uint32_t i = 0; i < count; i++) {
             save_context.save_buffer[offset + i] = MEM_B(i, rdram_address);
         }
@@ -169,7 +172,7 @@ void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t cou
 }
 
 void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
-    std::lock_guard lock { save_context.save_buffer_mutex };
+    std::lock_guard lock{ save_context.save_buffer_mutex };
     for (size_t i = 0; i < count; i++) {
         MEM_B(i, rdram_address) = save_context.save_buffer[offset + i];
     }
@@ -177,7 +180,7 @@ void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t coun
 
 void save_clear(uint32_t start, uint32_t size, char value) {
     {
-        std::lock_guard lock { save_context.save_buffer_mutex };
+        std::lock_guard lock{ save_context.save_buffer_mutex };
         std::fill_n(save_context.save_buffer.begin() + start, size, value);
     }
 
@@ -200,7 +203,7 @@ void ultramodern::init_saving(RDRAM_ARG1) {
         save_context.save_buffer.fill(0);
     }
 
-    save_context.saving_thread = std::thread{saving_thread_func, PASS_RDRAM};
+    save_context.saving_thread = std::thread{ saving_thread_func, PASS_RDRAM };
 }
 
 void ultramodern::join_saving_thread() {
@@ -219,32 +222,37 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
 
             // Send a message to the mq to indicate that the transfer completed
             osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
-        } else if (physical_addr >= sram_base) {
+        }
+        else if (physical_addr >= sram_base) {
             // read sram
             save_read(rdram, rdram_address, physical_addr - sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
             osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
-        } else {
+        }
+        else {
             fprintf(stderr, "[WARN] PI DMA read from unknown region, phys address 0x%08X\n", physical_addr);
         }
-    } else {
+    }
+    else {
         if (physical_addr >= rom_base) {
             // write cart rom
             throw std::runtime_error("ROM DMA write unimplemented");
-        } else if (physical_addr >= sram_base) {
+        }
+        else if (physical_addr >= sram_base) {
             // write sram
             save_write(rdram, rdram_address, physical_addr - sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
             osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
-        } else {
+        }
+        else {
             fprintf(stderr, "[WARN] PI DMA write to unknown region, phys address 0x%08X\n", physical_addr);
         }
     }
 }
 
-extern "C" void osPiStartDma_recomp(RDRAM_ARG recomp_context* ctx) {
+extern "C" void osPiStartDma_recomp(RDRAM_ARG recomp_context *ctx) {
     uint32_t mb = ctx->r4;
     uint32_t pri = ctx->r5;
     uint32_t direction = ctx->r6;
@@ -261,9 +269,9 @@ extern "C" void osPiStartDma_recomp(RDRAM_ARG recomp_context* ctx) {
     ctx->r2 = 0;
 }
 
-extern "C" void osEPiStartDma_recomp(RDRAM_ARG recomp_context* ctx) {
-    OSPiHandle* handle = TO_PTR(OSPiHandle, ctx->r4);
-    OSIoMesg* mb = TO_PTR(OSIoMesg, ctx->r5);
+extern "C" void osEPiStartDma_recomp(RDRAM_ARG recomp_context *ctx) {
+    OSPiHandle *handle = TO_PTR(OSPiHandle, ctx->r4);
+    OSIoMesg *mb = TO_PTR(OSIoMesg, ctx->r5);
     uint32_t direction = ctx->r6;
     uint32_t devAddr = handle->baseAddress | mb->devAddr;
     gpr dramAddr = mb->dramAddr;
@@ -278,8 +286,8 @@ extern "C" void osEPiStartDma_recomp(RDRAM_ARG recomp_context* ctx) {
     ctx->r2 = 0;
 }
 
-extern "C" void osEPiReadIo_recomp(RDRAM_ARG recomp_context * ctx) {
-    OSPiHandle* handle = TO_PTR(OSPiHandle, ctx->r4);
+extern "C" void osEPiReadIo_recomp(RDRAM_ARG recomp_context *ctx) {
+    OSPiHandle *handle = TO_PTR(OSPiHandle, ctx->r4);
     uint32_t devAddr = handle->baseAddress | ctx->r5;
     gpr dramAddr = ctx->r6;
     uint32_t physical_addr = k1_to_phys(devAddr);
@@ -287,7 +295,8 @@ extern "C" void osEPiReadIo_recomp(RDRAM_ARG recomp_context * ctx) {
     if (physical_addr > rom_base) {
         // cart rom
         recomp::do_rom_pio(PASS_RDRAM dramAddr, physical_addr);
-    } else {
+    }
+    else {
         // sram
         assert(false && "SRAM ReadIo unimplemented");
     }
@@ -295,10 +304,10 @@ extern "C" void osEPiReadIo_recomp(RDRAM_ARG recomp_context * ctx) {
     ctx->r2 = 0;
 }
 
-extern "C" void osPiGetStatus_recomp(RDRAM_ARG recomp_context * ctx) {
+extern "C" void osPiGetStatus_recomp(RDRAM_ARG recomp_context *ctx) {
     ctx->r2 = 0;
 }
 
-extern "C" void osPiRawStartDma_recomp(RDRAM_ARG recomp_context * ctx) {
+extern "C" void osPiRawStartDma_recomp(RDRAM_ARG recomp_context *ctx) {
     ctx->r2 = 0;
 }

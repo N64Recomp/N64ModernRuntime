@@ -7,7 +7,7 @@ void ultramodern::set_callbacks(
     const audio_callbacks_t& audio_callbacks,
     const input::callbacks_t& input_callbacks,
     const gfx_callbacks_t& gfx_callbacks,
-    const events::callbacks_t& thread_callbacks,
+    const events::callbacks_t& events_callbacks,
     const error_handling::callbacks_t& error_handling_callbacks,
     const threads::callbacks_t& threads_callbacks
 ) {
@@ -16,7 +16,7 @@ void ultramodern::set_callbacks(
     ultramodern::set_audio_callbacks(audio_callbacks);
     ultramodern::input::set_callbacks(input_callbacks);
     (void)gfx_callbacks; // nothing yet
-    ultramodern::events::set_callbacks(thread_callbacks);
+    ultramodern::events::set_callbacks(events_callbacks);
     ultramodern::error_handling::set_callbacks(error_handling_callbacks);
     ultramodern::threads::set_callbacks(threads_callbacks);
 }

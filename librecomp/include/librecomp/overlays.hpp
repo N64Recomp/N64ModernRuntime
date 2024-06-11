@@ -2,19 +2,20 @@
 #define __RECOMP_OVERLAYS_H__
 
 #include <cstdint>
+#include <cstddef>
 #include "sections.h"
 
 namespace recomp {
     namespace overlays {
         struct overlay_section_table_data_t {
             SectionTableEntry* code_sections;
-            size_t num_code_sections;
-            size_t total_num_sections;
+            std::size_t num_code_sections;
+            std::size_t total_num_sections;
         };
 
         struct overlays_by_index_t {
             int* table;
-            size_t len;
+            std::size_t len;
         };
 
         void register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays);

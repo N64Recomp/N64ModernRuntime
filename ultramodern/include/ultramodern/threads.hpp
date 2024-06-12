@@ -11,7 +11,7 @@ namespace ultramodern {
             using get_game_thread_name_t = std::string(const OSThread* t);
 
             /**
-             * Allows to specifyin a custom name for each thread. Mainly for debugging purposes.
+             * Allows to specifying a custom name for each thread. Mainly for debugging purposes.
              *
              * For maximum cross-platform compatibility the returned name should be at most 15 bytes long (16 bytes including the null terminator).
              *

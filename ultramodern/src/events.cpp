@@ -350,7 +350,7 @@ extern unsigned int VI_Y_SCALE_REG;
 
 uint32_t hstart = 0;
 uint32_t vi_origin_offset = 320 * sizeof(uint16_t);
-uint16_t state = 0;
+static uint16_t vi_state = 0;
 
 void set_dummy_vi() {
     VI_STATUS_REG = 0x311E;
@@ -370,11 +370,11 @@ void set_dummy_vi() {
 
 extern "C" void osViSwapBuffer(RDRAM_ARG PTR(void) frameBufPtr) {
     VI_H_START_REG = hstart;
-    if (state & VI_STATE_BLACK) {
+    if (vi_state & VI_STATE_BLACK) {
         VI_H_START_REG = 0;
     }
 
-    if (state & VI_STATE_REPEATLINE) {
+    if (vi_state & VI_STATE_REPEATLINE) {
         VI_Y_SCALE_REG = 0;
         VI_ORIGIN_REG = osVirtualToPhysical(frameBufPtr);
     }
@@ -466,17 +466,17 @@ extern "C" void osViSetSpecialFeatures(uint32_t func) {
 
 extern "C" void osViBlack(uint8_t active) {
     if (active) {
-        state |= VI_STATE_BLACK;
+        vi_state |= VI_STATE_BLACK;
     } else {
-        state &= ~VI_STATE_BLACK;
+        vi_state &= ~VI_STATE_BLACK;
     }
 }
 
 extern "C" void osViRepeatLine(uint8_t active) {
     if (active) {
-        state |= VI_STATE_REPEATLINE;
+        vi_state |= VI_STATE_REPEATLINE;
     } else {
-        state &= ~VI_STATE_REPEATLINE;
+        vi_state &= ~VI_STATE_REPEATLINE;
     }
 }
 

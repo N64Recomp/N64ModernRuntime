@@ -315,9 +315,9 @@ extern "C" void osPiRawStartDma_recomp(RDRAM_ARG recomp_context * ctx) {
     ULTRAMODERN_QUICK_EXIT();
 }
 
-extern "C" void osEPiRawStartDma(RDRAM_ARG recomp_context * ctx) {
+extern "C" void osEPiRawStartDma_recomp(RDRAM_ARG recomp_context * ctx) {
     ultramodern::error_handling::message_box(
-        "Stub `osEPiRawStartDma` function called!\n"
+        "Stub `osEPiRawStartDma_recomp` function called!\n"
         "Most games do not call this function directly, which means the libultra function\n"
         "that uses this function was not properly named.\n"
         "If you triggered this message, please make sure you have properly identified\n"

@@ -7,10 +7,25 @@
 #include "ultramodern/ultramodern.hpp"
 #include "blockingconcurrentqueue.h"
 
+#include "ultramodern/threads.hpp"
+
 // Native APIs only used to set thread names for easier debugging
 #ifdef _WIN32
 #include <Windows.h>
 #endif
+
+static ultramodern::threads::callbacks_t threads_callbacks;
+
+void ultramodern::threads::set_callbacks(const callbacks_t& callbacks) {
+    threads_callbacks = callbacks;
+}
+
+std::string ultramodern::threads::get_game_thread_name(const OSThread* t) {
+    if (threads_callbacks.get_game_thread_name == nullptr) {
+        return "Game Thread " + std::to_string(t->id);
+    }
+    return threads_callbacks.get_game_thread_name(t);
+}
 
 extern "C" void bootproc();
 
@@ -80,8 +95,15 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
     // SetThreadPriority(GetCurrentThread(), nPriority);
 }
 #elif defined(__linux__)
+#include <sys/prctl.h>
+
 void ultramodern::set_native_thread_name(const std::string& name) {
-    pthread_setname_np(pthread_self(), name.c_str());
+    if (name.length() > 15) {
+        // Linux only accepts up to 16 characters including the null terminator for a thread name.
+        debug_printf("[Thread] The thread name '%s' will be truncated to 15 characters", name.c_str());
+    }
+
+    prctl(PR_SET_NAME, name.c_str());
 }
 
 void ultramodern::set_native_thread_priority(ThreadPriority pri) {
@@ -113,14 +135,16 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
 }
 #elif defined(__APPLE__)
 void ultramodern::set_native_thread_name(const std::string& name) {
+    if (name.length() > 15) {
+        // Macs seem to only accept up to 16 characters including the null terminator for a thread name.
+        debug_printf("[Thread] The thread name '%s' will be truncated to 15 characters", name.c_str());
+    }
+
     pthread_setname_np(name.c_str());
 }
 
 void ultramodern::set_native_thread_priority(ThreadPriority pri) {}
 #endif
-
-std::atomic_int temporary_threads = 0;
-std::atomic_int permanent_threads = 0;
 
 void wait_for_resumed(RDRAM_ARG UltraThreadContext* thread_context) {
     TO_PTR(OSThread, ultramodern::this_thread())->context->running.wait();
@@ -165,16 +189,8 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
     is_game_thread = true;
 
     // Set the thread name
-    ultramodern::set_native_thread_name("Game Thread " + std::to_string(self->id));
+    ultramodern::set_native_thread_name(ultramodern::threads::get_game_thread_name(self));
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::High);
-
-    // TODO fix these being hardcoded (this is only used for quicksaving)
-    if ((self->id == 2 && self->priority == 5) || self->id == 13) { // slowly, flashrom
-        temporary_threads.fetch_add(1);
-    }
-    else if (self->id != 1 && self->id != 2) { // ignore idle and fault
-        permanent_threads.fetch_add(1);
-    }
 
     // Signal the initialized semaphore to indicate that this thread can be started.
     thread_context->initialized.signal();
@@ -183,7 +199,7 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
 
     // Wait until the thread is marked as running.
     wait_for_resumed(PASS_RDRAM thread_context);
-    
+
     // Make sure the thread wasn't replaced or destroyed before it was started.
     if (self->context == thread_context) {
         debug_printf("[Thread] Thread started: %d\n", self->id);
@@ -206,19 +222,6 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
 
     // Dispose of this thread now that it's completed or terminated.
     ultramodern::cleanup_thread(thread_context);
-    
-    // TODO fix these being hardcoded (this is only used for quicksaving)
-    if ((self->id == 2 && self->priority == 5) || self->id == 13) { // slowly, flashrom
-        temporary_threads.fetch_sub(1);
-    }
-}
-
-uint32_t ultramodern::permanent_thread_count() {
-    return permanent_threads.load();
-}
-
-uint32_t ultramodern::temporary_thread_count() {
-    return temporary_threads.load();
 }
 
 extern "C" void osStartThread(RDRAM_ARG PTR(OSThread) t_) {

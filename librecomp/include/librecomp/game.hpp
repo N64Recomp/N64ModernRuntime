@@ -56,7 +56,8 @@ namespace recomp {
         const ultramodern::input::callbacks_t& input_callbacks,
         const ultramodern::gfx_callbacks_t& gfx_callbacks,
         const ultramodern::events::callbacks_t& events_callbacks,
-        const ultramodern::error_handling::callbacks_t& error_handling_callbacks_
+        const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
+        const ultramodern::threads::callbacks_t& threads_callbacks
     );
 
 	void start_game(const std::u8string& game_id);

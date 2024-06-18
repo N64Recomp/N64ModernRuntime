@@ -381,7 +381,8 @@ void recomp::start(
     const ultramodern::input::callbacks_t& input_callbacks,
     const ultramodern::gfx_callbacks_t& gfx_callbacks_,
     const ultramodern::events::callbacks_t& events_callbacks,
-    const ultramodern::error_handling::callbacks_t& error_handling_callbacks_
+    const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
+    const ultramodern::threads::callbacks_t& threads_callbacks
 ) {
     recomp::check_all_stored_roms();
 
@@ -392,7 +393,7 @@ void recomp::start(
         .run_task = recomp::rsp::run_task,
     };
 
-    ultramodern::set_callbacks(ultramodern_rsp_callbacks, renderer_callbacks, audio_callbacks, input_callbacks, gfx_callbacks_, events_callbacks, error_handling_callbacks_);
+    ultramodern::set_callbacks(ultramodern_rsp_callbacks, renderer_callbacks, audio_callbacks, input_callbacks, gfx_callbacks_, events_callbacks, error_handling_callbacks, threads_callbacks);
 
     ultramodern::gfx_callbacks_t gfx_callbacks = gfx_callbacks_;
 

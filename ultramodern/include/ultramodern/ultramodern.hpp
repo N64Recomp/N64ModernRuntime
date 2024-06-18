@@ -9,13 +9,15 @@
 #undef MOODYCAMEL_DELETE_FUNCTION
 #define MOODYCAMEL_DELETE_FUNCTION = delete
 #include "lightweightsemaphore.h"
+
 #include "ultra64.h"
 
 #include "ultramodern/error_handling.hpp"
 #include "ultramodern/events.hpp"
 #include "ultramodern/input.hpp"
-#include "ultramodern/rsp.hpp"
 #include "ultramodern/renderer_context.hpp"
+#include "ultramodern/rsp.hpp"
+#include "ultramodern/threads.hpp"
 
 struct UltraThreadContext {
     std::thread host_thread;
@@ -58,8 +60,6 @@ void run_next_thread_and_wait(RDRAM_ARG1);
 void resume_thread_and_wait(RDRAM_ARG OSThread* t);
 void schedule_running_thread(RDRAM_ARG PTR(OSThread) t);
 void cleanup_thread(UltraThreadContext* thread_context);
-uint32_t permanent_thread_count();
-uint32_t temporary_thread_count();
 struct thread_terminated : std::exception {};
 
 enum class ThreadPriority {
@@ -144,7 +144,8 @@ void set_callbacks(
     const input::callbacks_t& input_callbacks,
     const gfx_callbacks_t& gfx_callbacks,
     const events::callbacks_t& events_callbacks,
-    const error_handling::callbacks_t& error_handling_callbacks
+    const error_handling::callbacks_t& error_handling_callbacks,
+    const threads::callbacks_t& threads_callbacks
 );
 } // namespace ultramodern
 

@@ -300,5 +300,35 @@ extern "C" void osPiGetStatus_recomp(RDRAM_ARG recomp_context * ctx) {
 }
 
 extern "C" void osPiRawStartDma_recomp(RDRAM_ARG recomp_context * ctx) {
-    ctx->r2 = 0;
+    ultramodern::error_handling::message_box(
+        "Stub `osPiRawStartDma_recomp` function called!\n"
+        "Most games do not call this function directly, which means the libultra function\n"
+        "that uses this function was not properly named.\n"
+        "\n"
+        "If you triggered this message, please make sure you have properly identified\n"
+        "every libultra function on your recompiled game. If you are sure every libultra\n"
+        "function has been identified and you still get this problem then open an issue on\n"
+        "the N64ModernRuntime Github repository mentioning the game you are trying to\n"
+        "recompile and steps to reproduce the issue.\n"
+        "\n"
+        "The application will close now, bye and good luck!"
+    );
+    ULTRAMODERN_QUICK_EXIT();
+}
+
+extern "C" void osEPiRawStartDma_recomp(RDRAM_ARG recomp_context * ctx) {
+    ultramodern::error_handling::message_box(
+        "Stub `osEPiRawStartDma_recomp` function called!\n"
+        "Most games do not call this function directly, which means the libultra function\n"
+        "that uses this function was not properly named.\n"
+        "\n"
+        "If you triggered this message, please make sure you have properly identified\n"
+        "every libultra function on your recompiled game. If you are sure every libultra\n"
+        "function has been identified and you still get this problem then open an issue on\n"
+        "the N64ModernRuntime Github repository mentioning the game you are trying to\n"
+        "recompile and steps to reproduce the issue.\n"
+        "\n"
+        "The application will close now, bye and good luck!"
+    );
+    ULTRAMODERN_QUICK_EXIT();
 }

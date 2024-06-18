@@ -1,6 +1,8 @@
+#include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
+
 #include "recomp.h"
-#include <ultramodern/ultra64.h>
-#include <ultramodern/ultramodern.hpp>
+#include "helpers.hpp"
 
 extern "C" void osPfsInitPak_recomp(uint8_t * rdram, recomp_context* ctx) {
     ctx->r2 = 1; // PFS_ERR_NOPACK
@@ -32,4 +34,18 @@ extern "C" void osPfsReadWriteFile_recomp(uint8_t * rdram, recomp_context * ctx)
 
 extern "C" void osPfsChecker_recomp(uint8_t * rdram, recomp_context * ctx) {
     ctx->r2 = 1; // PFS_ERR_NOPACK
+}
+
+extern "C" void osPfsNumFiles_recomp(uint8_t * rdram, recomp_context * ctx) {
+    PTR(s32) max_files = _arg<1, PTR(s32)>(rdram, ctx);
+    PTR(s32) files_used = _arg<2, PTR(s32)>(rdram, ctx);
+
+    MEM_W(0, max_files) = 0;
+    MEM_W(0, files_used) = 0;
+
+    _return<s32>(ctx, 1); // PFS_ERR_NOPACK
+}
+
+extern "C" void osPfsRepairId_recomp(uint8_t * rdram, recomp_context * ctx) {
+    _return<s32>(ctx, 1); // PFS_ERR_NOPACK
 }

@@ -488,6 +488,10 @@ extern "C" u32 osViGetCurrentField() {
     return IO_READ(VI_V_CURRENT_LINE_REG) & 1;
 }
 
+extern "C" u32 osViGetStatus() {
+    return IO_READ(VI_STATUS_REG);
+}
+
 extern "C" void osViSetXScale(float scale) {
     if (scale != 1.0f) {
         assert(false);

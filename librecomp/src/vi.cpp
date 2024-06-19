@@ -30,6 +30,10 @@ extern "C" void osViGetCurrentField_recomp(uint8_t* rdram, recomp_context* ctx) 
     ctx->r2 = (gpr)osViGetCurrentField();
 }
 
+extern "C" void osViGetStatus_recomp(uint8_t* rdram, recomp_context* ctx) {
+    ctx->r2 = (gpr)osViGetStatus();
+}
+
 extern "C" void osViSetSpecialFeatures_recomp(uint8_t* rdram, recomp_context* ctx) {
     osViSetSpecialFeatures((uint32_t)ctx->r4);
 }

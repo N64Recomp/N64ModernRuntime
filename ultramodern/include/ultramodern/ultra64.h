@@ -289,6 +289,7 @@ void osViBlack(uint8_t active);
 void osViRepeatLine(uint8_t active);
 u32 osViGetCurrentLine();
 u32 osViGetCurrentField();
+u32 osViGetStatus();
 void osViSetXScale(float scale);
 void osViSetYScale(float scale);
 PTR(void) osViGetNextFramebuffer();

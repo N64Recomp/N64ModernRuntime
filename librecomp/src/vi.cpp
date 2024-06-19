@@ -22,6 +22,14 @@ extern "C" void osViRepeatLine_recomp(uint8_t* rdram, recomp_context* ctx) {
     osViRepeatLine(_arg<0, u8>(rdram, ctx));
 }
 
+extern "C" void osViGetCurrentLine_recomp(uint8_t* rdram, recomp_context* ctx) {
+    ctx->r2 = (gpr)osViGetCurrentLine();
+}
+
+extern "C" void osViGetCurrentField_recomp(uint8_t* rdram, recomp_context* ctx) {
+    ctx->r2 = (gpr)osViGetCurrentField();
+}
+
 extern "C" void osViSetSpecialFeatures_recomp(uint8_t* rdram, recomp_context* ctx) {
     osViSetSpecialFeatures((uint32_t)ctx->r4);
 }

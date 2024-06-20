@@ -108,18 +108,6 @@ struct audio_callbacks_t {
     set_frequency_t* set_frequency;
 };
 
-// TODO: Most of the members of this struct are not used by ultramodern. Should we move them to librecomp instead?
-struct gfx_callbacks_t {
-    using gfx_data_t = void*;
-    using create_gfx_t = gfx_data_t();
-    using create_window_t = renderer::WindowHandle(gfx_data_t);
-    using update_gfx_t = void(gfx_data_t);
-
-    create_gfx_t* create_gfx;
-    create_window_t* create_window;
-    update_gfx_t* update_gfx;
-};
-
 bool is_game_started();
 void quit();
 void join_event_threads();
@@ -142,7 +130,6 @@ void set_callbacks(
     const renderer::callbacks_t& renderer_callbacks,
     const audio_callbacks_t& audio_callbacks,
     const input::callbacks_t& input_callbacks,
-    const gfx_callbacks_t& gfx_callbacks,
     const events::callbacks_t& events_callbacks,
     const error_handling::callbacks_t& error_handling_callbacks,
     const threads::callbacks_t& threads_callbacks

@@ -379,7 +379,7 @@ void recomp::start(
     const ultramodern::renderer::callbacks_t& renderer_callbacks,
     const ultramodern::audio_callbacks_t& audio_callbacks,
     const ultramodern::input::callbacks_t& input_callbacks,
-    const ultramodern::gfx_callbacks_t& gfx_callbacks_,
+    const recomp::gfx::callbacks_t& gfx_callbacks_,
     const ultramodern::events::callbacks_t& events_callbacks,
     const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
     const ultramodern::threads::callbacks_t& threads_callbacks
@@ -393,11 +393,11 @@ void recomp::start(
         .run_task = recomp::rsp::run_task,
     };
 
-    ultramodern::set_callbacks(ultramodern_rsp_callbacks, renderer_callbacks, audio_callbacks, input_callbacks, gfx_callbacks_, events_callbacks, error_handling_callbacks, threads_callbacks);
+    ultramodern::set_callbacks(ultramodern_rsp_callbacks, renderer_callbacks, audio_callbacks, input_callbacks, events_callbacks, error_handling_callbacks, threads_callbacks);
 
-    ultramodern::gfx_callbacks_t gfx_callbacks = gfx_callbacks_;
+    recomp::gfx::callbacks_t gfx_callbacks = gfx_callbacks_;
 
-    ultramodern::gfx_callbacks_t::gfx_data_t gfx_data{};
+    recomp::gfx::callbacks_t::gfx_data_t gfx_data{};
 
     if (gfx_callbacks.create_gfx) {
         gfx_data = gfx_callbacks.create_gfx();

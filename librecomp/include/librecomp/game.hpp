@@ -4,9 +4,11 @@
 #include <vector>
 #include <filesystem>
 
+#include "ultramodern/ultramodern.hpp"
+
+#include "gfx.hpp"
 #include "recomp.h"
 #include "rsp.hpp"
-#include <ultramodern/ultramodern.hpp>
 
 namespace recomp {
     struct GameEntry {
@@ -54,7 +56,7 @@ namespace recomp {
         const ultramodern::renderer::callbacks_t& renderer_callbacks,
         const ultramodern::audio_callbacks_t& audio_callbacks,
         const ultramodern::input::callbacks_t& input_callbacks,
-        const ultramodern::gfx_callbacks_t& gfx_callbacks,
+        const recomp::gfx::callbacks_t& gfx_callbacks,
         const ultramodern::events::callbacks_t& events_callbacks,
         const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
         const ultramodern::threads::callbacks_t& threads_callbacks

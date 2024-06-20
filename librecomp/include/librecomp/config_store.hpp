@@ -7,6 +7,7 @@
 #include <variant>
 #include <mutex>
 
+// Use a custom hash class to enable hetereogenous lookup 
 struct string_hash {
     using is_transparent = void;
     [[nodiscard]] size_t operator()(const char *txt) const {
@@ -33,12 +34,12 @@ namespace recomp {
 
     extern ConfigStore config_store;
 
-    void set_config_store_value(std::string key, config_store_value value);
-    void set_config_store_default_value(std::string key, config_store_value value);
-    void set_config_store_value_and_default(std::string key, config_store_value value, config_store_value default_value);
+    void set_config_store_value(std::string_view key, config_store_value value);
+    void set_config_store_default_value(std::string_view key, config_store_value value);
+    void set_config_store_value_and_default(std::string_view key, config_store_value value, config_store_value default_value);
 
     template<typename T>
-    T get_config_store_default_value(std::string key) {
+    T get_config_store_default_value(std::string_view key) {
         std::lock_guard lock{ config_store.default_store_mutex };
         auto it = config_store.default_map.find(key);
         if (it != config_store.default_map.end()) {
@@ -54,7 +55,7 @@ namespace recomp {
 
     // Get a value from the config store, if it doesn't exist then return the default value
     template<typename T>
-    T get_config_store_value(std::string key) {
+    T get_config_store_value(std::string_view key) {
         std::lock_guard lock{ config_store.store_mutex };
         auto it = config_store.map.find(key);
         if (it != config_store.map.end()) {

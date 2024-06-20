@@ -12,6 +12,7 @@
 
 #include "ultra64.h"
 
+#include "ultramodern/audio.hpp"
 #include "ultramodern/error_handling.hpp"
 #include "ultramodern/events.hpp"
 #include "ultramodern/input.hpp"
@@ -93,28 +94,11 @@ float get_resolution_scale();
 void load_shader_cache(std::span<const char> cache_data);
 void trigger_config_action();
 
-// Audio
-void init_audio();
-void set_audio_frequency(uint32_t freq);
-void queue_audio_buffer(RDRAM_ARG PTR(s16) audio_data, uint32_t byte_count);
-uint32_t get_remaining_audio_bytes();
-
-struct audio_callbacks_t {
-    using queue_samples_t = void(int16_t*, size_t);
-    using get_samples_remaining_t = size_t();
-    using set_frequency_t = void(uint32_t);
-    queue_samples_t* queue_samples;
-    get_samples_remaining_t* get_frames_remaining;
-    set_frequency_t* set_frequency;
-};
-
 bool is_game_started();
 void quit();
 void join_event_threads();
 void join_thread_cleaner_thread();
 void join_saving_thread();
-
-void set_audio_callbacks(const audio_callbacks_t& callbacks);
 
 /**
  * Register all the callbacks used by `ultramodern`, most of them being optional.
@@ -128,7 +112,7 @@ void set_audio_callbacks(const audio_callbacks_t& callbacks);
 void set_callbacks(
     const rsp::callbacks_t& rsp_callbacks,
     const renderer::callbacks_t& renderer_callbacks,
-    const audio_callbacks_t& audio_callbacks,
+    const audio::callbacks_t& audio_callbacks,
     const input::callbacks_t& input_callbacks,
     const events::callbacks_t& events_callbacks,
     const error_handling::callbacks_t& error_handling_callbacks,

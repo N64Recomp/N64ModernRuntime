@@ -1,28 +1,30 @@
+#include <cassert>
+
+#include "ultramodern/audio.hpp"
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
-#include <cassert>
 
 static uint32_t sample_rate = 48000;
 
-static ultramodern::audio_callbacks_t audio_callbacks;
+static ultramodern::audio::callbacks_t audio_callbacks;
 
-void ultramodern::set_audio_callbacks(const ultramodern::audio_callbacks_t& callbacks) {
+void ultramodern::audio::set_callbacks(const ultramodern::audio::callbacks_t& callbacks) {
     audio_callbacks = callbacks;
 }
 
-void ultramodern::init_audio() {
+void ultramodern::audio::init() {
     // Pick an initial dummy sample rate; this will be set by the game later to the true sample rate.
-    set_audio_frequency(48000);
+    set_frequency(48000);
 }
 
-void ultramodern::set_audio_frequency(uint32_t freq) {
+void ultramodern::audio::set_frequency(uint32_t freq) {
     if (audio_callbacks.set_frequency) {
         audio_callbacks.set_frequency(freq);
     }
     sample_rate = freq;
 }
 
-void ultramodern::queue_audio_buffer(RDRAM_ARG PTR(int16_t) audio_data_, uint32_t byte_count) {
+void ultramodern::audio::queue_buffer(RDRAM_ARG PTR(int16_t) audio_data_, uint32_t byte_count) {
     // Ensure that the byte count is an integer multiple of samples.
     assert((byte_count & 1) == 0);
 
@@ -43,7 +45,7 @@ float buffer_offset_frames = 0.5f;
 // If there's ever any audio popping, check here first. Some games are very sensitive to
 // the remaining sample count and reporting a number that's too high here can lead to issues.
 // Reporting a number that's too low can lead to audio lag in some games.
-uint32_t ultramodern::get_remaining_audio_bytes() {
+uint32_t ultramodern::audio::get_remaining_bytes() {
     // Get the number of remaining buffered audio bytes.
     uint32_t buffered_byte_count;
     if (audio_callbacks.get_frames_remaining != nullptr) {

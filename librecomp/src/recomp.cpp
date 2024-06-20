@@ -377,7 +377,7 @@ void recomp::start(
     ultramodern::renderer::WindowHandle window_handle,
     const recomp::rsp::callbacks_t& rsp_callbacks,
     const ultramodern::renderer::callbacks_t& renderer_callbacks,
-    const ultramodern::audio_callbacks_t& audio_callbacks,
+    const ultramodern::audio::callbacks_t& audio_callbacks,
     const ultramodern::input::callbacks_t& input_callbacks,
     const recomp::gfx::callbacks_t& gfx_callbacks_,
     const ultramodern::events::callbacks_t& events_callbacks,

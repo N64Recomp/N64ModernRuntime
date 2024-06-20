@@ -12,16 +12,16 @@ extern "C" void osAiSetFrequency_recomp(uint8_t* rdram, recomp_context* ctx) {
     //uint32_t dacRate = (uint32_t)(((float)VI_NTSC_CLOCK / freq) + 0.5f);
     //freq = VI_NTSC_CLOCK / dacRate;
     ctx->r2 = freq;
-    ultramodern::set_audio_frequency(freq);
+    ultramodern::audio::set_frequency(freq);
 }
 
 extern "C" void osAiSetNextBuffer_recomp(uint8_t* rdram, recomp_context* ctx) {
-    ultramodern::queue_audio_buffer(rdram, ctx->r4, ctx->r5);
+    ultramodern::audio::queue_buffer(rdram, ctx->r4, ctx->r5);
     ctx->r2 = 0;
 }
 
 extern "C" void osAiGetLength_recomp(uint8_t* rdram, recomp_context* ctx) {
-    ctx->r2 = ultramodern::get_remaining_audio_bytes();
+    ctx->r2 = ultramodern::audio::get_remaining_bytes();
 }
 
 extern "C" void osAiGetStatus_recomp(uint8_t* rdram, recomp_context* ctx) {

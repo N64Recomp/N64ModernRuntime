@@ -3,6 +3,20 @@
 A modern runtime for traditional ports and recompilations of N64 games. \
 The runtime is consists of two libraries: [ultramodern](#ultramodern) and [librecomp](#librecomp).
 
+<div align="left" valign="middle">
+<a href="https://runblaze.dev">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://www.runblaze.dev/logo_dark.png">
+   <img align="right" src="https://www.runblaze.dev/logo_light.png" height="102px"/>
+ </picture>
+</a>
+
+<br style="display: none;"/>
+
+_Thank you [Blaze](https://runblaze.dev) for supporting this project by providing Linux ARM64 and Apple Silicon macOS Github Action Runners!_
+
+</div>
+
 ## ultramodern
 
 ultramodern is a reimplementation of much of the core functionality of libultra. It can be used with either statically recompiled projects that use N64Recomp or direct source ports. It implements the following libultra functionality:

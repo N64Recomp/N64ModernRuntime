@@ -112,7 +112,7 @@ void update_save_file() {
             save_file.write(save_context.save_buffer.data(), save_context.save_buffer.size());
         }
         else {
-            saving_failed = false;
+            saving_failed = true;
         }
     }
     if (!saving_failed) {

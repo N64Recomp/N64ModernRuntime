@@ -151,7 +151,7 @@ void saving_thread_func(RDRAM_ARG1) {
     }
 }
 
-void save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
+void recomp::save::write_ptr(const void* in, uint32_t offset, uint32_t count) {
     {
         std::lock_guard lock { save_context.save_buffer_mutex };
         memcpy(&save_context.save_buffer[offset], in, count);
@@ -160,7 +160,7 @@ void save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
     save_context.write_sempahore.signal();
 }
 
-void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
+void recomp::save::write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
     {
         std::lock_guard lock { save_context.save_buffer_mutex };
         for (uint32_t i = 0; i < count; i++) {
@@ -171,14 +171,14 @@ void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t cou
     save_context.write_sempahore.signal();
 }
 
-void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
+void recomp::save::read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
     std::lock_guard lock { save_context.save_buffer_mutex };
     for (size_t i = 0; i < count; i++) {
         MEM_B(i, rdram_address) = save_context.save_buffer[offset + i];
     }
 }
 
-void save_clear(uint32_t start, uint32_t size, char value) {
+void recomp::save::clear(uint32_t start, uint32_t size, char value) {
     {
         std::lock_guard lock { save_context.save_buffer_mutex };
         std::fill_n(save_context.save_buffer.begin() + start, size, value);
@@ -224,7 +224,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
         } else if (physical_addr >= sram_base) {
             // read sram
-            save_read(rdram, rdram_address, physical_addr - sram_base, size);
+            recomp::save::read(rdram, rdram_address, physical_addr - sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
             osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
@@ -237,7 +237,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             throw std::runtime_error("ROM DMA write unimplemented");
         } else if (physical_addr >= sram_base) {
             // write sram
-            save_write(rdram, rdram_address, physical_addr - sram_base, size);
+            recomp::save::write(rdram, rdram_address, physical_addr - sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
             osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);

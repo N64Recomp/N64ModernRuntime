@@ -7,8 +7,11 @@
 #include "recomp.h"
 #include "game.hpp"
 #include "files.hpp"
-#include <ultramodern/ultra64.h>
-#include <ultramodern/ultramodern.hpp>
+
+#include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
+
+#include "librecomp/save.hpp"
 
 static std::vector<uint8_t> rom;
 
@@ -153,7 +156,7 @@ void save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
         std::lock_guard lock { save_context.save_buffer_mutex };
         memcpy(&save_context.save_buffer[offset], in, count);
     }
-    
+
     save_context.write_sempahore.signal();
 }
 
@@ -184,7 +187,7 @@ void save_clear(uint32_t start, uint32_t size, char value) {
     save_context.write_sempahore.signal();
 }
 
-void ultramodern::init_saving(RDRAM_ARG1) {
+void recomp::save::init(uint8_t *rdram) {
     std::filesystem::path save_file_path = get_save_file_path();
 
     // Ensure the save file directory exists.
@@ -203,7 +206,7 @@ void ultramodern::init_saving(RDRAM_ARG1) {
     save_context.saving_thread = std::thread{saving_thread_func, PASS_RDRAM};
 }
 
-void ultramodern::join_saving_thread() {
+void recomp::save::join_thread() {
     if (save_context.saving_thread.joinable()) {
         save_context.saving_thread.join();
     }

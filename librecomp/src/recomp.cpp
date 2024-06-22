@@ -18,6 +18,8 @@
 #include "ultramodern/ultramodern.hpp"
 #include "ultramodern/error_handling.hpp"
 
+#include "librecomp/save.hpp"
+
 #ifdef _MSC_VER
 inline uint32_t byteswap(uint32_t val) {
     return _byteswap_ulong(val);
@@ -434,7 +436,7 @@ void recomp::start(
                         ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
                     }
 
-                    ultramodern::init_saving(rdram);
+                    recomp::save::init(rdram);
 
                     auto find_it = game_roms.find(current_game.value());
                     const recomp::GameEntry& game_entry = find_it->second;
@@ -469,5 +471,5 @@ void recomp::start(
     game_thread.join();
     ultramodern::join_event_threads();
     ultramodern::join_thread_cleaner_thread();
-    ultramodern::join_saving_thread();
+    recomp::save::join_thread();
 }

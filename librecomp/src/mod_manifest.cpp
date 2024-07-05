@@ -142,16 +142,20 @@ enum class ManifestField {
     Invalid,
 };
 
+const std::string mod_id_key = "id";
+const std::string major_version_key = "major_version";
+const std::string minor_version_key = "minor_version";
+const std::string patch_version_key = "patch_version";
 const std::string binary_path_key = "binary";
 const std::string binary_syms_path_key = "binary_syms";
 const std::string rom_patch_path_key = "rom_patch";
 const std::string rom_patch_syms_path_key = "rom_patch_syms";
 
 std::unordered_map<std::string, ManifestField> field_map {
-    { "id",                    ManifestField::Id               },
-    { "major_version",         ManifestField::MajorVersion     },
-    { "minor_version",         ManifestField::MinorVersion     },
-    { "patch_version",         ManifestField::PatchVersion     },
+    { mod_id_key,              ManifestField::Id               },
+    { major_version_key,       ManifestField::MajorVersion     },
+    { minor_version_key,       ManifestField::MinorVersion     },
+    { patch_version_key,       ManifestField::PatchVersion     },
     { binary_path_key,         ManifestField::BinaryPath       },
     { binary_syms_path_key,    ManifestField::BinarySymsPath   },
     { rom_patch_path_key,      ManifestField::RomPatchPath     },
@@ -271,6 +275,29 @@ bool validate_file_exists(const recomp::mods::ModManifest& manifest, const std::
 
 bool validate_manifest(const recomp::mods::ModManifest& manifest, recomp::mods::ModLoadError& error, std::string& error_param) {
     using namespace recomp::mods;
+
+    // Check for required fields.
+    if (manifest.mod_id.empty()) {
+        error = ModLoadError::MissingManifestField;
+        error_param = mod_id_key;
+        return false;
+    }
+    if (manifest.major_version == -1) {
+        error = ModLoadError::MissingManifestField;
+        error_param = major_version_key;
+        return false;
+    }
+    if (manifest.minor_version == -1) {
+        error = ModLoadError::MissingManifestField;
+        error_param = minor_version_key;
+        return false;
+    }
+    if (manifest.patch_version == -1) {
+        error = ModLoadError::MissingManifestField;
+        error_param = patch_version_key;
+        return false;
+    }
+
     // If either a binary file or binary symbol file is provided, the other must be as well.
     if (manifest.binary_path.empty() != manifest.binary_syms_path.empty()) {
         error = ModLoadError::MissingManifestField;

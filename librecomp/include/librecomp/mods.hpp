@@ -64,9 +64,9 @@ namespace recomp {
 
             std::string mod_id;
 
-            int major_version;
-            int minor_version;
-            int patch_version;
+            int major_version = -1;
+            int minor_version = -1;
+            int patch_version = -1;
 
             // These are all relative to the base path for loose mods or inside the zip for zipped mods.
             std::string binary_path;

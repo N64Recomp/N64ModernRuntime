@@ -38,7 +38,7 @@ recomp::mods::ZipModHandle::ZipModHandle(const std::filesystem::path& mod_path, 
     error = ModLoadError::Good;
 }
 
-std::vector<char> recomp::mods::ZipModHandle::read_file(const std::string& filepath, bool& exists) {
+std::vector<char> recomp::mods::ZipModHandle::read_file(const std::string& filepath, bool& exists) const {
     std::vector<char> ret{};
 
     mz_uint32 file_index;
@@ -63,6 +63,15 @@ std::vector<char> recomp::mods::ZipModHandle::read_file(const std::string& filep
     return ret;
 }
 
+bool recomp::mods::ZipModHandle::file_exists(const std::string& filepath) const {
+    mz_uint32 file_index;
+    if (!mz_zip_reader_locate_file_v2(archive.get(), filepath.c_str(), nullptr, MZ_ZIP_FLAG_CASE_SENSITIVE, &file_index)) {
+        return false;
+    }
+
+    return true;
+}
+
 recomp::mods::LooseModHandle::~LooseModHandle() {
     // Nothing to do here, members will be destroyed automatically.
 }
@@ -82,7 +91,7 @@ recomp::mods::LooseModHandle::LooseModHandle(const std::filesystem::path& mod_pa
     error = ModLoadError::Good;
 }
 
-std::vector<char> recomp::mods::LooseModHandle::read_file(const std::string& filepath, bool& exists) {
+std::vector<char> recomp::mods::LooseModHandle::read_file(const std::string& filepath, bool& exists) const {
     std::vector<char> ret{};
     std::filesystem::path full_path = root_path / filepath;
 
@@ -110,6 +119,17 @@ std::vector<char> recomp::mods::LooseModHandle::read_file(const std::string& fil
     return ret;
 }
 
+bool recomp::mods::LooseModHandle::file_exists(const std::string& filepath) const {
+    std::filesystem::path full_path = root_path / filepath;
+
+    std::error_code ec;
+    if (!std::filesystem::is_regular_file(full_path, ec) || ec) {
+        return false;
+    }
+
+    return true;
+}
+
 enum class ManifestField {
     Id,
     MajorVersion,
@@ -122,15 +142,20 @@ enum class ManifestField {
     Invalid,
 };
 
+const std::string binary_path_key = "binary";
+const std::string binary_syms_path_key = "binary_syms";
+const std::string rom_patch_path_key = "rom_patch";
+const std::string rom_patch_syms_path_key = "rom_patch_syms";
+
 std::unordered_map<std::string, ManifestField> field_map {
-    { "id",             ManifestField::Id               },
-    { "major_version",  ManifestField::MajorVersion     },
-    { "minor_version",  ManifestField::MinorVersion     },
-    { "patch_version",  ManifestField::PatchVersion     },
-    { "binary",         ManifestField::BinaryPath       },
-    { "binary_syms",    ManifestField::BinarySymsPath   },
-    { "rom_patch",      ManifestField::RomPatchPath     },
-    { "rom_patch_syms", ManifestField::RomPatchSymsPath },
+    { "id",                    ManifestField::Id               },
+    { "major_version",         ManifestField::MajorVersion     },
+    { "minor_version",         ManifestField::MinorVersion     },
+    { "patch_version",         ManifestField::PatchVersion     },
+    { binary_path_key,         ManifestField::BinaryPath       },
+    { binary_syms_path_key,    ManifestField::BinarySymsPath   },
+    { rom_patch_path_key,      ManifestField::RomPatchPath     },
+    { rom_patch_syms_path_key, ManifestField::RomPatchSymsPath },
 };
 
 template <typename T1, typename T2>
@@ -231,6 +256,57 @@ bool parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& man
     return true;
 }
 
+bool validate_file_exists(const recomp::mods::ModManifest& manifest, const std::string& filepath, recomp::mods::ModLoadError& error, std::string& error_param) {
+    // No file provided, so nothing to check for.
+    if (filepath.empty()) {
+        return true;
+    }
+    if (!manifest.mod_handle->file_exists(filepath)) {
+        error = recomp::mods::ModLoadError::InnerFileDoesNotExist;
+        error_param = filepath;
+        return false;
+    }
+    return true;
+}
+
+bool validate_manifest(const recomp::mods::ModManifest& manifest, recomp::mods::ModLoadError& error, std::string& error_param) {
+    using namespace recomp::mods;
+    // If either a binary file or binary symbol file is provided, the other must be as well.
+    if (manifest.binary_path.empty() != manifest.binary_syms_path.empty()) {
+        error = ModLoadError::MissingManifestField;
+        if (manifest.binary_path.empty()) {
+            error_param = binary_path_key;
+        }
+        else {
+            error_param = binary_syms_path_key;
+        }
+        return false;
+    }
+
+    // If a ROM patch symbol file is provided, a ROM patch file must be as well.
+    if (!manifest.rom_patch_syms_path.empty() && manifest.rom_patch_path.empty()) {
+        error = ModLoadError::MissingManifestField;
+        error_param = rom_patch_path_key;
+        return false;
+    }
+
+    // Validate that provided files exist.
+    if (!validate_file_exists(manifest, manifest.binary_path, error, error_param)) {
+        return false;
+    }
+    if (!validate_file_exists(manifest, manifest.binary_syms_path, error, error_param)) {
+        return false;
+    }
+    if (!validate_file_exists(manifest, manifest.rom_patch_path, error, error_param)) {
+        return false;
+    }
+    if (!validate_file_exists(manifest, manifest.rom_patch_syms_path, error, error_param)) {
+        return false;
+    }
+
+    return true;
+}   
+
 recomp::mods::ModManifest recomp::mods::load_mod(const std::filesystem::path& mod_path, ModLoadError& error, std::string& error_param) {
     ModManifest ret{};
     std::error_code ec;
@@ -285,7 +361,41 @@ recomp::mods::ModManifest recomp::mods::load_mod(const std::filesystem::path& mo
         }
     }
 
+    if (!validate_manifest(ret, error, error_param)) {
+        return {};
+    }
+
     // Return the loaded mod manifest
     error = ModLoadError::Good;
     return ret;
+}
+
+std::string recomp::mods::error_to_string(ModLoadError error) {
+    switch (error) {
+        case ModLoadError::Good:
+            return "Good";
+        case ModLoadError::DoesNotExist:
+            return "Mod does not exist";
+        case ModLoadError::NotAFileOrFolder:
+            return "Mod is not a file or folder";
+        case ModLoadError::FileError:
+            return "Error reading mod file(s)";
+        case ModLoadError::InvalidZip:
+            return "Mod is an invalid zip file";
+        case ModLoadError::NoManifest:
+            return "Mod is missing a manifest.json";
+        case ModLoadError::FailedToParseManifest:
+            return "Failed to parse mod's manifest.json";
+        case ModLoadError::InvalidManifestSchema:
+            return "Mod's manifest.json has an invalid schema";
+        case ModLoadError::UnrecognizedManifestField:
+            return "Unrecognized field in manifest.json";
+        case ModLoadError::IncorrectManifestFieldType:
+            return "Incorrect type for field in manifest.json";
+        case ModLoadError::MissingManifestField:
+            return "Missing required field in manifest";
+        case ModLoadError::InnerFileDoesNotExist:
+            return "File inside mod does not exist";
+    }
+    return "Unknown error " + std::to_string((int)error);
 }

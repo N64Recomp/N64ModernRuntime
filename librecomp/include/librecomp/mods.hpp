@@ -26,11 +26,14 @@ namespace recomp {
             InvalidManifestSchema,
             UnrecognizedManifestField,
             IncorrectManifestFieldType,
+            MissingManifestField,
+            InnerFileDoesNotExist
         };
 
         struct ModHandle {
             virtual ~ModHandle() = default;
-            virtual std::vector<char> read_file(const std::string& filepath, bool& exists) = 0;
+            virtual std::vector<char> read_file(const std::string& filepath, bool& exists) const = 0;
+            virtual bool file_exists(const std::string& filepath) const = 0;
         };
 
         struct ZipModHandle : public ModHandle {
@@ -41,7 +44,8 @@ namespace recomp {
             ZipModHandle(const std::filesystem::path& mod_path, ModLoadError& error);
             ~ZipModHandle() final;
 
-            std::vector<char> read_file(const std::string& filepath, bool& exists) final;
+            std::vector<char> read_file(const std::string& filepath, bool& exists) const final;
+            bool file_exists(const std::string& filepath) const final;
         };
 
         struct LooseModHandle : public ModHandle {
@@ -51,7 +55,8 @@ namespace recomp {
             LooseModHandle(const std::filesystem::path& mod_path, ModLoadError& error);
             ~LooseModHandle() final;
 
-            std::vector<char> read_file(const std::string& filepath, bool& exists) final;
+            std::vector<char> read_file(const std::string& filepath, bool& exists) const final;
+            bool file_exists(const std::string& filepath) const final;
         };
 
         struct ModManifest {
@@ -74,6 +79,8 @@ namespace recomp {
 
         ModManifest load_mod(const std::filesystem::path& mod_path, ModLoadError& error, std::string& error_string);
         bool load_mod_(uint8_t* rdram, int32_t target_vram, const std::filesystem::path& symbol_file, const std::filesystem::path& binary_file);
+
+        std::string error_to_string(ModLoadError);
     }
 };
 

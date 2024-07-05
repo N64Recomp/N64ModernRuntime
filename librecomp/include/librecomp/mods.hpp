@@ -15,7 +15,7 @@
 
 namespace recomp {
     namespace mods {
-        enum class ModLoadError {
+        enum class ModOpenError {
             Good,
             DoesNotExist,
             NotAFileOrFolder,
@@ -41,7 +41,7 @@ namespace recomp {
             std::unique_ptr<mz_zip_archive> archive;
 
             ZipModHandle() = default;
-            ZipModHandle(const std::filesystem::path& mod_path, ModLoadError& error);
+            ZipModHandle(const std::filesystem::path& mod_path, ModOpenError& error);
             ~ZipModHandle() final;
 
             std::vector<char> read_file(const std::string& filepath, bool& exists) const final;
@@ -52,7 +52,7 @@ namespace recomp {
             std::filesystem::path root_path;
 
             LooseModHandle() = default;
-            LooseModHandle(const std::filesystem::path& mod_path, ModLoadError& error);
+            LooseModHandle(const std::filesystem::path& mod_path, ModOpenError& error);
             ~LooseModHandle() final;
 
             std::vector<char> read_file(const std::string& filepath, bool& exists) const final;
@@ -77,10 +77,10 @@ namespace recomp {
             std::unique_ptr<ModHandle> mod_handle;
         };
 
-        ModManifest load_mod(const std::filesystem::path& mod_path, ModLoadError& error, std::string& error_string);
+        ModManifest open_mod(const std::filesystem::path& mod_path, ModOpenError& error, std::string& error_string);
         bool load_mod_(uint8_t* rdram, int32_t target_vram, const std::filesystem::path& symbol_file, const std::filesystem::path& binary_file);
 
-        std::string error_to_string(ModLoadError);
+        std::string error_to_string(ModOpenError);
     }
 };
 

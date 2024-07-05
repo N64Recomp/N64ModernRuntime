@@ -18,7 +18,7 @@ namespace recomp {
         enum class ModLoadError {
             Good,
             DoesNotExist,
-            NotAFile,
+            NotAFileOrFolder,
             FileError,
             InvalidZip,
             NoManifest,
@@ -28,19 +28,30 @@ namespace recomp {
             IncorrectManifestFieldType,
         };
 
-        struct ZipModHandle {
+        struct ModHandle {
+            virtual ~ModHandle() = default;
+            virtual std::vector<char> read_file(const std::string& filepath, bool& exists) = 0;
+        };
+
+        struct ZipModHandle : public ModHandle {
             FILE* file_handle = nullptr;
             std::unique_ptr<mz_zip_archive> archive;
 
             ZipModHandle() = default;
             ZipModHandle(const std::filesystem::path& mod_path, ModLoadError& error);
-            ZipModHandle(const ZipModHandle& rhs) = delete;
-            ZipModHandle& operator=(const ZipModHandle& rhs) = delete;
-            ZipModHandle(ZipModHandle&& rhs);
-            ZipModHandle& operator=(ZipModHandle&& rhs);
-            ~ZipModHandle();
+            ~ZipModHandle() final;
 
-            std::vector<char> read_file(const std::string& filename, bool& exists);
+            std::vector<char> read_file(const std::string& filepath, bool& exists) final;
+        };
+
+        struct LooseModHandle : public ModHandle {
+            std::filesystem::path root_path;
+
+            LooseModHandle() = default;
+            LooseModHandle(const std::filesystem::path& mod_path, ModLoadError& error);
+            ~LooseModHandle() final;
+
+            std::vector<char> read_file(const std::string& filepath, bool& exists) final;
         };
 
         struct ModManifest {
@@ -58,10 +69,11 @@ namespace recomp {
             std::string rom_patch_path;
             std::string rom_patch_syms_path;
 
-            ZipModHandle mod_handle;
+            std::unique_ptr<ModHandle> mod_handle;
         };
 
         ModManifest load_mod(const std::filesystem::path& mod_path, ModLoadError& error, std::string& error_string);
+        bool load_mod_(uint8_t* rdram, int32_t target_vram, const std::filesystem::path& symbol_file, const std::filesystem::path& binary_file);
     }
 };
 

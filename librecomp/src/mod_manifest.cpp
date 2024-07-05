@@ -114,17 +114,17 @@ bool get_to(const nlohmann::json& val, T2& out) {
     return true;
 }
 
-bool parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data) {
+bool parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data, recomp::mods::ModLoadError& error, std::string& error_param) {
     using json = nlohmann::json;
     json manifest_json = json::parse(manifest_data.begin(), manifest_data.end(), false);
 
     if (manifest_json.is_discarded()) {
-        // Failed to parse
+        error = recomp::mods::ModLoadError::FailedToParseManifest;
         return false;
     }
 
     if (!manifest_json.is_object()) {
-        // Invalid manifest
+        error = recomp::mods::ModLoadError::InvalidManifestSchema;
         return false;
     }
 
@@ -132,6 +132,8 @@ bool parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& man
         const auto find_key_it = field_map.find(key);
         if (find_key_it == field_map.end()) {
             // Unrecognized field
+            error = recomp::mods::ModLoadError::UnrecognizedManifestField;
+            error_param = key;
             return false;
         }
 
@@ -139,49 +141,57 @@ bool parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& man
         switch (field) {
             case ManifestField::Id:
                 if (!get_to<json::string_t>(val, ret.mod_id)) {
-                    // Invalid type
+                    error = recomp::mods::ModLoadError::IncorrectManifestFieldType;
+                    error_param = key;
                     return false;
                 }
                 break;
             case ManifestField::MajorVersion:
                 if (!get_to<json::number_unsigned_t>(val, ret.major_version)) {
-                    // Invalid type
+                    error = recomp::mods::ModLoadError::IncorrectManifestFieldType;
+                    error_param = key;
                     return false;
                 }
                 break;
             case ManifestField::MinorVersion:
                 if (!get_to<json::number_unsigned_t>(val, ret.minor_version)) {
-                    // Invalid type
+                    error = recomp::mods::ModLoadError::IncorrectManifestFieldType;
+                    error_param = key;
                     return false;
                 }
                 break;
             case ManifestField::PatchVersion:
                 if (!get_to<json::number_unsigned_t>(val, ret.patch_version)) {
-                    // Invalid type
+                    error = recomp::mods::ModLoadError::IncorrectManifestFieldType;
+                    error_param = key;
                     return false;
                 }
                 break;
             case ManifestField::BinaryPath:
                 if (!get_to<json::string_t>(val, ret.binary_path)) {
-                    // Invalid type
+                    error = recomp::mods::ModLoadError::IncorrectManifestFieldType;
+                    error_param = key;
                     return false;
                 }
                 break;
             case ManifestField::BinarySymsPath:
                 if (!get_to<json::string_t>(val, ret.binary_syms_path)) {
-                    // Invalid type
+                    error = recomp::mods::ModLoadError::IncorrectManifestFieldType;
+                    error_param = key;
                     return false;
                 }
                 break;
             case ManifestField::RomPatchPath:
                 if (!get_to<json::string_t>(val, ret.rom_patch_path)) {
-                    // Invalid type
+                    error = recomp::mods::ModLoadError::IncorrectManifestFieldType;
+                    error_param = key;
                     return false;
                 }
                 break;
             case ManifestField::RomPatchSymsPath:
                 if (!get_to<json::string_t>(val, ret.rom_patch_syms_path)) {
-                    // Invalid type
+                    error = recomp::mods::ModLoadError::IncorrectManifestFieldType;
+                    error_param = key;
                     return false;
                 }
                 break;
@@ -191,9 +201,10 @@ bool parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& man
     return true;
 }
 
-recomp::mods::ModManifest recomp::mods::load_mod(const std::filesystem::path& mod_path, ModLoadError& error) {
+recomp::mods::ModManifest recomp::mods::load_mod(const std::filesystem::path& mod_path, ModLoadError& error, std::string& error_param) {
     ModManifest ret{};
     std::error_code ec;
+    error_param = "";
 
     if (!std::filesystem::exists(mod_path, ec) || ec) {
         error = ModLoadError::DoesNotExist;
@@ -223,8 +234,7 @@ recomp::mods::ModManifest recomp::mods::load_mod(const std::filesystem::path& mo
             return {};
         }
 
-        if (!parse_manifest(ret, manifest_data)) {
-            error = ModLoadError::InvalidManifest;
+        if (!parse_manifest(ret, manifest_data, error, error_param)) {
             return {};
         }
     }

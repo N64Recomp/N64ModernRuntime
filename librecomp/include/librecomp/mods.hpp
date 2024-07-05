@@ -22,7 +22,10 @@ namespace recomp {
             FileError,
             InvalidZip,
             NoManifest,
-            InvalidManifest,
+            FailedToParseManifest,
+            InvalidManifestSchema,
+            UnrecognizedManifestField,
+            IncorrectManifestFieldType,
         };
 
         struct ZipModHandle {
@@ -58,7 +61,7 @@ namespace recomp {
             ZipModHandle mod_handle;
         };
 
-        ModManifest load_mod(const std::filesystem::path& mod_path, ModLoadError& error);
+        ModManifest load_mod(const std::filesystem::path& mod_path, ModLoadError& error, std::string& error_string);
     }
 };
 

@@ -15,6 +15,8 @@ add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/files.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/flash.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/math_routines.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/mods.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/mod_manifest.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/overlays.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/pak.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/pi.cpp"
@@ -46,4 +48,7 @@ if (WIN32)
     add_compile_definitions(NOMINMAX)
 endif()
 
+add_subdirectory(${PROJECT_SOURCE_DIR}/../thirdparty/miniz ${CMAKE_BINARY_DIR}/miniz)
+
 target_link_libraries(librecomp PRIVATE ultramodern)
+target_link_libraries(librecomp PUBLIC miniz)

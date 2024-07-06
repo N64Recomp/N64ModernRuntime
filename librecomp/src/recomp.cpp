@@ -374,6 +374,7 @@ void ultramodern::quit() {
 }
 
 void recomp::start(
+    uint32_t rdram_size,
     ultramodern::renderer::WindowHandle window_handle,
     const recomp::rsp::callbacks_t& rsp_callbacks,
     const ultramodern::renderer::callbacks_t& renderer_callbacks,
@@ -413,8 +414,8 @@ void recomp::start(
     }
 
     // Allocate rdram_buffer
-    std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(ultramodern::rdram_size);
-    std::memset(rdram_buffer.get(), 0, ultramodern::rdram_size);
+    std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(rdram_size);
+    std::memset(rdram_buffer.get(), 0, rdram_size);
 
     std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");

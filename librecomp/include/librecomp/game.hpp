@@ -49,6 +49,7 @@ namespace recomp {
 	 * It must be called only once and it must be called before `ultramodern::preinit`.
 	 */
     void start(
+		uint32_t rdram_size,
         ultramodern::renderer::WindowHandle window_handle,
         const recomp::rsp::callbacks_t& rsp_callbacks,
         const ultramodern::renderer::callbacks_t& renderer_callbacks,

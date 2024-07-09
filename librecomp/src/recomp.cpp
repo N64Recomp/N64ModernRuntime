@@ -10,13 +10,16 @@
 #include <optional>
 #include <mutex>
 #include <array>
+#include <cinttypes>
 
-#include "recomp.h"
-#include "overlays.hpp"
-#include "game.hpp"
+#include "librecomp/recomp.h"
+#include "librecomp/overlays.hpp"
+#include "librecomp/game.hpp"
 #include "xxHash/xxh3.h"
 #include "ultramodern/ultramodern.hpp"
 #include "ultramodern/error_handling.hpp"
+#include "librecomp/addresses.hpp"
+#include "librecomp/mods.hpp"
 
 #ifdef _MSC_VER
 inline uint32_t byteswap(uint32_t val) {
@@ -322,7 +325,7 @@ void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
     recomp::do_rom_read(rdram, entrypoint, 0x10001000, 0x100000);
 
     // Read in any extra data from patches
-    recomp::overlays::read_patch_data(rdram, (gpr)(s32)0x80801000);
+    recomp::overlays::read_patch_data(rdram, (gpr)recomp::patch_rdram_start);
 
     // Set up context floats
     ctx->f_odd = &ctx->f0.u32h;
@@ -372,6 +375,9 @@ void ultramodern::quit() {
     std::lock_guard<std::mutex> lock(current_game_mutex);
     current_game.reset();
 }
+
+// TODO temporary test mod loading, remove this when mod management is done
+recomp::mods::ModManifest testmod_manifest;
 
 void recomp::start(
     uint32_t rdram_size,
@@ -442,6 +448,35 @@ void recomp::start(
 
                     ultramodern::load_shader_cache(game_entry.cache_data);
                     init(rdram, &context, game_entry.entrypoint_address);
+
+                    // TODO temporary test mod loading, remove this when mod management is done
+                    recomp::mods::ModOpenError error;
+                    std::string error_param;
+                    testmod_manifest = recomp::mods::open_mod("testmod_dir", error, error_param);
+
+                    if (error != recomp::mods::ModOpenError::Good) {
+                        printf("Mod invalid: %s", recomp::mods::error_to_string(error).c_str());
+                        if (!error_param.empty()) {
+                            printf(": \"%s\"", error_param.c_str());
+                        }
+                        printf("\n");
+                        return;
+                    }
+
+                    int32_t cur_mod_ram_addr = recomp::mod_rdram_start;
+                    uint32_t mod_ram_size = 0;
+                    recomp::mods::ModLoadError load_error = recomp::mods::load_mod(rdram, testmod_manifest, cur_mod_ram_addr, mod_ram_size, error_param);
+
+                    if (load_error != recomp::mods::ModLoadError::Good) {
+                        printf("Failed to load mod\n");
+                        printf("  Error code: %d", (int)load_error);
+                        if (!error_param.empty()) {
+                            printf(" (%s)", error_param.c_str());
+                        }
+                        printf("\n");
+                        return;
+                    }
+
                     try {
                         game_entry.entrypoint(rdram, &context);
                     } catch (ultramodern::thread_terminated& terminated) {

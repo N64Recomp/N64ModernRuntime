@@ -392,6 +392,8 @@ recomp::mods::ModManifest recomp::mods::open_mod(const std::filesystem::path& mo
         return {};
     }
 
+    ret.mod_root_path = mod_path;
+
     // Return the loaded mod manifest
     error = ModOpenError::Good;
     return ret;

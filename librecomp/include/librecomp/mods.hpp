@@ -30,6 +30,13 @@ namespace recomp {
             InnerFileDoesNotExist
         };
 
+        enum class ModLoadError {
+            Good,
+            FailedToLoadSyms,
+            FailedToLoadBinary,
+            InvalidFunctionReplacement,
+        };
+
         struct ModHandle {
             virtual ~ModHandle() = default;
             virtual std::vector<char> read_file(const std::string& filepath, bool& exists) const = 0;
@@ -77,8 +84,8 @@ namespace recomp {
             std::unique_ptr<ModHandle> mod_handle;
         };
 
-        ModManifest open_mod(const std::filesystem::path& mod_path, ModOpenError& error, std::string& error_string);
-        bool load_mod_(uint8_t* rdram, int32_t target_vram, const std::filesystem::path& symbol_file, const std::filesystem::path& binary_file);
+        ModManifest open_mod(const std::filesystem::path& mod_path, ModOpenError& error, std::string& error_param);
+        ModLoadError load_mod(uint8_t* rdram, const ModManifest& manifest, int32_t load_address, uint32_t& ram_used, std::string& error_param);
 
         std::string error_to_string(ModOpenError);
     }

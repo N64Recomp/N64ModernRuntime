@@ -173,12 +173,10 @@ extern "C" void unload_overlays(int32_t ram_addr, uint32_t size) {
     }
 }
 
+std::unordered_map<uint32_t, SectionTableEntry*> sections_by_rom{};
+
 void recomp::overlays::init_overlays() {
     section_addresses = (int32_t *)calloc(sections_info.total_num_sections, sizeof(int32_t));
-
-    for (size_t section_index = 0; section_index < sections_info.num_code_sections; section_index++) {
-        section_addresses[sections_info.code_sections[section_index].index] = sections_info.code_sections[section_index].ram_addr;
-    }
 
     // Sort the executable sections by rom address
     std::sort(&sections_info.code_sections[0], &sections_info.code_sections[sections_info.num_code_sections],
@@ -187,7 +185,36 @@ void recomp::overlays::init_overlays() {
         }
     );
 
+    for (size_t section_index = 0; section_index < sections_info.num_code_sections; section_index++) {
+        SectionTableEntry* code_section = &sections_info.code_sections[section_index];
+
+        section_addresses[sections_info.code_sections[section_index].index] = code_section->ram_addr;
+        sections_by_rom[code_section->rom_addr] = code_section;        
+    }
+
     load_patch_functions();
+}
+
+recomp_func_t* recomp::overlays::get_func_by_section_ram(uint32_t section_rom, uint32_t function_vram) {
+    auto find_section_it = sections_by_rom.find(section_rom);
+    if (find_section_it == sections_by_rom.end()) {
+        return nullptr;
+    }
+
+    SectionTableEntry* section = find_section_it->second;
+    if (function_vram < section->ram_addr || function_vram >= section->ram_addr + section->size) {
+        return nullptr;
+    }
+
+    uint32_t func_offset = function_vram - section->ram_addr;
+
+    for (size_t func_index = 0; func_index < section->num_funcs; func_index++) {
+        if (section->funcs[func_index].offset == func_offset) {
+            return section->funcs[func_index].func;
+        }
+    }
+
+    return nullptr;
 }
 
 extern "C" recomp_func_t * get_function(int32_t addr) {

@@ -24,6 +24,7 @@ namespace recomp {
         void read_patch_data(uint8_t* rdram, gpr patch_data_address);
 
         void init_overlays();
+        recomp_func_t* get_func_by_section_ram(uint32_t section_rom, uint32_t function_vram);
     }
 };
 

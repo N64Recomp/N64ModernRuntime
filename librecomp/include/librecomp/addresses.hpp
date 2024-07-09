@@ -9,6 +9,10 @@ namespace recomp {
     constexpr int32_t cart_handle = 0x80800000;
     constexpr int32_t drive_handle = (int32_t)(cart_handle + sizeof(OSPiHandle));
     constexpr int32_t flash_handle = (int32_t)(drive_handle + sizeof(OSPiHandle));
+    constexpr int32_t flash_handle_end = (int32_t)(flash_handle + sizeof(OSPiHandle));
+    constexpr int32_t patch_rdram_start = 0x80801000;
+    static_assert(patch_rdram_start >= flash_handle_end);
+    constexpr int32_t mod_rdram_start = 0x81000000;
 
     // Flashram occupies the same physical address as sram, but that issue is avoided because libultra exposes
     // a high-level interface for flashram. Because that high-level interface is reimplemented, low level accesses

@@ -416,3 +416,25 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
     }
     return "Unknown error " + std::to_string((int)error);
 }
+
+std::string recomp::mods::error_to_string(ModLoadError error) {
+    switch (error) {
+        case ModLoadError::Good:
+            return "Good";
+        case ModLoadError::FailedToLoadSyms:
+            return "Failed to load mod symbol file";
+        case ModLoadError::FailedToLoadBinary:
+            return "Failed to load mod binary file";
+        case ModLoadError::InvalidFunctionReplacement:
+            return "Function to be replaced does not exist";
+        case ModLoadError::FailedToFindReplacement:
+            return "Failed to find replacement function";
+        case ModLoadError::ReplacementConflict:
+            return "Attempted to replace a function that cannot be replaced";
+        case ModLoadError::MissingDependencies:
+            return "Missing dependencies";
+        case ModLoadError::ModConflict:
+            return "Conflicts with other mod";
+    }
+    return "Unknown error " + std::to_string((int)error);
+}

@@ -9,11 +9,16 @@
 #include <memory>
 #include <tuple>
 #include <unordered_set>
+#include <unordered_map>
+#include <array>
+#include <cstddef>
 
 #define MINIZ_NO_DEFLATE_APIS
 #define MINIZ_NO_ARCHIVE_WRITING_APIS
 #include "miniz.h"
 #include "miniz_zip.h"
+
+#include "librecomp/recomp.h"
 
 namespace recomp {
     namespace mods {
@@ -41,7 +46,12 @@ namespace recomp {
             FailedToLoadBinary,
             InvalidFunctionReplacement,
             FailedToFindReplacement,
+            ReplacementConflict,
+            MissingDependencies,
+            ModConflict,
         };
+
+        std::string error_to_string(ModLoadError);
 
         struct ModFileHandle {
             virtual ~ModFileHandle() = default;
@@ -108,6 +118,11 @@ namespace recomp {
         size_t num_opened_mods(const std::u8string& game_id);
 
         // Internal functions, TODO move to an internal header.
+        struct PatchData {
+            std::array<std::byte, 16> replaced_bytes;
+            std::string mod_id;
+        };
+
         struct ModHandle;
         class ModContext {
         public:
@@ -119,15 +134,16 @@ namespace recomp {
             bool is_mod_enabled(const std::string& mod_id);
             size_t num_opened_mods();
             std::vector<ModLoadErrorDetails> load_mods(uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
+            void unload_mods();
             // const ModManifest& get_mod_manifest(size_t mod_index);
         private:
             ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param);
-            ModLoadError load_mod(uint8_t* rdram, ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest);
 
             std::vector<ModHandle> opened_mods;
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
+            std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
         };
     }
 };

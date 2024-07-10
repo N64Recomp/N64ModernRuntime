@@ -48,6 +48,13 @@ void patch_func(void* target_func, void* replacement_func) {
     protect(target_func, old_flags);
 }
 
+void unpatch_func(void* target_func, const recomp::mods::PatchData& data) {
+    DWORD old_flags;
+    unprotect(target_func, &old_flags);
+    memcpy(target_func, data.replaced_bytes.data(), data.replaced_bytes.size());
+    protect(target_func, old_flags);
+}
+
 namespace recomp {
     namespace mods {
         struct ModHandle {
@@ -66,7 +73,8 @@ void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest) {
     opened_mods.emplace_back(std::move(manifest));
 }
 
-recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, ModHandle& handle, int32_t load_address, uint32_t& ram_used, std::string& error_param) {
+recomp::mods::ModLoadError load_mod(uint8_t* rdram, recomp::mods::ModHandle& handle, int32_t load_address, uint32_t& ram_used, std::string& error_param, std::unordered_map<recomp_func_t*, recomp::mods::PatchData>& patched_funcs) {
+    using namespace recomp::mods;
     std::vector<int32_t> section_load_addresses{};
 
     {
@@ -152,6 +160,19 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, Mo
 
             printf("found replacement func: 0x%016llX\n", (uintptr_t)to_replace);
 
+            // Check if this function has already been replaced.
+            auto find_patch_it = patched_funcs.find(to_replace);
+            if (find_patch_it != patched_funcs.end()) {
+                error_param = find_patch_it->second.mod_id;
+                return ModLoadError::ModConflict;
+            }
+
+            // Copy the original bytes so they can be restored later after the mod is unloaded.
+            PatchData& cur_replacement_data = patched_funcs[to_replace];
+            memcpy(cur_replacement_data.replaced_bytes.data(), to_replace, cur_replacement_data.replaced_bytes.size());
+            cur_replacement_data.mod_id = handle.manifest.mod_id;
+
+            // Patch the function to redirect it to the replacement.
             patch_func(to_replace, replacement_func);
         }
         total_func_count += mod_section.replacements.size();
@@ -208,12 +229,17 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;
 
+    if (!patched_funcs.empty()) {
+        printf("Mods already loaded!\n");
+        return {};
+    }
+
     for (auto& mod : opened_mods) {
         if (enabled_mods.contains(mod.manifest.mod_id)) {
             printf("Loading mod %s\n", mod.manifest.mod_id.c_str());
             uint32_t cur_ram_used = 0;
             std::string load_error_param;
-            ModLoadError load_error = load_mod(rdram, mod, load_address, cur_ram_used, load_error_param);
+            ModLoadError load_error = load_mod(rdram, mod, load_address, cur_ram_used, load_error_param, patched_funcs);
 
             if (load_error != ModLoadError::Good) {
                 ret.emplace_back(mod.manifest.mod_id, load_error, load_error_param);
@@ -225,5 +251,17 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         }
     }
 
+    if (!ret.empty()) {
+        printf("Mod loading failed, unpatching funcs\n");
+        unload_mods();
+    }
+
     return ret;
+}
+
+void recomp::mods::ModContext::unload_mods() {
+    for (auto& [replacement_func, replacement_data] : patched_funcs) {
+        unpatch_func(replacement_func, replacement_data);
+    }
+    patched_funcs.clear();
 }

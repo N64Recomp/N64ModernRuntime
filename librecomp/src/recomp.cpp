@@ -78,7 +78,7 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
             mod_open_errors = mod_context.scan_mod_folder(config_path / "mods" / entry.mod_subdirectory);
         }
         for (const auto& cur_error : mod_open_errors) {
-            printf("Error loading mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
+            printf("Error opening mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
         }
     }
 
@@ -449,8 +449,6 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                     ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
                 }
 
-                ultramodern::init_saving(rdram);
-
                 auto find_it = game_roms.find(current_game.value());
                 const recomp::GameEntry& game_entry = find_it->second;
 
@@ -469,14 +467,22 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                     }
 
                     if (!mod_load_errors.empty()) {
+                        std::ostringstream mod_error_stream;
+                        mod_error_stream << "Error loading mods:\n\n";
                         for (const auto& cur_error : mod_load_errors) {
-                            printf("Mod %s failed to load with error %d (%s)\n", cur_error.mod_id.c_str(), (int)cur_error.error, cur_error.error_param.c_str());
+                            mod_error_stream << cur_error.mod_id.c_str() << ": " << recomp::mods::error_to_string(cur_error.error);
+                            if (!cur_error.error_param.empty()) {
+                                mod_error_stream << " (" << cur_error.error_param.c_str() << ")";
+                            }
+                            mod_error_stream << "\n";                                
                         }
+                        ultramodern::error_handling::message_box(mod_error_stream.str().c_str());
                         game_status.store(GameStatus::None);
                         return false;
                     }
                 }
-
+                
+                ultramodern::init_saving(rdram);
                 ultramodern::load_shader_cache(game_entry.cache_data);
 
                 try {

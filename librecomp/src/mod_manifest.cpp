@@ -366,6 +366,13 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         }
     }
 
+    // Check for this being a duplicate of another opened mod.
+    if (mod_ids.contains(manifest.mod_id)) {
+        error_param = manifest.mod_id;
+        return ModOpenError::DuplicateMod;
+    }
+    mod_ids.emplace(manifest.mod_id);
+
     ModOpenError validate_error = validate_manifest(manifest, error_param);
     if (validate_error != ModOpenError::Good) {
         return validate_error;
@@ -404,6 +411,8 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Missing required field in manifest";
         case ModOpenError::InnerFileDoesNotExist:
             return "File inside mod does not exist";
+        case ModOpenError::DuplicateMod:
+            return "Duplicate mod found";
     }
     return "Unknown error " + std::to_string((int)error);
 }

@@ -29,8 +29,11 @@ namespace recomp {
             UnrecognizedManifestField,
             IncorrectManifestFieldType,
             MissingManifestField,
-            InnerFileDoesNotExist
+            InnerFileDoesNotExist,
+            DuplicateMod
         };
+
+        std::string error_to_string(ModOpenError);
 
         enum class ModLoadError {
             Good,
@@ -123,10 +126,9 @@ namespace recomp {
             void add_opened_mod(ModManifest&& manifest);
 
             std::vector<ModHandle> opened_mods;
+            std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
         };
-
-        std::string error_to_string(ModOpenError);
     }
 };
 

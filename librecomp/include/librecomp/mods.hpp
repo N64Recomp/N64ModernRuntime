@@ -7,6 +7,8 @@
 #include <cstdio>
 #include <vector>
 #include <memory>
+#include <tuple>
+#include <unordered_set>
 
 #define MINIZ_NO_DEFLATE_APIS
 #define MINIZ_NO_ARCHIVE_WRITING_APIS
@@ -35,32 +37,33 @@ namespace recomp {
             FailedToLoadSyms,
             FailedToLoadBinary,
             InvalidFunctionReplacement,
+            FailedToFindReplacement,
         };
 
-        struct ModHandle {
-            virtual ~ModHandle() = default;
+        struct ModFileHandle {
+            virtual ~ModFileHandle() = default;
             virtual std::vector<char> read_file(const std::string& filepath, bool& exists) const = 0;
             virtual bool file_exists(const std::string& filepath) const = 0;
         };
 
-        struct ZipModHandle : public ModHandle {
+        struct ZipModFileHandle : public ModFileHandle {
             FILE* file_handle = nullptr;
             std::unique_ptr<mz_zip_archive> archive;
 
-            ZipModHandle() = default;
-            ZipModHandle(const std::filesystem::path& mod_path, ModOpenError& error);
-            ~ZipModHandle() final;
+            ZipModFileHandle() = default;
+            ZipModFileHandle(const std::filesystem::path& mod_path, ModOpenError& error);
+            ~ZipModFileHandle() final;
 
             std::vector<char> read_file(const std::string& filepath, bool& exists) const final;
             bool file_exists(const std::string& filepath) const final;
         };
 
-        struct LooseModHandle : public ModHandle {
+        struct LooseModFileHandle : public ModFileHandle {
             std::filesystem::path root_path;
 
-            LooseModHandle() = default;
-            LooseModHandle(const std::filesystem::path& mod_path, ModOpenError& error);
-            ~LooseModHandle() final;
+            LooseModFileHandle() = default;
+            LooseModFileHandle(const std::filesystem::path& mod_path, ModOpenError& error);
+            ~LooseModFileHandle() final;
 
             std::vector<char> read_file(const std::string& filepath, bool& exists) const final;
             bool file_exists(const std::string& filepath) const final;
@@ -81,11 +84,47 @@ namespace recomp {
             std::string rom_patch_path;
             std::string rom_patch_syms_path;
 
-            std::unique_ptr<ModHandle> mod_handle;
+            std::unique_ptr<ModFileHandle> file_handle;
         };
 
-        ModManifest open_mod(const std::filesystem::path& mod_path, ModOpenError& error, std::string& error_param);
-        ModLoadError load_mod(uint8_t* rdram, const ModManifest& manifest, int32_t load_address, uint32_t& ram_used, std::string& error_param);
+        struct ModOpenErrorDetails {
+            std::filesystem::path mod_path;
+            ModOpenError error;
+            std::string error_param;
+        };
+
+        struct ModLoadErrorDetails {
+            std::string mod_id;
+            ModLoadError error;
+            std::string error_param;
+        };
+        
+        std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
+        void enable_mod(const std::string& mod_id, bool enabled);
+        bool is_mod_enabled(const std::string& mod_id);
+        size_t num_opened_mods();
+
+        // Internal functions, TODO move to an internal header.
+        struct ModHandle;
+        class ModContext {
+        public:
+            ModContext();
+            ~ModContext();
+
+            std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
+            void enable_mod(const std::string& mod_id, bool enabled);
+            bool is_mod_enabled(const std::string& mod_id);
+            size_t num_opened_mods();
+            std::vector<ModLoadErrorDetails> load_mods(uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
+            // const ModManifest& get_mod_manifest(size_t mod_index);
+        private:
+            ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param);
+            ModLoadError load_mod(uint8_t* rdram, ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param);
+            void add_opened_mod(ModManifest&& manifest);
+
+            std::vector<ModHandle> opened_mods;
+            std::unordered_set<std::string> enabled_mods;
+        };
 
         std::string error_to_string(ModOpenError);
     }

@@ -4,7 +4,7 @@
 
 #include "librecomp/mods.hpp"
 
-recomp::mods::ZipModHandle::~ZipModHandle() {
+recomp::mods::ZipModFileHandle::~ZipModFileHandle() {
     if (file_handle) {
         fclose(file_handle);
         file_handle = nullptr;
@@ -16,7 +16,7 @@ recomp::mods::ZipModHandle::~ZipModHandle() {
     archive = {};
 }
 
-recomp::mods::ZipModHandle::ZipModHandle(const std::filesystem::path& mod_path, ModOpenError& error) {
+recomp::mods::ZipModFileHandle::ZipModFileHandle(const std::filesystem::path& mod_path, ModOpenError& error) {
 #ifdef _WIN32
     if (_wfopen_s(&file_handle, mod_path.c_str(), L"rb") != 0) {
         error = ModOpenError::FileError;
@@ -38,7 +38,7 @@ recomp::mods::ZipModHandle::ZipModHandle(const std::filesystem::path& mod_path, 
     error = ModOpenError::Good;
 }
 
-std::vector<char> recomp::mods::ZipModHandle::read_file(const std::string& filepath, bool& exists) const {
+std::vector<char> recomp::mods::ZipModFileHandle::read_file(const std::string& filepath, bool& exists) const {
     std::vector<char> ret{};
 
     mz_uint32 file_index;
@@ -63,7 +63,7 @@ std::vector<char> recomp::mods::ZipModHandle::read_file(const std::string& filep
     return ret;
 }
 
-bool recomp::mods::ZipModHandle::file_exists(const std::string& filepath) const {
+bool recomp::mods::ZipModFileHandle::file_exists(const std::string& filepath) const {
     mz_uint32 file_index;
     if (!mz_zip_reader_locate_file_v2(archive.get(), filepath.c_str(), nullptr, MZ_ZIP_FLAG_CASE_SENSITIVE, &file_index)) {
         return false;
@@ -72,11 +72,11 @@ bool recomp::mods::ZipModHandle::file_exists(const std::string& filepath) const 
     return true;
 }
 
-recomp::mods::LooseModHandle::~LooseModHandle() {
+recomp::mods::LooseModFileHandle::~LooseModFileHandle() {
     // Nothing to do here, members will be destroyed automatically.
 }
 
-recomp::mods::LooseModHandle::LooseModHandle(const std::filesystem::path& mod_path, ModOpenError& error) {
+recomp::mods::LooseModFileHandle::LooseModFileHandle(const std::filesystem::path& mod_path, ModOpenError& error) {
     root_path = mod_path;
 
     std::error_code ec;
@@ -91,7 +91,7 @@ recomp::mods::LooseModHandle::LooseModHandle(const std::filesystem::path& mod_pa
     error = ModOpenError::Good;
 }
 
-std::vector<char> recomp::mods::LooseModHandle::read_file(const std::string& filepath, bool& exists) const {
+std::vector<char> recomp::mods::LooseModFileHandle::read_file(const std::string& filepath, bool& exists) const {
     std::vector<char> ret{};
     std::filesystem::path full_path = root_path / filepath;
 
@@ -119,7 +119,7 @@ std::vector<char> recomp::mods::LooseModHandle::read_file(const std::string& fil
     return ret;
 }
 
-bool recomp::mods::LooseModHandle::file_exists(const std::string& filepath) const {
+bool recomp::mods::LooseModFileHandle::file_exists(const std::string& filepath) const {
     std::filesystem::path full_path = root_path / filepath;
 
     std::error_code ec;
@@ -173,230 +173,209 @@ bool get_to(const nlohmann::json& val, T2& out) {
     return true;
 }
 
-bool parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data, recomp::mods::ModOpenError& error, std::string& error_param) {
+recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param) {
     using json = nlohmann::json;
     json manifest_json = json::parse(manifest_data.begin(), manifest_data.end(), nullptr, false);
 
     if (manifest_json.is_discarded()) {
-        error = recomp::mods::ModOpenError::FailedToParseManifest;
-        return false;
+        return recomp::mods::ModOpenError::FailedToParseManifest;
     }
 
     if (!manifest_json.is_object()) {
-        error = recomp::mods::ModOpenError::InvalidManifestSchema;
-        return false;
+        return recomp::mods::ModOpenError::InvalidManifestSchema;
     }
 
     for (const auto& [key, val] : manifest_json.items()) {
         const auto find_key_it = field_map.find(key);
         if (find_key_it == field_map.end()) {
             // Unrecognized field
-            error = recomp::mods::ModOpenError::UnrecognizedManifestField;
             error_param = key;
-            return false;
+            return recomp::mods::ModOpenError::UnrecognizedManifestField;
         }
 
         ManifestField field = find_key_it->second;
         switch (field) {
             case ManifestField::Id:
                 if (!get_to<json::string_t>(val, ret.mod_id)) {
-                    error = recomp::mods::ModOpenError::IncorrectManifestFieldType;
                     error_param = key;
-                    return false;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
             case ManifestField::MajorVersion:
                 if (!get_to<json::number_unsigned_t>(val, ret.major_version)) {
-                    error = recomp::mods::ModOpenError::IncorrectManifestFieldType;
                     error_param = key;
-                    return false;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
             case ManifestField::MinorVersion:
                 if (!get_to<json::number_unsigned_t>(val, ret.minor_version)) {
-                    error = recomp::mods::ModOpenError::IncorrectManifestFieldType;
                     error_param = key;
-                    return false;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
             case ManifestField::PatchVersion:
                 if (!get_to<json::number_unsigned_t>(val, ret.patch_version)) {
-                    error = recomp::mods::ModOpenError::IncorrectManifestFieldType;
                     error_param = key;
-                    return false;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
             case ManifestField::BinaryPath:
                 if (!get_to<json::string_t>(val, ret.binary_path)) {
-                    error = recomp::mods::ModOpenError::IncorrectManifestFieldType;
                     error_param = key;
-                    return false;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
             case ManifestField::BinarySymsPath:
                 if (!get_to<json::string_t>(val, ret.binary_syms_path)) {
-                    error = recomp::mods::ModOpenError::IncorrectManifestFieldType;
                     error_param = key;
-                    return false;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
             case ManifestField::RomPatchPath:
                 if (!get_to<json::string_t>(val, ret.rom_patch_path)) {
-                    error = recomp::mods::ModOpenError::IncorrectManifestFieldType;
                     error_param = key;
-                    return false;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
             case ManifestField::RomPatchSymsPath:
                 if (!get_to<json::string_t>(val, ret.rom_patch_syms_path)) {
-                    error = recomp::mods::ModOpenError::IncorrectManifestFieldType;
                     error_param = key;
-                    return false;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
         }
     }
 
-    return true;
+    return recomp::mods::ModOpenError::Good;
 }
 
-bool validate_file_exists(const recomp::mods::ModManifest& manifest, const std::string& filepath, recomp::mods::ModOpenError& error, std::string& error_param) {
+recomp::mods::ModOpenError validate_file_exists(const recomp::mods::ModManifest& manifest, const std::string& filepath, std::string& error_param) {
     // No file provided, so nothing to check for.
     if (filepath.empty()) {
-        return true;
+        return recomp::mods::ModOpenError::Good;
     }
-    if (!manifest.mod_handle->file_exists(filepath)) {
-        error = recomp::mods::ModOpenError::InnerFileDoesNotExist;
+    if (!manifest.file_handle->file_exists(filepath)) {
         error_param = filepath;
-        return false;
+        return recomp::mods::ModOpenError::InnerFileDoesNotExist;
     }
-    return true;
+    return recomp::mods::ModOpenError::Good;
 }
 
-bool validate_manifest(const recomp::mods::ModManifest& manifest, recomp::mods::ModOpenError& error, std::string& error_param) {
+recomp::mods::ModOpenError validate_manifest(const recomp::mods::ModManifest& manifest, std::string& error_param) {
     using namespace recomp::mods;
 
     // Check for required fields.
     if (manifest.mod_id.empty()) {
-        error = ModOpenError::MissingManifestField;
         error_param = mod_id_key;
-        return false;
+        return ModOpenError::MissingManifestField;
     }
     if (manifest.major_version == -1) {
-        error = ModOpenError::MissingManifestField;
         error_param = major_version_key;
-        return false;
+        return ModOpenError::MissingManifestField;
     }
     if (manifest.minor_version == -1) {
-        error = ModOpenError::MissingManifestField;
         error_param = minor_version_key;
-        return false;
+        return ModOpenError::MissingManifestField;
     }
     if (manifest.patch_version == -1) {
-        error = ModOpenError::MissingManifestField;
         error_param = patch_version_key;
-        return false;
+        return ModOpenError::MissingManifestField;
     }
 
     // If either a binary file or binary symbol file is provided, the other must be as well.
     if (manifest.binary_path.empty() != manifest.binary_syms_path.empty()) {
-        error = ModOpenError::MissingManifestField;
         if (manifest.binary_path.empty()) {
             error_param = binary_path_key;
         }
         else {
             error_param = binary_syms_path_key;
         }
-        return false;
+        return ModOpenError::MissingManifestField;
     }
 
     // If a ROM patch symbol file is provided, a ROM patch file must be as well.
     if (!manifest.rom_patch_syms_path.empty() && manifest.rom_patch_path.empty()) {
-        error = ModOpenError::MissingManifestField;
         error_param = rom_patch_path_key;
-        return false;
+        return ModOpenError::MissingManifestField;
     }
 
     // Validate that provided files exist.
-    if (!validate_file_exists(manifest, manifest.binary_path, error, error_param)) {
-        return false;
+    ModOpenError validate_error;
+    if ((validate_error = validate_file_exists(manifest, manifest.binary_path, error_param)) != ModOpenError::Good) {
+        return validate_error;
     }
-    if (!validate_file_exists(manifest, manifest.binary_syms_path, error, error_param)) {
-        return false;
+    if ((validate_error = validate_file_exists(manifest, manifest.binary_syms_path, error_param)) != ModOpenError::Good) {
+        return validate_error;
     }
-    if (!validate_file_exists(manifest, manifest.rom_patch_path, error, error_param)) {
-        return false;
+    if ((validate_error = validate_file_exists(manifest, manifest.rom_patch_path, error_param)) != ModOpenError::Good) {
+        return validate_error;
     }
-    if (!validate_file_exists(manifest, manifest.rom_patch_syms_path, error, error_param)) {
-        return false;
+    if ((validate_error = validate_file_exists(manifest, manifest.rom_patch_syms_path, error_param)) != ModOpenError::Good) {
+        return validate_error;
     }
 
-    return true;
+    return ModOpenError::Good;
 }   
 
-recomp::mods::ModManifest recomp::mods::open_mod(const std::filesystem::path& mod_path, ModOpenError& error, std::string& error_param) {
-    ModManifest ret{};
+recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesystem::path& mod_path, std::string& error_param) {
+    ModManifest manifest{};
     std::error_code ec;
     error_param = "";
 
     if (!std::filesystem::exists(mod_path, ec) || ec) {
-        error = ModOpenError::DoesNotExist;
-        return {};
+        return ModOpenError::DoesNotExist;
     }
 
     // TODO support symlinks?
     bool is_file = std::filesystem::is_regular_file(mod_path, ec);
     if (ec) {
-        error = ModOpenError::FileError;
-        return {};
+        return ModOpenError::FileError;
     }
 
     bool is_directory = std::filesystem::is_directory(mod_path, ec);
     if (ec) {
-        error = ModOpenError::FileError;
-        return {};
+        return ModOpenError::FileError;
     }
 
     // Load the directory or zip file.
     ModOpenError handle_error;
     if (is_file) {
-        ret.mod_handle = std::make_unique<recomp::mods::ZipModHandle>(mod_path, handle_error);
+        manifest.file_handle = std::make_unique<recomp::mods::ZipModFileHandle>(mod_path, handle_error);
     }
     else if (is_directory) {
-        ret.mod_handle = std::make_unique<recomp::mods::LooseModHandle>(mod_path, handle_error);
+        manifest.file_handle = std::make_unique<recomp::mods::LooseModFileHandle>(mod_path, handle_error);
     }
     else {
-        error = ModOpenError::NotAFileOrFolder;
-        return {};
+        return ModOpenError::NotAFileOrFolder;
     }
 
     if (handle_error != ModOpenError::Good) {
-        error = handle_error;
-        return {};
+        return handle_error;
     }
 
     {
         bool exists;
-        std::vector<char> manifest_data = ret.mod_handle->read_file("manifest.json", exists);
+        std::vector<char> manifest_data = manifest.file_handle->read_file("manifest.json", exists);
         if (!exists) {
-            error = ModOpenError::NoManifest;
-            return {};
+            return ModOpenError::NoManifest;;
         }
 
-        if (!parse_manifest(ret, manifest_data, error, error_param)) {
-            return {};
+        ModOpenError parse_error = parse_manifest(manifest, manifest_data, error_param);
+        if (parse_error != ModOpenError::Good) {
+            return parse_error;
         }
     }
 
-    if (!validate_manifest(ret, error, error_param)) {
-        return {};
+    ModOpenError validate_error = validate_manifest(manifest, error_param);
+    if (validate_error != ModOpenError::Good) {
+        return validate_error;
     }
 
-    ret.mod_root_path = mod_path;
+    // Store the loaded mod manifest in a new mod handle.
+    manifest.mod_root_path = mod_path;
+    add_opened_mod(std::move(manifest));
 
-    // Return the loaded mod manifest
-    error = ModOpenError::Good;
-    return ret;
+    return ModOpenError::Good;
 }
 
 std::string recomp::mods::error_to_string(ModOpenError error) {

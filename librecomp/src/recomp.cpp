@@ -21,6 +21,12 @@
 #include "librecomp/addresses.hpp"
 #include "librecomp/mods.hpp"
 
+#if defined(_WIN32)
+#define PATHFMT "%ls"
+#else
+#define PATHFMT "%s"
+#endif
+
 #ifdef _MSC_VER
 inline uint32_t byteswap(uint32_t val) {
     return _byteswap_ulong(val);
@@ -376,8 +382,79 @@ void ultramodern::quit() {
     current_game.reset();
 }
 
-// TODO temporary test mod loading, remove this when mod management is done
-recomp::mods::ModManifest testmod_manifest;
+recomp::mods::ModContext mod_context{};
+std::mutex mod_context_mutex{};
+
+std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::scan_mod_folder(const std::filesystem::path& mod_folder) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context.scan_mod_folder(mod_folder);
+}
+
+void recomp::mods::enable_mod(const std::string& mod_id, bool enabled) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context.enable_mod(mod_id, enabled);
+}
+
+bool recomp::mods::is_mod_enabled(const std::string& mod_id) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context.is_mod_enabled(mod_id);
+}
+
+size_t recomp::mods::num_opened_mods() {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context.num_opened_mods();
+}
+
+bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
+    game_status.wait(GameStatus::None);
+
+    switch (game_status.load()) {
+        // TODO refactor this to allow a project to specify what entrypoint function to run for a give game.
+        case GameStatus::Running:
+            {
+                if (!recomp::load_stored_rom(current_game.value())) {
+                    ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
+                }
+
+                ultramodern::init_saving(rdram);
+
+                auto find_it = game_roms.find(current_game.value());
+                const recomp::GameEntry& game_entry = find_it->second;
+
+                init(rdram, context, game_entry.entrypoint_address);
+
+                uint32_t mod_ram_used = 0;
+                std::vector<recomp::mods::ModLoadErrorDetails> mod_load_errors;
+                {
+                    std::lock_guard lock { mod_context_mutex };
+                    mod_load_errors = mod_context.load_mods(rdram, recomp::mod_rdram_start, mod_ram_used);
+                }
+
+                if (!mod_load_errors.empty()) {
+                    for (const auto& cur_error : mod_load_errors) {
+                        printf("Mod %s failed to load with error %d (%s)\n", cur_error.mod_id.c_str(), (int)cur_error.error, cur_error.error_param.c_str());
+                    }
+                    game_status.store(GameStatus::None);
+                    return false;
+                }
+
+                ultramodern::load_shader_cache(game_entry.cache_data);
+
+                try {
+                    game_entry.entrypoint(rdram, context);
+                } catch (ultramodern::thread_terminated& terminated) {
+
+                }
+            }
+            return true;
+
+        case GameStatus::Quit:
+            return true;
+
+        case GameStatus::None:
+            return true;
+    }
+}
 
 void recomp::start(
     uint32_t rdram_size,
@@ -419,6 +496,16 @@ void recomp::start(
         }
     }
 
+    // Scan for mods in the main mod folder.
+    std::vector<recomp::mods::ModOpenErrorDetails> mod_open_errors;
+    {
+        std::lock_guard mod_lock{ mod_context_mutex };
+        mod_open_errors = mod_context.scan_mod_folder(config_path / "mods");
+    }
+    for (const auto& cur_error : mod_open_errors) {
+        printf("Error loading mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
+    }
+
     // Allocate rdram_buffer
     std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(rdram_size);
     std::memset(rdram_buffer.get(), 0, rdram_size);
@@ -430,69 +517,10 @@ void recomp::start(
 
         ultramodern::preinit(rdram, window_handle);
 
-        game_status.wait(GameStatus::None);
         recomp_context context{};
 
-        switch (game_status.load()) {
-            // TODO refactor this to allow a project to specify what entrypoint function to run for a give game.
-            case GameStatus::Running:
-                {
-                    if (!recomp::load_stored_rom(current_game.value())) {
-                        ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
-                    }
-
-                    ultramodern::init_saving(rdram);
-
-                    auto find_it = game_roms.find(current_game.value());
-                    const recomp::GameEntry& game_entry = find_it->second;
-
-                    ultramodern::load_shader_cache(game_entry.cache_data);
-                    init(rdram, &context, game_entry.entrypoint_address);
-
-                    // TODO temporary test mod loading, remove this when mod management is done
-                    recomp::mods::ModOpenError error;
-                    std::string error_param;
-                    testmod_manifest = recomp::mods::open_mod("testmod_dir", error, error_param);
-
-                    if (error != recomp::mods::ModOpenError::Good) {
-                        printf("Mod invalid: %s", recomp::mods::error_to_string(error).c_str());
-                        if (!error_param.empty()) {
-                            printf(": \"%s\"", error_param.c_str());
-                        }
-                        printf("\n");
-                        return;
-                    }
-
-                    int32_t cur_mod_ram_addr = recomp::mod_rdram_start;
-                    uint32_t mod_ram_size = 0;
-                    recomp::mods::ModLoadError load_error = recomp::mods::load_mod(rdram, testmod_manifest, cur_mod_ram_addr, mod_ram_size, error_param);
-
-                    if (load_error != recomp::mods::ModLoadError::Good) {
-                        printf("Failed to load mod\n");
-                        printf("  Error code: %d", (int)load_error);
-                        if (!error_param.empty()) {
-                            printf(" (%s)", error_param.c_str());
-                        }
-                        printf("\n");
-                        return;
-                    }
-
-                    try {
-                        game_entry.entrypoint(rdram, &context);
-                    } catch (ultramodern::thread_terminated& terminated) {
-
-                    }
-                }
-                break;
-
-            case GameStatus::Quit:
-                break;
-
-            case GameStatus::None:
-                break;
-        }
-
-        debug_printf("[Recomp] Quitting\n");
+        // Loop until the game starts.
+        while (!wait_for_game_started(rdram, &context)) {}
     }, window_handle, rdram_buffer.get()};
 
     while (!exited) {

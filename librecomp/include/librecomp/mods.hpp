@@ -99,10 +99,10 @@ namespace recomp {
             std::string error_param;
         };
         
-        std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
-        void enable_mod(const std::string& mod_id, bool enabled);
-        bool is_mod_enabled(const std::string& mod_id);
-        size_t num_opened_mods();
+        std::vector<ModOpenErrorDetails> scan_mod_folder(const std::u8string& game_id, const std::filesystem::path& mod_folder);
+        void enable_mod(const std::u8string& game_id, const std::string& mod_id, bool enabled);
+        bool is_mod_enabled(const std::u8string& game_id, const std::string& mod_id);
+        size_t num_opened_mods(const std::u8string& game_id);
 
         // Internal functions, TODO move to an internal header.
         struct ModHandle;

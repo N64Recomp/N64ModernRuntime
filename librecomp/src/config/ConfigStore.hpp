@@ -21,13 +21,13 @@ struct string_hash {
     }
 };
 
-namespace recomp {    
+namespace recomp::config {    
     typedef std::variant<std::string, int> config_store_value;
     typedef std::unordered_map<std::string, config_store_value, string_hash, std::equal_to<>> config_store_map;
 
     struct ConfigStore {
-        recomp::config_store_map map;
-        recomp::config_store_map default_map;
+        config_store_map map;
+        config_store_map default_map;
         std::mutex store_mutex;
         std::mutex default_store_mutex;
     };

@@ -1,6 +1,6 @@
-#include "config_store.hpp"
+#include "config.hpp"
 
-namespace recomp {
+namespace recomp::config {
 
 ConfigStore config_store = {{}, {}};
 

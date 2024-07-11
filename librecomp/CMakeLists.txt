@@ -8,7 +8,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Define the library
 add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ai.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/config_store.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/config/ConfigOption.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/config/ConfigRegistry.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/config/ConfigStore.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/cont.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/dp.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/eep.cpp"
@@ -35,6 +37,7 @@ add_library(librecomp STATIC
 
 target_include_directories(librecomp PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
     "${PROJECT_SOURCE_DIR}/../ultramodern/include"
     "${PROJECT_SOURCE_DIR}/../thirdparty"
     "${PROJECT_SOURCE_DIR}/../thirdparty/concurrentqueue"

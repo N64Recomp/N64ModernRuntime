@@ -15,9 +15,9 @@ namespace recomp::config {
         std::string json_path; // used as a json pointer
     };
     // config key -> JSONRef
-    typedef std::unordered_map<std::string, JSONRef> config_registry_key_reference_map;
+    using config_registry_key_reference_map = std::unordered_map<std::string, JSONRef>;
     // config group -> json
-    typedef std::unordered_map<std::string, nlohmann::json> config_registry_group_json_map;
+    using config_registry_group_json_map = std::unordered_map<std::string, nlohmann::json>;
 
     struct ConfigRegistry {
         config_registry_key_reference_map key_ref_map;

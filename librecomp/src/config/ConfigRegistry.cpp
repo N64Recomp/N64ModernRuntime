@@ -110,6 +110,7 @@ void register_config_option(
 
             break;
         }
+        case ConfigOptionType::Dropdown:
         case ConfigOptionType::RadioTabs: {
             if (!validate_json_value_is_array(j, json_path, "values")) {
                 return;

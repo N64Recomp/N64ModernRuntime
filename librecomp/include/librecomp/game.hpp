@@ -4,9 +4,10 @@
 #include <vector>
 #include <filesystem>
 
+#include "ultramodern/ultramodern.hpp"
+
 #include "recomp.h"
 #include "rsp.hpp"
-#include <ultramodern/ultramodern.hpp>
 
 namespace recomp {
     struct GameEntry {

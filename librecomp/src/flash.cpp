@@ -1,8 +1,11 @@
 #include <array>
 #include <cassert>
-#include <ultramodern/ultra64.h>
-#include <ultramodern/ultramodern.hpp>
+
+#include "ultramodern/ultra64.h"
+#include "ultramodern/ultramodern.hpp"
+
 #include "recomp.h"
+#include "librecomp/save.hpp"
 
 // TODO move this out into ultramodern code
 
@@ -12,11 +15,6 @@ constexpr uint32_t pages_per_sector = 128;
 constexpr uint32_t page_count = flash_size / page_size;
 constexpr uint32_t sector_size = page_size * pages_per_sector;
 constexpr uint32_t sector_count = flash_size / sector_size;
-
-void save_write_ptr(const void* in, uint32_t offset, uint32_t count);
-void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count);
-void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count);
-void save_clear(uint32_t start, uint32_t size, char value);
 
 std::array<char, page_size> write_buffer;
 
@@ -44,13 +42,13 @@ extern "C" void osFlashClearStatus_recomp(uint8_t * rdram, recomp_context * ctx)
 }
 
 extern "C" void osFlashAllErase_recomp(uint8_t * rdram, recomp_context * ctx) {
-    save_clear(0, ultramodern::save_size, 0xFF);
+    recomp::save::clear(0, ultramodern::save_size, 0xFF);
 
     ctx->r2 = 0;
 }
 
 extern "C" void osFlashAllEraseThrough_recomp(uint8_t * rdram, recomp_context * ctx) {
-    save_clear(0, ultramodern::save_size, 0xFF);
+    recomp::save::clear(0, ultramodern::save_size, 0xFF);
 
     ctx->r2 = 0;
 }
@@ -65,7 +63,7 @@ extern "C" void osFlashSectorErase_recomp(uint8_t * rdram, recomp_context * ctx)
         return;
     }
 
-    save_clear(page_num * page_size, page_size, 0xFF);
+    recomp::save::clear(page_num * page_size, page_size, 0xFF);
 
     ctx->r2 = 0;
 }
@@ -80,7 +78,7 @@ extern "C" void osFlashSectorEraseThrough_recomp(uint8_t * rdram, recomp_context
         return;
     }
 
-    save_clear(page_num * page_size, page_size, 0xFF);
+    recomp::save::clear(page_num * page_size, page_size, 0xFF);
 
     ctx->r2 = 0;
 }
@@ -111,7 +109,7 @@ extern "C" void osFlashWriteArray_recomp(uint8_t * rdram, recomp_context * ctx) 
     uint32_t page_num = ctx->r4;
 
     // Copy the write buffer into the save file
-    save_write_ptr(write_buffer.data(), page_num * page_size, page_size);
+    recomp::save::write_ptr(write_buffer.data(), page_num * page_size, page_size);
 
     ctx->r2 = 0;
 }
@@ -128,7 +126,7 @@ extern "C" void osFlashReadArray_recomp(uint8_t * rdram, recomp_context * ctx) {
     uint32_t count = n_pages * page_size;
 
     // Read from the save file into the provided buffer
-    save_read(PASS_RDRAM dramAddr, offset, count);
+    recomp::save::read(PASS_RDRAM dramAddr, offset, count);
 
     // Send the message indicating read completion
     osSendMesg(PASS_RDRAM mq, 0, OS_MESG_NOBLOCK);

@@ -15,6 +15,7 @@ static recomp::overlays::overlay_section_table_data_t sections_info {};
 static recomp::overlays::overlays_by_index_t overlays_info {};
 
 static SectionTableEntry* patch_code_sections = nullptr;
+size_t num_patch_code_sections = 0;
 static std::vector<char> patch_data;
 
 void recomp::overlays::register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays) {
@@ -22,8 +23,9 @@ void recomp::overlays::register_overlays(const overlay_section_table_data_t& sec
     overlays_info = overlays;
 }
 
-void recomp::overlays::register_patches(const char* patch, std::size_t size, SectionTableEntry* sections) {
+void recomp::overlays::register_patches(const char* patch, std::size_t size, SectionTableEntry* sections, size_t num_sections) {
     patch_code_sections = sections;
+    num_patch_code_sections = num_sections;
 
     patch_data.resize(size);
     std::memcpy(patch_data.data(), patch, size);
@@ -70,7 +72,9 @@ static void load_patch_functions() {
         debug_printf("[Patch] No patch section was registered\n");
         return;
     }
-    load_special_overlay(patch_code_sections[0], patch_code_sections[0].ram_addr);
+    for (size_t i = 0; i < num_patch_code_sections; i++) {
+        load_special_overlay(patch_code_sections[i], patch_code_sections[i].ram_addr);
+    }
 }
 
 void recomp::overlays::read_patch_data(uint8_t* rdram, gpr patch_data_address) {

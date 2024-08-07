@@ -7,14 +7,15 @@
 namespace recomp::config {
 
 enum class ConfigOptionType {
-    Label,
+    Label, // todo
     // Base types
     Checkbox,
     RadioTabs,
     Dropdown,
     Range,
     Color,
-    Trigger,
+    Button, // todo
+    TextField,
     // Group types
     CheckboxGroup,
     Group,
@@ -28,7 +29,8 @@ NLOHMANN_JSON_SERIALIZE_ENUM(ConfigOptionType, {
     {ConfigOptionType::Dropdown, "Dropdown"},
     {ConfigOptionType::Range, "Range"},
     {ConfigOptionType::Color, "Color"},
-    {ConfigOptionType::Trigger, "Trigger"},
+    {ConfigOptionType::Button, "Button"},
+    {ConfigOptionType::TextField, "TextField"},
     {ConfigOptionType::CheckboxGroup, "CheckboxGroup"},
     {ConfigOptionType::Group, "Group"}
 });

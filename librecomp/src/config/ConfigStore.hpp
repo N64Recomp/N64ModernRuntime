@@ -21,9 +21,9 @@ struct string_hash {
     }
 };
 
-namespace recomp::config {    
-    typedef std::variant<std::string, int> config_store_value;
-    typedef std::unordered_map<std::string, config_store_value, string_hash, std::equal_to<>> config_store_map;
+namespace recomp::config {
+    using config_store_value = std::variant<std::monostate, std::string, int>;
+    using config_store_map = std::unordered_map<std::string, config_store_value, string_hash, std::equal_to<>>;
 
     struct ConfigStore {
         config_store_map map;
@@ -33,6 +33,13 @@ namespace recomp::config {
     };
 
     extern ConfigStore config_store;
+
+    // Index of variant type config_store_value
+    enum class ConfigStoreValueType {
+        Null,
+        String,
+        Int
+    };
 
     void set_config_store_value(std::string_view key, config_store_value value);
     void set_config_store_default_value(std::string_view key, config_store_value value);
@@ -66,6 +73,22 @@ namespace recomp::config {
             }
         } else {
             return get_config_store_default_value<T>(key);
+        }
+    };
+
+    // Get a value from the config store, if it doesn't exist then return the supplied value
+    template<typename T>
+    T get_config_store_value_with_default(std::string_view key, T default_value) {
+        std::lock_guard lock{ config_store.store_mutex };
+        auto it = config_store.map.find(key);
+        if (it != config_store.map.end()) {
+            if (std::holds_alternative<T>(it->second)) {
+                return std::get<T>(it->second);
+            } else {
+                throw std::runtime_error("Stored value is not of requested type");
+            }
+        } else {
+            return default_value;
         }
     };
 };

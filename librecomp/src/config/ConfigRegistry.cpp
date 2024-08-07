@@ -73,6 +73,20 @@ void register_config_option(
     config_registry.key_ref_map[this_key] = { config_group, json_path };
 
     switch (type) {
+        case ConfigOptionType::TextField: {
+            std::string default_val = "";
+            if (j.find("default") != j.end()) {
+                default_val = get_string_in_json(j, "default");
+            }
+            if (j.find("maxlength") != j.end()) {
+                if (!j["maxlength"].is_number()) {
+                    TODO_PARSE_ERROR(this_key + "/maxlength" , "number");
+                    return;
+                }
+            }
+            set_config_store_value_and_default(this_key, default_val, default_val);
+            break;
+        }
         case ConfigOptionType::Checkbox: {
             bool default_val = false;
             if (j.find("default") != j.end()) {

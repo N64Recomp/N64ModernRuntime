@@ -6,6 +6,23 @@
 #include <math.h>
 #include <assert.h>
 
+// Compiler definition to disable inter-procedural optimization, allowing multiple functions to be in a single file without breaking interposition.
+#if defined(_MSC_VER) && !defined(__clang__)
+    // MSVC's __declspec(noinline) seems to disable inter-procedural optimization entirely, so it's all that's needed.
+    #define RECOMP_FUNC __declspec(noinline)
+#elif defined(__clang__)
+    // Clang has no dedicated IPO attribute, so we use a combination of other attributes to give the desired behavior.
+    // The inline keyword allows multiple definitions during linking, and extern forces clang to emit an externally visible definition.
+    // Weak forces Clang to not perform any IPO as the symbol can be interposed, which prevents actual inlining due to the inline keyword.
+    // Add noinline on for good measure, which doesn't conflict with the inline keyword as they have different meanings.
+    #define RECOMP_FUNC extern inline __attribute__((weak,noinline))
+#elif defined(__GNUC__)
+    // Use GCC's attribute for disabling inter-procedural optimizations.
+    #define RECOMP_FUNC __attribute__((noipa))
+#else
+    #error "No RECOMP_FUNC definition for this compiler"
+#endif
+
 typedef uint64_t gpr;
 
 #define SIGNED(val) \

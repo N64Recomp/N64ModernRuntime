@@ -20,4 +20,9 @@ typedef struct {
     size_t index;
 } SectionTableEntry;
 
+typedef struct {
+    const char* name;
+    uint32_t ram_addr;
+} FunctionExport;
+
 #endif

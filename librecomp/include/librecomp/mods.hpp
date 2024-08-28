@@ -19,6 +19,7 @@
 #include "miniz_zip.h"
 
 #include "librecomp/recomp.h"
+#include "librecomp/sections.h"
 
 namespace recomp {
     namespace mods {
@@ -44,6 +45,9 @@ namespace recomp {
             Good,
             FailedToLoadSyms,
             FailedToLoadBinary,
+            FailedToLoadNativeCode,
+            InvalidReferenceSymbol,
+            InvalidImport,
             InvalidFunctionReplacement,
             FailedToFindReplacement,
             ReplacementConflict,
@@ -129,6 +133,7 @@ namespace recomp {
             ModContext();
             ~ModContext();
 
+            void setup_sections();
             std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
             void enable_mod(const std::string& mod_id, bool enabled);
             bool is_mod_enabled(const std::string& mod_id);
@@ -138,12 +143,14 @@ namespace recomp {
             // const ModManifest& get_mod_manifest(size_t mod_index);
         private:
             ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param);
+            ModLoadError load_mod(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_map, recomp::mods::ModHandle& handle, int32_t load_address, uint32_t& ram_used, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest);
 
             std::vector<ModHandle> opened_mods;
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
+            std::unordered_map<uint32_t, size_t> sections_by_vrom;
         };
     }
 };

@@ -48,8 +48,8 @@ if (WIN32)
     add_compile_definitions(NOMINMAX)
 endif()
 
-add_subdirectory(${PROJECT_SOURCE_DIR}/../thirdparty/miniz ${CMAKE_BINARY_DIR}/miniz)
-add_subdirectory(${PROJECT_SOURCE_DIR}/../N64Recomp ${CMAKE_BINARY_DIR}/N64Recomp EXCLUDE_FROM_ALL)
+add_subdirectory(${PROJECT_SOURCE_DIR}/../thirdparty/miniz ${CMAKE_CURRENT_BINARY_DIR}/miniz)
+add_subdirectory(${PROJECT_SOURCE_DIR}/../N64Recomp ${CMAKE_CURRENT_BINARY_DIR}/N64Recomp EXCLUDE_FROM_ALL)
 
 target_link_libraries(librecomp PRIVATE ultramodern N64Recomp)
 target_link_libraries(librecomp PUBLIC miniz)

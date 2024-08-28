@@ -18,19 +18,6 @@ static SectionTableEntry* patch_code_sections = nullptr;
 size_t num_patch_code_sections = 0;
 static std::vector<char> patch_data;
 
-void recomp::overlays::register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays) {
-    sections_info = sections;
-    overlays_info = overlays;
-}
-
-void recomp::overlays::register_patches(const char* patch, std::size_t size, SectionTableEntry* sections, size_t num_sections) {
-    patch_code_sections = sections;
-    num_patch_code_sections = num_sections;
-
-    patch_data.resize(size);
-    std::memcpy(patch_data.data(), patch, size);
-}
-
 struct LoadedSection {
     int32_t loaded_ram_addr;
     size_t section_table_index;
@@ -45,8 +32,62 @@ struct LoadedSection {
     }
 };
 
-std::vector<LoadedSection> loaded_sections{};
-std::unordered_map<int32_t, recomp_func_t*> func_map{};
+static std::unordered_map<uint32_t, uint16_t> code_sections_by_rom{};
+static std::vector<LoadedSection> loaded_sections{};
+static std::unordered_map<int32_t, recomp_func_t*> func_map{};
+static std::unordered_map<std::string, recomp_func_t*> base_exports{};
+
+extern "C" {
+int32_t* section_addresses = nullptr;
+}
+
+void recomp::overlays::register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays) {
+    sections_info = sections;
+    overlays_info = overlays;
+}
+
+void recomp::overlays::register_patches(const char* patch, std::size_t size, SectionTableEntry* sections, size_t num_sections) {
+    patch_code_sections = sections;
+    num_patch_code_sections = num_sections;
+
+    patch_data.resize(size);
+    std::memcpy(patch_data.data(), patch, size);
+}
+
+void recomp::overlays::register_base_exports(const FunctionExport* export_list) {
+    std::unordered_map<uint32_t, recomp_func_t*> patch_func_vram_map{};
+
+    // Iterate over all patch functions to set up a mapping of their vram address.
+    for (size_t patch_section_index = 0; patch_section_index < num_patch_code_sections; patch_section_index++) {
+        const SectionTableEntry* cur_section = &patch_code_sections[patch_section_index];
+
+        for (size_t func_index = 0; func_index < cur_section->num_funcs; func_index++) {
+            const FuncEntry* cur_func = &cur_section->funcs[func_index];
+            patch_func_vram_map.emplace(cur_section->ram_addr + cur_func->offset, cur_func->func);
+        }
+    }
+
+    // Iterate over exports, using the vram mapping to create a name mapping.
+    for (const FunctionExport* cur_export = &export_list[0]; cur_export->name != nullptr; cur_export++) {
+        auto it = patch_func_vram_map.find(cur_export->ram_addr);
+        if (it == patch_func_vram_map.end()) {
+            assert(false && "Failed to find exported function in patch function sections!");
+        }
+        base_exports.emplace(cur_export->name, it->second);
+    }
+}
+
+recomp_func_t* recomp::overlays::get_base_export(const std::string& export_name) {
+    auto it = base_exports.find(export_name);
+    if (it == base_exports.end()) {
+        return nullptr;
+    }
+    return it->second;
+}
+
+const std::unordered_map<uint32_t, uint16_t>& recomp::overlays::get_vrom_to_section_map() {
+    return code_sections_by_rom;
+}
 
 void load_overlay(size_t section_table_index, int32_t ram) {
     const SectionTableEntry& section = sections_info.code_sections[section_table_index];
@@ -81,10 +122,6 @@ void recomp::overlays::read_patch_data(uint8_t* rdram, gpr patch_data_address) {
     for (size_t i = 0; i < patch_data.size(); i++) {
         MEM_B(i, patch_data_address) = patch_data[i];
     }
-}
-
-extern "C" {
-int32_t* section_addresses = nullptr;
 }
 
 extern "C" void load_overlays(uint32_t rom, int32_t ram_addr, uint32_t size) {
@@ -173,8 +210,6 @@ extern "C" void unload_overlays(int32_t ram_addr, uint32_t size) {
     }
 }
 
-std::unordered_map<uint32_t, SectionTableEntry*> sections_by_rom{};
-
 void recomp::overlays::init_overlays() {
     section_addresses = (int32_t *)calloc(sections_info.total_num_sections, sizeof(int32_t));
 
@@ -189,19 +224,19 @@ void recomp::overlays::init_overlays() {
         SectionTableEntry* code_section = &sections_info.code_sections[section_index];
 
         section_addresses[sections_info.code_sections[section_index].index] = code_section->ram_addr;
-        sections_by_rom[code_section->rom_addr] = code_section;        
+        code_sections_by_rom[code_section->rom_addr] = section_index;        
     }
 
     load_patch_functions();
 }
 
 recomp_func_t* recomp::overlays::get_func_by_section_ram(uint32_t section_rom, uint32_t function_vram) {
-    auto find_section_it = sections_by_rom.find(section_rom);
-    if (find_section_it == sections_by_rom.end()) {
+    auto find_section_it = code_sections_by_rom.find(section_rom);
+    if (find_section_it == code_sections_by_rom.end()) {
         return nullptr;
     }
 
-    SectionTableEntry* section = find_section_it->second;
+    SectionTableEntry* section = &sections_info.code_sections[find_section_it->second];
     if (function_vram < section->ram_addr || function_vram >= section->ram_addr + section->size) {
         return nullptr;
     }

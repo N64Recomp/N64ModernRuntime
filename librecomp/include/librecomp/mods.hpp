@@ -51,7 +51,8 @@ namespace recomp {
             InvalidFunctionReplacement,
             FailedToFindReplacement,
             ReplacementConflict,
-            MissingDependencies,
+            MissingDependency,
+            WrongDependencyVersion,
             ModConflict,
         };
 
@@ -144,13 +145,16 @@ namespace recomp {
         private:
             ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param);
             ModLoadError load_mod(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_map, recomp::mods::ModHandle& handle, int32_t load_address, uint32_t& ram_used, std::string& error_param);
+            void check_dependencies(recomp::mods::ModHandle& mod, std::vector<std::pair<recomp::mods::ModLoadError, std::string>>& errors);
+            ModLoadError load_mod_code(recomp::mods::ModHandle& mod, std::string& error_param);
+            ModLoadError resolve_dependencies(recomp::mods::ModHandle& mod, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest);
 
             std::vector<ModHandle> opened_mods;
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
-            std::unordered_map<uint32_t, size_t> sections_by_vrom;
+            std::unordered_map<std::string, size_t> loaded_mods_by_id;
         };
     }
 };

@@ -138,8 +138,7 @@ enum class ManifestField {
     BinaryPath,
     BinarySymsPath,
     RomPatchPath,
-    RomPatchSymsPath,
-    Invalid,
+    RomPatchSymsPath
 };
 
 const std::string mod_id_key = "id";
@@ -425,14 +424,22 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
             return "Failed to load mod symbol file";
         case ModLoadError::FailedToLoadBinary:
             return "Failed to load mod binary file";
+        case ModLoadError::FailedToLoadNativeCode:
+            return "Failed to load mod DLL";
+        case ModLoadError::InvalidReferenceSymbol:
+            return "Reference symbol does not exist";
+        case ModLoadError::InvalidImport:
+            return "Imported function not found";
         case ModLoadError::InvalidFunctionReplacement:
             return "Function to be replaced does not exist";
         case ModLoadError::FailedToFindReplacement:
             return "Failed to find replacement function";
         case ModLoadError::ReplacementConflict:
             return "Attempted to replace a function that cannot be replaced";
-        case ModLoadError::MissingDependencies:
-            return "Missing dependencies";
+        case ModLoadError::MissingDependency:
+            return "Missing dependency";
+        case ModLoadError::WrongDependencyVersion:
+            return "Wrong dependency version";
         case ModLoadError::ModConflict:
             return "Conflicts with other mod";
     }

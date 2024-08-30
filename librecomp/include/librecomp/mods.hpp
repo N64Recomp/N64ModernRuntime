@@ -133,7 +133,9 @@ namespace recomp {
             std::string mod_id;
         };
 
-        struct ModHandle;
+        using GenericFunction = std::variant<recomp_func_t*>;
+
+        class ModHandle;
         class ModContext {
         public:
             ModContext();
@@ -160,25 +162,29 @@ namespace recomp {
             std::unordered_set<std::string> enabled_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
+            // // Maps (mod id, export name) to (mod index, function index).
+            // std::unordered_map<std::pair<std::string, std::string>, std::pair<size_t, size_t>> mod_exports;
+            // // Maps (mod id, event name) to a vector of callback functions attached to that event.
+            // std::unordered_map<std::pair<std::string, std::string>, std::vector<GenericFunction>> callbacks;
         };
-
-        using ModFunction = std::variant<recomp_func_t*>;
 
         class ModCodeHandle {
         public:
             virtual ~ModCodeHandle() {}
             virtual bool good() = 0;
-            virtual void set_imported_function_pointer(size_t import_index, recomp_func_t* ptr) = 0;
+            virtual void set_imported_function(size_t import_index, GenericFunction func) = 0;
             virtual void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) = 0;
             virtual void set_event_index(size_t local_event_index, uint32_t global_event_index) = 0;
             virtual void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) = 0;
             virtual void set_get_function_pointer(recomp_func_t* (*ptr)(int32_t)) = 0;
             virtual void set_reference_section_addresses_pointer(int32_t* ptr) = 0;
             virtual void set_local_section_address(size_t section_index, int32_t address) = 0;
-            virtual ModFunction get_function_handle(size_t func_index) = 0;
+            virtual GenericFunction get_function_handle(size_t func_index) = 0;
         };
 
-        struct ModHandle {
+        class ModHandle {
+        public:
+            // TODO make these private and expose methods for the functionality they're currently used in.
             ModManifest manifest;
             std::unique_ptr<ModCodeHandle> code_handle;
             std::unique_ptr<N64Recomp::Context> recompiler_context;
@@ -190,6 +196,17 @@ namespace recomp {
             ModHandle(ModHandle&& rhs);
             ModHandle& operator=(ModHandle&& rhs);
             ~ModHandle();
+
+            size_t num_exports() const;
+            size_t num_events() const;
+
+            ModLoadError populate_exports(std::string& error_param);
+            bool get_export_function(const std::string& export_name, GenericFunction& out) const;
+        private:
+            // Mapping of export name to function index.
+            std::unordered_map<std::string, size_t> exports_by_name;
+            // List of global event indices ordered by the event's local index.
+            std::vector<size_t> global_event_indices;
         };
 
         class DynamicLibrary;
@@ -198,9 +215,7 @@ namespace recomp {
             NativeCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context);
             ~NativeCodeHandle() = default;
             bool good() final;
-            void set_imported_function_pointer(size_t import_index, recomp_func_t* ptr) final {
-                imported_funcs[import_index] = ptr;
-            }
+            void set_imported_function(size_t import_index, GenericFunction func) final;
             void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) final {
                 reference_symbol_funcs[symbol_index] = ptr;
             };
@@ -219,8 +234,8 @@ namespace recomp {
             void set_local_section_address(size_t section_index, int32_t address) final {
                 section_addresses[section_index] = address;
             };
-            ModFunction get_function_handle(size_t func_index) final {
-                return ModFunction{ functions[func_index] };
+            GenericFunction get_function_handle(size_t func_index) final {
+                return GenericFunction{ functions[func_index] };
             }
         private:
             void set_bad();

@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <array>
 #include <cstddef>
+#include <variant>
 
 #define MINIZ_NO_DEFLATE_APIS
 #define MINIZ_NO_ARCHIVE_WRITING_APIS
@@ -20,6 +21,10 @@
 
 #include "librecomp/recomp.h"
 #include "librecomp/sections.h"
+
+namespace N64Recomp {
+    class Context;
+};
 
 namespace recomp {
     namespace mods {
@@ -156,6 +161,81 @@ namespace recomp {
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
         };
+
+        using ModFunction = std::variant<recomp_func_t*>;
+
+        class ModCodeHandle {
+        public:
+            virtual ~ModCodeHandle() {}
+            virtual bool good() = 0;
+            virtual void set_imported_function_pointer(size_t import_index, recomp_func_t* ptr) = 0;
+            virtual void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) = 0;
+            virtual void set_event_index(size_t local_event_index, uint32_t global_event_index) = 0;
+            virtual void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) = 0;
+            virtual void set_get_function_pointer(recomp_func_t* (*ptr)(int32_t)) = 0;
+            virtual void set_reference_section_addresses_pointer(int32_t* ptr) = 0;
+            virtual void set_local_section_address(size_t section_index, int32_t address) = 0;
+            virtual ModFunction get_function_handle(size_t func_index) = 0;
+        };
+
+        struct ModHandle {
+            ModManifest manifest;
+            std::unique_ptr<ModCodeHandle> code_handle;
+            std::unique_ptr<N64Recomp::Context> recompiler_context;
+            std::vector<uint32_t> section_load_addresses;
+
+            ModHandle(ModManifest&& manifest);
+            ModHandle(const ModHandle& rhs) = delete;
+            ModHandle& operator=(const ModHandle& rhs) = delete;
+            ModHandle(ModHandle&& rhs);
+            ModHandle& operator=(ModHandle&& rhs);
+            ~ModHandle();
+        };
+
+        class DynamicLibrary;
+        class NativeCodeHandle : public ModCodeHandle {
+        public:
+            NativeCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context);
+            ~NativeCodeHandle() = default;
+            bool good() final;
+            void set_imported_function_pointer(size_t import_index, recomp_func_t* ptr) final {
+                imported_funcs[import_index] = ptr;
+            }
+            void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) final {
+                reference_symbol_funcs[symbol_index] = ptr;
+            };
+            void set_event_index(size_t local_event_index, uint32_t global_event_index) final {
+                event_indices[local_event_index] = global_event_index;
+            };
+            void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) final {
+                *recomp_trigger_event = ptr;
+            };
+            void set_get_function_pointer(recomp_func_t* (*ptr)(int32_t)) final {
+                *get_function = ptr;
+            };
+            void set_reference_section_addresses_pointer(int32_t* ptr) final {
+                *reference_section_addresses = ptr;
+            };
+            void set_local_section_address(size_t section_index, int32_t address) final {
+                section_addresses[section_index] = address;
+            };
+            ModFunction get_function_handle(size_t func_index) final {
+                return ModFunction{ functions[func_index] };
+            }
+        private:
+            void set_bad();
+            bool is_good;
+            std::unique_ptr<DynamicLibrary> dynamic_lib;
+            std::vector<recomp_func_t*> functions;
+            recomp_func_t** imported_funcs;
+            recomp_func_t** reference_symbol_funcs;
+            uint32_t* event_indices;
+            void (**recomp_trigger_event)(uint8_t* rdram, recomp_context* ctx, uint32_t index);
+            recomp_func_t* (**get_function)(int32_t vram);
+            int32_t** reference_section_addresses;
+            int32_t* section_addresses;
+        };
+
     }
 };
 

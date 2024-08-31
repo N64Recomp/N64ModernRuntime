@@ -430,6 +430,8 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
             return "Reference symbol does not exist";
         case ModLoadError::InvalidImport:
             return "Imported function not found";
+        case ModLoadError::InvalidCallbackEvent:
+            return "Event for callback not found";
         case ModLoadError::InvalidFunctionReplacement:
             return "Function to be replaced does not exist";
         case ModLoadError::FailedToFindReplacement:

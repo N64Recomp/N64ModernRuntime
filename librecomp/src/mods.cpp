@@ -54,6 +54,26 @@ bool recomp::mods::ModHandle::get_export_function(const std::string& export_name
     return true;
 }
 
+recomp::mods::ModLoadError recomp::mods::ModHandle::populate_events(size_t base_event_index, std::string& error_param) {
+    for (size_t event_index = 0; event_index < recompiler_context->event_symbols.size(); event_index++) {
+        const N64Recomp::EventSymbol& event = recompiler_context->event_symbols[event_index];
+        events_by_name.emplace(event.base.name, event_index);
+    }
+
+    code_handle->set_base_event_index(base_event_index);
+    return ModLoadError::Good;
+}
+
+bool recomp::mods::ModHandle::get_global_event_index(const std::string& event_name, size_t& event_index_out) const {
+    auto find_it = events_by_name.find(event_name);
+    if (find_it == events_by_name.end()) {
+        return false;
+    }
+
+    event_index_out = code_handle->get_base_event_index() + find_it->second;
+    return true;
+}
+
 template<class... Ts>
 struct overloaded : Ts... { using Ts::operator()...; };
 template<class... Ts>
@@ -149,7 +169,7 @@ recomp::mods::NativeCodeHandle::NativeCodeHandle(const std::filesystem::path& dl
     is_good = true;
     is_good &= dynamic_lib->get_dll_symbol(imported_funcs, "imported_funcs");
     is_good &= dynamic_lib->get_dll_symbol(reference_symbol_funcs, "reference_symbol_funcs");
-    is_good &= dynamic_lib->get_dll_symbol(event_indices, "event_indices");
+    is_good &= dynamic_lib->get_dll_symbol(base_event_index, "base_event_index");
     is_good &= dynamic_lib->get_dll_symbol(recomp_trigger_event, "recomp_trigger_event");
     is_good &= dynamic_lib->get_dll_symbol(get_function, "get_function");
     is_good &= dynamic_lib->get_dll_symbol(reference_section_addresses, "reference_section_addresses");
@@ -372,6 +392,9 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         unload_mods();
         return ret;
     }
+
+    // Set up the event callbacks based on the number of events allocated.
+    recomp::mods::setup_events(num_events);
     
     // Resolve dependencies for all mods.
     for (size_t mod_index : active_mods) {
@@ -454,15 +477,24 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod_code(recomp::mods:
     }
 
     // Populate the mod's export map.
-    std::string export_error_param;
-    ModLoadError export_error = mod.populate_exports(export_error_param);
+    std::string cur_error_param;
+    ModLoadError cur_error = mod.populate_exports(cur_error_param);
 
-    if (export_error != ModLoadError::Good) {
-        error_param = std::move(export_error_param);
-        return export_error;
+    if (cur_error != ModLoadError::Good) {
+        error_param = std::move(cur_error_param);
+        return cur_error;
     }
 
-    // TODO events
+    // Populate the mod's event map and set its base event index.
+    cur_error = mod.populate_events(num_events, cur_error_param);
+
+    if (cur_error != ModLoadError::Good) {
+        error_param = std::move(cur_error_param);
+        return cur_error;
+    }
+
+    // Allocate the event indices used by the mod.
+    num_events += mod.num_events();
 
     return ModLoadError::Good;
 }
@@ -523,12 +555,43 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
         mod.code_handle->set_imported_function(import_index, func_handle);
     }
 
-    // TODO event_indices
-    // TODO recomp_trigger_event
+    // Register callbacks.
+    for (const N64Recomp::Callback& callback : mod.recompiler_context->callbacks) {
+        const N64Recomp::DependencyEvent& dependency_event = mod.recompiler_context->dependency_events[callback.dependency_event_index];
+        const N64Recomp::Dependency& dependency = mod.recompiler_context->dependencies[dependency_event.dependency_index];
+        GenericFunction func = mod.code_handle->get_function_handle(callback.function_index);
+        size_t event_index = 0;
+        bool did_find_event = false;
 
+        if (dependency.mod_id == N64Recomp::DependencyBaseRecomp) {
+            error_param = "Base recomp events not supported yet";
+            return ModLoadError::InvalidCallbackEvent;
+        }
+        else if (dependency.mod_id == N64Recomp::DependencySelf) {
+            did_find_event = mod.get_global_event_index(dependency_event.event_name, event_index);
+        }
+        else {
+            auto find_mod_it = loaded_mods_by_id.find(dependency.mod_id);
+            if (find_mod_it == loaded_mods_by_id.end()) {
+                error_param = dependency.mod_id;
+                return ModLoadError::MissingDependency;
+            }
+            const auto& dependency_mod = opened_mods[find_mod_it->second];
+            did_find_event = dependency_mod.get_global_event_index(dependency_event.event_name, event_index);
+        }
+
+        if (!did_find_event) {
+            error_param = dependency.mod_id + ":" + dependency_event.event_name;
+            return ModLoadError::InvalidCallbackEvent;
+        }
+
+        recomp::mods::register_event_callback(event_index, func);
+    }
+
+    // Populate the mod's state fields.
+    mod.code_handle->set_recomp_trigger_event_pointer(recomp_trigger_event);
     mod.code_handle->set_get_function_pointer(get_function);
     mod.code_handle->set_reference_section_addresses_pointer(section_addresses);
-
     for (size_t section_index = 0; section_index < mod.section_load_addresses.size(); section_index++) {
         mod.code_handle->set_local_section_address(section_index, mod.section_load_addresses[section_index]);
     }
@@ -564,8 +627,6 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
 
     // TODO perform mips32 relocations
 
-    // TODO hook up callbacks
-
     return ModLoadError::Good;
 }
 
@@ -575,4 +636,6 @@ void recomp::mods::ModContext::unload_mods() {
     }
     patched_funcs.clear();
     loaded_mods_by_id.clear();
+    recomp::mods::reset_events();
+    num_events = 0;
 }

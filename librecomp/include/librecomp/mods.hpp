@@ -53,6 +53,7 @@ namespace recomp {
             FailedToLoadNativeCode,
             InvalidReferenceSymbol,
             InvalidImport,
+            InvalidCallbackEvent,
             InvalidFunctionReplacement,
             FailedToFindReplacement,
             ReplacementConflict,
@@ -162,10 +163,7 @@ namespace recomp {
             std::unordered_set<std::string> enabled_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
-            // // Maps (mod id, export name) to (mod index, function index).
-            // std::unordered_map<std::pair<std::string, std::string>, std::pair<size_t, size_t>> mod_exports;
-            // // Maps (mod id, event name) to a vector of callback functions attached to that event.
-            // std::unordered_map<std::pair<std::string, std::string>, std::vector<GenericFunction>> callbacks;
+            size_t num_events = 0;
         };
 
         class ModCodeHandle {
@@ -174,7 +172,8 @@ namespace recomp {
             virtual bool good() = 0;
             virtual void set_imported_function(size_t import_index, GenericFunction func) = 0;
             virtual void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) = 0;
-            virtual void set_event_index(size_t local_event_index, uint32_t global_event_index) = 0;
+            virtual void set_base_event_index(uint32_t global_event_index) = 0;
+            virtual uint32_t get_base_event_index() = 0;
             virtual void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) = 0;
             virtual void set_get_function_pointer(recomp_func_t* (*ptr)(int32_t)) = 0;
             virtual void set_reference_section_addresses_pointer(int32_t* ptr) = 0;
@@ -202,11 +201,13 @@ namespace recomp {
 
             ModLoadError populate_exports(std::string& error_param);
             bool get_export_function(const std::string& export_name, GenericFunction& out) const;
+            ModLoadError populate_events(size_t base_event_index, std::string& error_param);
+            bool get_global_event_index(const std::string& event_name, size_t& event_index_out) const;
         private:
             // Mapping of export name to function index.
             std::unordered_map<std::string, size_t> exports_by_name;
-            // List of global event indices ordered by the event's local index.
-            std::vector<size_t> global_event_indices;
+            // Mapping of event name to local index.
+            std::unordered_map<std::string, size_t> events_by_name;
         };
 
         class DynamicLibrary;
@@ -219,9 +220,12 @@ namespace recomp {
             void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) final {
                 reference_symbol_funcs[symbol_index] = ptr;
             };
-            void set_event_index(size_t local_event_index, uint32_t global_event_index) final {
-                event_indices[local_event_index] = global_event_index;
+            void set_base_event_index(uint32_t global_event_index) final {
+                *base_event_index = global_event_index;
             };
+            uint32_t get_base_event_index() final {
+                return *base_event_index;
+            }
             void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) final {
                 *recomp_trigger_event = ptr;
             };
@@ -244,14 +248,19 @@ namespace recomp {
             std::vector<recomp_func_t*> functions;
             recomp_func_t** imported_funcs;
             recomp_func_t** reference_symbol_funcs;
-            uint32_t* event_indices;
+            uint32_t* base_event_index;
             void (**recomp_trigger_event)(uint8_t* rdram, recomp_context* ctx, uint32_t index);
             recomp_func_t* (**get_function)(int32_t vram);
             int32_t** reference_section_addresses;
             int32_t* section_addresses;
         };
 
+        void setup_events(size_t num_events);
+        void register_event_callback(size_t event_index, GenericFunction callback);
+        void reset_events();
     }
 };
+
+extern "C" void recomp_trigger_event(uint8_t* rdram, recomp_context* ctx, uint32_t event_index);
 
 #endif

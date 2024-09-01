@@ -320,6 +320,7 @@ size_t recomp::mods::ModContext::num_opened_mods() {
 std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;
+    num_events = recomp::overlays::num_base_events();
 
     if (!patched_funcs.empty()) {
         printf("Mods already loaded!\n");
@@ -564,8 +565,10 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
         bool did_find_event = false;
 
         if (dependency.mod_id == N64Recomp::DependencyBaseRecomp) {
-            error_param = "Base recomp events not supported yet";
-            return ModLoadError::InvalidCallbackEvent;
+            event_index = recomp::overlays::get_base_event_index(dependency_event.event_name);
+            if (event_index != (size_t)-1) {
+                did_find_event = true;
+            }
         }
         else if (dependency.mod_id == N64Recomp::DependencySelf) {
             did_find_event = mod.get_global_event_index(dependency_event.event_name, event_index);
@@ -637,5 +640,5 @@ void recomp::mods::ModContext::unload_mods() {
     patched_funcs.clear();
     loaded_mods_by_id.clear();
     recomp::mods::reset_events();
-    num_events = 0;
+    num_events = recomp::overlays::num_base_events();
 }

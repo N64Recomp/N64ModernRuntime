@@ -36,6 +36,7 @@ static std::unordered_map<uint32_t, uint16_t> code_sections_by_rom{};
 static std::vector<LoadedSection> loaded_sections{};
 static std::unordered_map<int32_t, recomp_func_t*> func_map{};
 static std::unordered_map<std::string, recomp_func_t*> base_exports{};
+static std::unordered_map<std::string, size_t> base_events;
 
 extern "C" {
 int32_t* section_addresses = nullptr;
@@ -83,6 +84,24 @@ recomp_func_t* recomp::overlays::get_base_export(const std::string& export_name)
         return nullptr;
     }
     return it->second;
+}
+
+void recomp::overlays::register_base_events(char const* const* event_names) {
+    for (size_t event_index = 0; event_names[event_index] != nullptr; event_index++) {
+        base_events.emplace(event_names[event_index], event_index);
+    }
+}
+
+size_t recomp::overlays::get_base_event_index(const std::string& event_name) {
+    auto it = base_events.find(event_name);
+    if (it == base_events.end()) {
+        return (size_t)-1;
+    }
+    return it->second;
+}
+
+size_t recomp::overlays::num_base_events() {
+    return base_events.size();
 }
 
 const std::unordered_map<uint32_t, uint16_t>& recomp::overlays::get_vrom_to_section_map() {

@@ -1,5 +1,6 @@
 #include <vector>
 #include "librecomp/mods.hpp"
+#include "librecomp/overlays.hpp"
 #include "ultramodern/error_handling.hpp"
 
 template<class... Ts>
@@ -9,6 +10,11 @@ overloaded(Ts...) -> overloaded<Ts...>;
 
 // Vector of callbacks for each registered event.
 std::vector<std::vector<recomp::mods::GenericFunction>> event_callbacks{};
+
+extern "C" {
+    // This can stay at 0 since the base events are always first in the list.
+    uint32_t builtin_base_event_index = 0;
+}
 
 extern "C" void recomp_trigger_event(uint8_t* rdram, recomp_context* ctx, uint32_t event_index) {
     // Sanity check the event index.

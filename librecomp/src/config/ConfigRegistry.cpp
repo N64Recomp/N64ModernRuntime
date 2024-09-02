@@ -73,6 +73,22 @@ void register_config_option(
     config_registry.key_ref_map[this_key] = { config_group, json_path };
 
     switch (type) {
+        case ConfigOptionType::Button: {
+            if (j.find("callback") != j.end()) {
+                if (!j["callback"].is_string()) {
+                    TODO_PARSE_ERROR(this_key + "/callback" , "string");
+                    return;
+                }
+            }
+            if (j.find("variant") != j.end()) {
+                if (!j["variant"].is_string()) {
+                    TODO_PARSE_ERROR(this_key + "/variant" , "string");
+                    return;
+                }
+            }
+
+            break;
+        }
         case ConfigOptionType::TextField: {
             std::string default_val = "";
             if (j.find("default") != j.end()) {

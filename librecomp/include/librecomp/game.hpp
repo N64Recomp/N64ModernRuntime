@@ -13,10 +13,9 @@ namespace recomp {
         uint64_t rom_hash;
         std::string internal_name;
         std::u8string game_id;
-		std::u8string mod_subdirectory;
+		std::string mod_game_id;
         std::span<const char> cache_data;
         bool is_enabled;
-		bool mods;
 
         gpr entrypoint_address;
         void (*entrypoint)(uint8_t* rdram, recomp_context* context);

@@ -131,6 +131,7 @@ bool recomp::mods::LooseModFileHandle::file_exists(const std::string& filepath) 
 }
 
 enum class ManifestField {
+    GameModId,
     Id,
     MajorVersion,
     MinorVersion,
@@ -142,6 +143,7 @@ enum class ManifestField {
     NativeLibraryPaths,
 };
 
+const std::string game_mod_id_key = "game_id";
 const std::string mod_id_key = "id";
 const std::string major_version_key = "major_version";
 const std::string minor_version_key = "minor_version";
@@ -153,6 +155,7 @@ const std::string rom_patch_syms_path_key = "rom_patch_syms";
 const std::string native_library_paths_key = "native_libraries";
 
 std::unordered_map<std::string, ManifestField> field_map {
+    { game_mod_id_key,          ManifestField::GameModId          },
     { mod_id_key,               ManifestField::Id                 },
     { major_version_key,        ManifestField::MajorVersion       },
     { minor_version_key,        ManifestField::MinorVersion       },
@@ -219,6 +222,17 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
 
         ManifestField field = find_key_it->second;
         switch (field) {
+            case ManifestField::GameModId:
+                {
+                    std::string mod_game_id;
+                    if (!get_to<json::string_t>(val, mod_game_id)) {
+                        error_param = key;
+                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                    }
+                    ret.mod_game_ids.resize(1);
+                    ret.mod_game_ids[0] = std::move(mod_game_id);
+                }
+                break;
             case ManifestField::Id:
                 if (!get_to<json::string_t>(val, ret.mod_id)) {
                     error_param = key;
@@ -306,6 +320,10 @@ recomp::mods::ModOpenError validate_manifest(const recomp::mods::ModManifest& ma
     using namespace recomp::mods;
 
     // Check for required fields.
+    if (manifest.mod_game_ids.empty()) {
+        error_param = game_mod_id_key;
+        return ModOpenError::MissingManifestField;
+    }    
     if (manifest.mod_id.empty()) {
         error_param = mod_id_key;
         return ModOpenError::MissingManifestField;
@@ -398,7 +416,7 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         bool exists;
         std::vector<char> manifest_data = manifest.file_handle->read_file("manifest.json", exists);
         if (!exists) {
-            return ModOpenError::NoManifest;;
+            return ModOpenError::NoManifest;
         }
 
         ModOpenError parse_error = parse_manifest(manifest, manifest_data, error_param);
@@ -419,9 +437,20 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         return validate_error;
     }
 
+    // Check for this mod's game ids being valid.
+    std::vector<size_t> game_indices;
+    for (const auto& mod_game_id : manifest.mod_game_ids) {
+        auto find_id_it = mod_game_ids.find(mod_game_id);
+        if (find_id_it == mod_game_ids.end()) {
+            error_param = mod_game_id;
+            return ModOpenError::WrongGame;
+        }
+        game_indices.emplace_back(find_id_it->second);
+    }
+
     // Store the loaded mod manifest in a new mod handle.
     manifest.mod_root_path = mod_path;
-    add_opened_mod(std::move(manifest));
+    add_opened_mod(std::move(manifest), std::move(game_indices));
 
     return ModOpenError::Good;
 }
@@ -454,6 +483,8 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "File inside mod does not exist";
         case ModOpenError::DuplicateMod:
             return "Duplicate mod found";
+        case ModOpenError::WrongGame:
+            return "Mod is for a different game";
     }
     return "Unknown mod opening error: " + std::to_string((int)error);
 }
@@ -462,6 +493,8 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
     switch (error) {
         case ModLoadError::Good:
             return "Good";
+        case ModLoadError::InvalidGame:
+            return "Invalid game";
         case ModLoadError::FailedToLoadSyms:
             return "Failed to load mod symbol file";
         case ModLoadError::FailedToLoadBinary:

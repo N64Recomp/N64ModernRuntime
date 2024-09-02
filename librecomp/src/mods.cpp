@@ -110,10 +110,11 @@ recomp::mods::ModLoadError recomp::mods::validate_api_version(uint32_t api_versi
     }
 }
 
-recomp::mods::ModHandle::ModHandle(ModManifest&& manifest) :
+recomp::mods::ModHandle::ModHandle(ModManifest&& manifest, std::vector<size_t>&& game_indices) :
     manifest(std::move(manifest)),
     code_handle(),
-    recompiler_context{std::make_unique<N64Recomp::Context>()}
+    recompiler_context{std::make_unique<N64Recomp::Context>()},
+    game_indices{std::move(game_indices)}
 {
 
 }
@@ -306,8 +307,8 @@ void unpatch_func(void* target_func, const recomp::mods::PatchData& data) {
     protect(target_func, old_flags);
 }
 
-void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest) {
-    opened_mods.emplace_back(std::move(manifest));
+void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices) {
+    opened_mods.emplace_back(std::move(manifest), std::move(game_indices));
 }
 
 recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& handle, int32_t load_address, uint32_t& ram_used, std::string& error_param) {
@@ -356,6 +357,10 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, co
     return ModLoadError::Good;
 }
 
+void recomp::mods::ModContext::register_game(const std::string& mod_game_id) {
+    mod_game_ids.emplace(mod_game_id, mod_game_ids.size());
+}
+
 std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mod_folder(const std::filesystem::path& mod_folder) {
     std::vector<recomp::mods::ModOpenErrorDetails> ret{};
     std::error_code ec;
@@ -398,10 +403,18 @@ size_t recomp::mods::ModContext::num_opened_mods() {
     return opened_mods.size();
 }
 
-std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
+std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const std::string& mod_game_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;
     num_events = recomp::overlays::num_base_events();
+
+    auto find_index_it = mod_game_ids.find(mod_game_id);
+    if (find_index_it == mod_game_ids.end()) {
+        ret.emplace_back(mod_game_id, ModLoadError::InvalidGame, std::string{});
+        return ret;
+    }
+
+    size_t mod_game_index = find_index_it->second;
 
     if (!patched_funcs.empty()) {
         printf("Mods already loaded!\n");
@@ -415,7 +428,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     // Find and load active mods.
     for (size_t mod_index = 0; mod_index < opened_mods.size(); mod_index++) {
         auto& mod = opened_mods[mod_index];
-        if (enabled_mods.contains(mod.manifest.mod_id)) {
+        if (mod.is_for_game(mod_game_index) && enabled_mods.contains(mod.manifest.mod_id)) {
             active_mods.push_back(mod_index);
             loaded_mods_by_id.emplace(mod.manifest.mod_id, mod_index);
 

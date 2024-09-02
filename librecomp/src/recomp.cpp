@@ -51,8 +51,10 @@ std::mutex mod_context_mutex{};
 
 // Global variables
 std::filesystem::path config_path;
+// Maps game_id to the game's entry.
 std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
-std::unordered_map<std::u8string, recomp::mods::ModContext> mod_contexts {};
+// The global mod context.
+std::unique_ptr<recomp::mods::ModContext> mod_context = std::make_unique<recomp::mods::ModContext>();
 
 std::u8string recomp::GameEntry::stored_filename() const {
     return game_id + u8".z64";
@@ -68,21 +70,23 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
         std::lock_guard<std::mutex> lock(game_roms_mutex);
         game_roms.insert({ entry.game_id, entry });
     }
-
-    // Scan for mods in the main mod folder if enabled.
-    if (entry.mods) {
-        std::vector<recomp::mods::ModOpenErrorDetails> mod_open_errors;
-        {
-            std::lock_guard mod_lock{ mod_context_mutex };
-            recomp::mods::ModContext& mod_context = mod_contexts[entry.game_id];
-            mod_open_errors = mod_context.scan_mod_folder(config_path / "mods" / entry.mod_subdirectory);
-        }
-        for (const auto& cur_error : mod_open_errors) {
-            printf("Error opening mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
-        }
+    if (!entry.mod_game_id.empty()) {
+        std::lock_guard<std::mutex> lock(mod_context_mutex);
+        mod_context->register_game(entry.mod_game_id);
     }
 
     return true;
+}
+
+void recomp::mods::scan_mods() {
+    std::vector<recomp::mods::ModOpenErrorDetails> mod_open_errors;
+    {
+        std::lock_guard mod_lock{ mod_context_mutex };
+        mod_open_errors = mod_context->scan_mod_folder(config_path / "mods");
+    }
+    for (const auto& cur_error : mod_open_errors) {
+        printf("Error opening mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
+    }
 }
 
 bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
@@ -402,40 +406,14 @@ void ultramodern::quit() {
     current_game.reset();
 }
 
-std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::scan_mod_folder(const std::u8string& game_id, const std::filesystem::path& mod_folder) {
+void recomp::mods::enable_mod(const std::string& mod_id, bool enabled) {
     std::lock_guard lock { mod_context_mutex };
-    auto find_it = mod_contexts.find(game_id);
-    if (find_it == mod_contexts.end()) {
-        return {};
-    }
-    return find_it->second.scan_mod_folder(mod_folder);
+    return mod_context->enable_mod(mod_id, enabled);
 }
 
-void recomp::mods::enable_mod(const std::u8string& game_id, const std::string& mod_id, bool enabled) {
+bool recomp::mods::is_mod_enabled(const std::string& mod_id) {
     std::lock_guard lock { mod_context_mutex };
-    auto find_it = mod_contexts.find(game_id);
-    if (find_it == mod_contexts.end()) {
-        return;
-    }
-    return find_it->second.enable_mod(mod_id, enabled);
-}
-
-bool recomp::mods::is_mod_enabled(const std::u8string& game_id, const std::string& mod_id) {
-    std::lock_guard lock { mod_context_mutex };
-    auto find_it = mod_contexts.find(game_id);
-    if (find_it == mod_contexts.end()) {
-        return false;
-    }
-    return find_it->second.is_mod_enabled(mod_id);
-}
-
-size_t recomp::mods::num_opened_mods(const std::u8string& game_id) {
-    std::lock_guard lock { mod_context_mutex };
-    auto find_it = mod_contexts.find(game_id);
-    if (find_it == mod_contexts.end()) {
-        return 0;
-    }
-    return find_it->second.num_opened_mods();
+    return mod_context->is_mod_enabled(mod_id);
 }
 
 bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
@@ -454,16 +432,12 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
 
                 init(rdram, context, game_entry.entrypoint_address);
 
-                if (game_entry.mods) {
+                if (!game_entry.mod_game_id.empty()) {
                     uint32_t mod_ram_used = 0;
                     std::vector<recomp::mods::ModLoadErrorDetails> mod_load_errors;
                     {
                         std::lock_guard lock { mod_context_mutex };
-                        auto find_it = mod_contexts.find(current_game.value());
-                        if (find_it == mod_contexts.end()) {
-                            return false;
-                        }
-                        mod_load_errors = find_it->second.load_mods(rdram, recomp::mod_rdram_start, mod_ram_used);
+                        mod_load_errors = mod_context->load_mods(game_entry.mod_game_id, rdram, recomp::mod_rdram_start, mod_ram_used);
                     }
 
                     if (!mod_load_errors.empty()) {

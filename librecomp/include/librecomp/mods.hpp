@@ -51,6 +51,8 @@ namespace recomp {
             FailedToLoadSyms,
             FailedToLoadBinary,
             FailedToLoadNativeCode,
+            FailedToLoadNativeLibrary,
+            FailedToFindNativeExport,
             InvalidReferenceSymbol,
             InvalidImport,
             InvalidCallbackEvent,
@@ -60,6 +62,9 @@ namespace recomp {
             MissingDependency,
             WrongDependencyVersion,
             ModConflict,
+            DuplicateExport,
+            NoSpecifiedApiVersion,
+            UnsupportedApiVersion,
         };
 
         std::string error_to_string(ModLoadError);
@@ -93,6 +98,11 @@ namespace recomp {
             bool file_exists(const std::string& filepath) const final;
         };
 
+        struct NativeLibraryManifest {
+            std::string name;
+            std::vector<std::string> exports;
+        };
+
         struct ModManifest {
             std::filesystem::path mod_root_path;
 
@@ -107,6 +117,7 @@ namespace recomp {
             std::string binary_syms_path;
             std::string rom_patch_path;
             std::string rom_patch_syms_path;
+            std::vector<NativeLibraryManifest> native_libraries;
 
             std::unique_ptr<ModFileHandle> file_handle;
         };
@@ -170,6 +181,7 @@ namespace recomp {
         public:
             virtual ~ModCodeHandle() {}
             virtual bool good() = 0;
+            virtual uint32_t get_api_version() = 0;
             virtual void set_imported_function(size_t import_index, GenericFunction func) = 0;
             virtual void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) = 0;
             virtual void set_base_event_index(uint32_t global_event_index) = 0;
@@ -181,6 +193,7 @@ namespace recomp {
             virtual GenericFunction get_function_handle(size_t func_index) = 0;
         };
 
+        class DynamicLibrary;
         class ModHandle {
         public:
             // TODO make these private and expose methods for the functionality they're currently used in.
@@ -203,19 +216,24 @@ namespace recomp {
             bool get_export_function(const std::string& export_name, GenericFunction& out) const;
             ModLoadError populate_events(size_t base_event_index, std::string& error_param);
             bool get_global_event_index(const std::string& event_name, size_t& event_index_out) const;
+            ModLoadError load_native_library(const NativeLibraryManifest& lib_manifest, std::string& error_param);
         private:
             // Mapping of export name to function index.
             std::unordered_map<std::string, size_t> exports_by_name;
+            // Mapping of export name to native library function pointer.
+            std::unordered_map<std::string, recomp_func_t*> native_library_exports;
             // Mapping of event name to local index.
             std::unordered_map<std::string, size_t> events_by_name;
+            // Loaded dynamic libraries.
+            std::vector<std::unique_ptr<DynamicLibrary>> native_libraries; // Vector of pointers so that implementation can be elsewhere.
         };
 
-        class DynamicLibrary;
         class NativeCodeHandle : public ModCodeHandle {
         public:
             NativeCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context);
             ~NativeCodeHandle() = default;
             bool good() final;
+            uint32_t get_api_version() final;
             void set_imported_function(size_t import_index, GenericFunction func) final;
             void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) final {
                 reference_symbol_funcs[symbol_index] = ptr;
@@ -258,6 +276,7 @@ namespace recomp {
         void setup_events(size_t num_events);
         void register_event_callback(size_t event_index, GenericFunction callback);
         void reset_events();
+        ModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
     }
 };
 

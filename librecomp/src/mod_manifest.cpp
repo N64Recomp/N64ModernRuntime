@@ -138,7 +138,8 @@ enum class ManifestField {
     BinaryPath,
     BinarySymsPath,
     RomPatchPath,
-    RomPatchSymsPath
+    RomPatchSymsPath,
+    NativeLibraryPaths,
 };
 
 const std::string mod_id_key = "id";
@@ -149,16 +150,18 @@ const std::string binary_path_key = "binary";
 const std::string binary_syms_path_key = "binary_syms";
 const std::string rom_patch_path_key = "rom_patch";
 const std::string rom_patch_syms_path_key = "rom_patch_syms";
+const std::string native_library_paths_key = "native_libraries";
 
 std::unordered_map<std::string, ManifestField> field_map {
-    { mod_id_key,              ManifestField::Id               },
-    { major_version_key,       ManifestField::MajorVersion     },
-    { minor_version_key,       ManifestField::MinorVersion     },
-    { patch_version_key,       ManifestField::PatchVersion     },
-    { binary_path_key,         ManifestField::BinaryPath       },
-    { binary_syms_path_key,    ManifestField::BinarySymsPath   },
-    { rom_patch_path_key,      ManifestField::RomPatchPath     },
-    { rom_patch_syms_path_key, ManifestField::RomPatchSymsPath },
+    { mod_id_key,               ManifestField::Id                 },
+    { major_version_key,        ManifestField::MajorVersion       },
+    { minor_version_key,        ManifestField::MinorVersion       },
+    { patch_version_key,        ManifestField::PatchVersion       },
+    { binary_path_key,          ManifestField::BinaryPath         },
+    { binary_syms_path_key,     ManifestField::BinarySymsPath     },
+    { rom_patch_path_key,       ManifestField::RomPatchPath       },
+    { rom_patch_syms_path_key,  ManifestField::RomPatchSymsPath   },
+    { native_library_paths_key, ManifestField::NativeLibraryPaths },
 };
 
 template <typename T1, typename T2>
@@ -169,6 +172,28 @@ bool get_to(const nlohmann::json& val, T2& out) {
     }
 
     out = *ptr;
+    return true;
+}
+
+template <typename T1, typename T2>
+bool get_to_vec(const nlohmann::json& val, std::vector<T2>& out) {
+    const nlohmann::json::array_t* ptr = val.get_ptr<const nlohmann::json::array_t*>();
+    if (ptr == nullptr) {
+        return false;
+    }
+
+    out.clear();
+
+    for (const nlohmann::json& cur_val : *ptr) {
+        const T1* temp_ptr = cur_val.get_ptr<const T1*>();
+        if (temp_ptr == nullptr) {
+            out.clear();
+            return false;
+        }
+
+        out.emplace_back(*temp_ptr);
+    }
+
     return true;
 }
 
@@ -240,6 +265,23 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
                 if (!get_to<json::string_t>(val, ret.rom_patch_syms_path)) {
                     error_param = key;
                     return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                }
+                break;
+            case ManifestField::NativeLibraryPaths:
+                {
+                    if (!val.is_object()) {
+                        error_param = key;
+                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                    }
+                    for (const auto& [lib_name, lib_exports] : val.items()) {
+                        recomp::mods::NativeLibraryManifest& cur_lib = ret.native_libraries.emplace_back();
+
+                        cur_lib.name = lib_name;
+                        if (!get_to_vec<std::string>(lib_exports, cur_lib.exports)) {
+                            error_param = key;
+                            return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                        }
+                    }
                 }
                 break;
         }
@@ -413,7 +455,7 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
         case ModOpenError::DuplicateMod:
             return "Duplicate mod found";
     }
-    return "Unknown error " + std::to_string((int)error);
+    return "Unknown mod opening error: " + std::to_string((int)error);
 }
 
 std::string recomp::mods::error_to_string(ModLoadError error) {
@@ -425,7 +467,11 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
         case ModLoadError::FailedToLoadBinary:
             return "Failed to load mod binary file";
         case ModLoadError::FailedToLoadNativeCode:
-            return "Failed to load mod DLL";
+            return "Failed to load mod code DLL";
+        case ModLoadError::FailedToLoadNativeLibrary:
+            return "Failed to load mod library DLL";
+        case ModLoadError::FailedToFindNativeExport:
+            return "Failed to find native export";
         case ModLoadError::InvalidReferenceSymbol:
             return "Reference symbol does not exist";
         case ModLoadError::InvalidImport:
@@ -444,6 +490,12 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
             return "Wrong dependency version";
         case ModLoadError::ModConflict:
             return "Conflicts with other mod";
+        case ModLoadError::DuplicateExport:
+            return "Duplicate exports in mod";
+        case ModLoadError::NoSpecifiedApiVersion:
+            return "Mod DLL does not specify an API version";
+        case ModLoadError::UnsupportedApiVersion:
+            return "Mod DLL has an unsupported API version";
     }
-    return "Unknown error " + std::to_string((int)error);
+    return "Unknown mod loading error " + std::to_string((int)error);
 }

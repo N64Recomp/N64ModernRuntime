@@ -14,6 +14,102 @@
 #define PATHFMT "%s"
 #endif
 
+template<class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+template<class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
+
+#if defined(_WIN32)
+#   define WIN32_LEAN_AND_MEAN
+#   include "Windows.h"
+
+class recomp::mods::DynamicLibrary {
+public:
+    static constexpr std::string_view PlatformExtension = ".dll";
+    DynamicLibrary() = default;
+    DynamicLibrary(const std::filesystem::path& path) {
+        native_handle = LoadLibraryW(path.c_str());
+
+        if (good()) {
+            uint32_t* recomp_api_version;
+            if (get_dll_symbol(recomp_api_version, "recomp_api_version")) {
+                api_version = *recomp_api_version;
+            }
+            else {
+                api_version = (uint32_t)-1;
+            }
+        }
+    }
+    ~DynamicLibrary() {
+        unload();
+    }
+    DynamicLibrary(const DynamicLibrary&) = delete;
+    DynamicLibrary& operator=(const DynamicLibrary&) = delete;
+    DynamicLibrary(DynamicLibrary&&) = delete;
+    DynamicLibrary& operator=(DynamicLibrary&&) = delete;
+
+    void unload() {
+        if (native_handle != nullptr) {
+            FreeLibrary(native_handle);
+        }
+        native_handle = nullptr;
+    }
+
+    bool good() const {
+        return native_handle != nullptr;
+    }
+
+    template <typename T>
+    bool get_dll_symbol(T& out, const char* name) const {
+        out = (T)GetProcAddress(native_handle, name);
+        if (out == nullptr) {
+            return false;
+        }
+        return true;
+    };
+
+    uint32_t get_api_version() {
+        return api_version;
+    }
+private:
+    HMODULE native_handle;
+    uint32_t api_version;
+};
+
+void unprotect(void* target_func, uint64_t* old_flags) {
+    DWORD old_flags_dword;
+    BOOL result = VirtualProtect(target_func,
+        16,
+        PAGE_READWRITE,
+        &old_flags_dword);
+    *old_flags = old_flags_dword;
+    (void)result;
+}
+
+void protect(void* target_func, uint64_t old_flags) {
+    DWORD dummy_old_flags;
+    BOOL result = VirtualProtect(target_func,
+        16,
+        static_cast<DWORD>(old_flags),
+        &dummy_old_flags);
+    (void)result;
+}
+#else
+#   error "Mods not implemented yet on this platform"
+#endif
+
+recomp::mods::ModLoadError recomp::mods::validate_api_version(uint32_t api_version, std::string& error_param) {
+    switch (api_version) {
+        case 1:
+            return ModLoadError::Good;
+        case (size_t)-1:
+            return ModLoadError::NoSpecifiedApiVersion;
+        default:
+            error_param = std::to_string(api_version);
+            return ModLoadError::UnsupportedApiVersion;
+    }
+}
+
 recomp::mods::ModHandle::ModHandle(ModManifest&& manifest) :
     manifest(std::move(manifest)),
     code_handle(),
@@ -34,7 +130,6 @@ size_t recomp::mods::ModHandle::num_events() const {
     return recompiler_context->event_symbols.size();
 }
 
-
 recomp::mods::ModLoadError recomp::mods::ModHandle::populate_exports(std::string& error_param) {
     for (size_t func_index : recompiler_context->exported_funcs) {
         const auto& func_handle = recompiler_context->functions[func_index];
@@ -44,14 +139,64 @@ recomp::mods::ModLoadError recomp::mods::ModHandle::populate_exports(std::string
     return ModLoadError::Good;
 }
 
-bool recomp::mods::ModHandle::get_export_function(const std::string& export_name, GenericFunction& out) const {
-    auto find_it = exports_by_name.find(export_name);
-    if (find_it == exports_by_name.end()) {
-        return false;
+recomp::mods::ModLoadError recomp::mods::ModHandle::load_native_library(const recomp::mods::NativeLibraryManifest& lib_manifest, std::string& error_param) {
+    std::string lib_filename = lib_manifest.name + std::string{DynamicLibrary::PlatformExtension};
+    std::filesystem::path lib_path = manifest.mod_root_path.parent_path() / lib_filename;
+
+    std::unique_ptr<DynamicLibrary>& lib = native_libraries.emplace_back(std::make_unique<DynamicLibrary>(lib_path));
+
+    if (!lib->good()) {
+        error_param = lib_filename;
+        return ModLoadError::FailedToLoadNativeLibrary;
+    }
+    
+    std::string api_error_param;
+    ModLoadError api_error = validate_api_version(lib->get_api_version(), api_error_param);
+
+    if (api_error != ModLoadError::Good) {
+        if (api_error_param.empty()) {
+            error_param = lib_filename;
+        }
+        else {
+            error_param = lib_filename + ":" + api_error_param;
+        }
+        return api_error;
     }
 
-    out = code_handle->get_function_handle(find_it->second);
-    return true;
+    for (const std::string& export_name : lib_manifest.exports) {
+        recomp_func_t* cur_func;
+        if (native_library_exports.contains(export_name)) {
+            error_param = export_name;
+            return ModLoadError::DuplicateExport;
+        }
+        if (!lib->get_dll_symbol(cur_func, export_name.c_str())) {
+            error_param = lib_manifest.name + ":" + export_name;
+            return ModLoadError::FailedToFindNativeExport;
+        }
+        native_library_exports.emplace(export_name, cur_func);
+    }
+
+    return ModLoadError::Good;
+}
+
+bool recomp::mods::ModHandle::get_export_function(const std::string& export_name, GenericFunction& out) const {
+    // First, check the code exports.
+    auto code_find_it = exports_by_name.find(export_name);
+    if (code_find_it != exports_by_name.end()) {
+        out = code_handle->get_function_handle(code_find_it->second);
+        return true;
+    }
+
+    // Next, check the native library exports.
+    auto native_find_it = native_library_exports.find(export_name);
+    if (native_find_it != native_library_exports.end()) {
+        out = native_find_it->second;
+        return true;
+    }
+
+
+    // Nothing found.
+    return false;
 }
 
 recomp::mods::ModLoadError recomp::mods::ModHandle::populate_events(size_t base_event_index, std::string& error_param) {
@@ -73,74 +218,6 @@ bool recomp::mods::ModHandle::get_global_event_index(const std::string& event_na
     event_index_out = code_handle->get_base_event_index() + find_it->second;
     return true;
 }
-
-template<class... Ts>
-struct overloaded : Ts... { using Ts::operator()...; };
-template<class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
-
-#if defined(_WIN32)
-#   define WIN32_LEAN_AND_MEAN
-#   include "Windows.h"
-
-    class recomp::mods::DynamicLibrary {
-    public:
-        DynamicLibrary() = default;
-        DynamicLibrary(const std::filesystem::path& path) {
-            mod_dll = LoadLibraryW(path.c_str());
-        }
-        ~DynamicLibrary() {
-            unload();
-        }
-        DynamicLibrary(const DynamicLibrary&) = delete;
-        DynamicLibrary& operator=(const DynamicLibrary&) = delete;
-        DynamicLibrary(DynamicLibrary&&) = delete;
-        DynamicLibrary& operator=(DynamicLibrary&&) = delete;
-
-        void unload() {
-            if (mod_dll != nullptr) {
-                FreeLibrary(mod_dll);
-            }
-            mod_dll = nullptr;
-        }
-
-        bool good() {
-            return mod_dll != nullptr;
-        }
-
-        template <typename T>
-        bool get_dll_symbol(T& out, const char* name) const {
-            out = (T)GetProcAddress(mod_dll, name);
-            if (out == nullptr) {
-                return false;
-            }
-            return true;
-        };
-    private:
-        HMODULE mod_dll;
-    };
-
-    void unprotect(void* target_func, uint64_t* old_flags) {
-        DWORD old_flags_dword;
-        BOOL result = VirtualProtect(target_func,
-            16,
-            PAGE_READWRITE,
-            &old_flags_dword);
-        *old_flags = old_flags_dword;
-        (void)result;
-    }
-
-    void protect(void* target_func, uint64_t old_flags) {
-        DWORD dummy_old_flags;
-        BOOL result = VirtualProtect(target_func,
-            16,
-            static_cast<DWORD>(old_flags),
-            &dummy_old_flags);
-        (void)result;
-    }
-#else
-#   error "Mods not implemented yet on this platform"
-#endif
 
 recomp::mods::NativeCodeHandle::NativeCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context) {
     // Load the DLL.
@@ -178,6 +255,10 @@ recomp::mods::NativeCodeHandle::NativeCodeHandle(const std::filesystem::path& dl
 
 bool recomp::mods::NativeCodeHandle::good()  {
     return dynamic_lib->good() && is_good;
+}
+
+uint32_t recomp::mods::NativeCodeHandle::get_api_version() {
+    return dynamic_lib->get_api_version();
 }
 
 void recomp::mods::NativeCodeHandle::set_bad() {
@@ -469,7 +550,7 @@ void recomp::mods::ModContext::check_dependencies(recomp::mods::ModHandle& mod, 
 recomp::mods::ModLoadError recomp::mods::ModContext::load_mod_code(recomp::mods::ModHandle& mod, std::string& error_param) {
     // TODO implement LuaJIT recompilation and allow it instead of native code loading via a mod manifest flag.
     std::filesystem::path dll_path = mod.manifest.mod_root_path;
-    dll_path.replace_extension(".dll");
+    dll_path.replace_extension(DynamicLibrary::PlatformExtension);
     mod.code_handle = std::make_unique<NativeCodeHandle>(dll_path, *mod.recompiler_context);
     if (!mod.code_handle->good()) {
         mod.code_handle.reset();
@@ -477,13 +558,35 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod_code(recomp::mods:
         return ModLoadError::FailedToLoadNativeCode;
     }
 
-    // Populate the mod's export map.
     std::string cur_error_param;
-    ModLoadError cur_error = mod.populate_exports(cur_error_param);
+    ModLoadError cur_error = validate_api_version(mod.code_handle->get_api_version(), cur_error_param);
+
+    if (cur_error != ModLoadError::Good) {
+        if (cur_error_param.empty()) {
+            error_param = dll_path.filename().string();
+        }
+        else {
+            error_param = dll_path.filename().string() + ":" + std::move(cur_error_param);
+        }
+        return cur_error;
+    }
+
+    // Populate the mod's export map.
+    cur_error = mod.populate_exports(cur_error_param);
 
     if (cur_error != ModLoadError::Good) {
         error_param = std::move(cur_error_param);
         return cur_error;
+    }
+
+    // Load any native libraries specified by the mod and validate/register the expors.
+    std::filesystem::path parent_path = mod.manifest.mod_root_path.parent_path();
+    for (const recomp::mods::NativeLibraryManifest& cur_lib_manifest: mod.manifest.native_libraries) {
+        cur_error = mod.load_native_library(cur_lib_manifest, cur_error_param);
+        if (cur_error != ModLoadError::Good) {
+            error_param = std::move(cur_error_param);
+            return cur_error;
+        }
     }
 
     // Populate the mod's event map and set its base event index.

@@ -414,6 +414,41 @@ size_t recomp::mods::ModContext::num_opened_mods() {
     return opened_mods.size();
 }
 
+std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_mod_details(const std::string& mod_game_id) {
+    std::vector<ModDetails> ret{};
+    bool all_games = mod_game_id.empty();
+    size_t game_index = (size_t)-1;
+
+    auto find_game_it = mod_game_ids.find(mod_game_id);
+    if (find_game_it != mod_game_ids.end()) {
+        game_index = find_game_it->second;
+    }
+
+    for (const ModHandle& mod : opened_mods) {
+        if (all_games || mod.is_for_game(game_index)) {
+            std::vector<DependencyDetails> cur_dependencies{};
+
+            // TODO the recompiler context isn't available at this point, since it's parsed on mod load.
+            // Move that parsing to mod opening so it can be used here.
+            // for (const auto& cur_dep : mod.recompiler_context->dependencies) {
+            //     cur_dependencies.emplace_back(DependencyDetails{
+            //         .mod_id = cur_dep.mod_id,
+            //         .version = Version{.major = cur_dep.major_version, .minor = cur_dep.minor_version, .patch = cur_dep.patch_version}
+            //     });
+            // }
+
+            ret.emplace_back(ModDetails{
+                .mod_id = mod.manifest.mod_id,
+                .version = mod.manifest.version,
+                .authors = {}, // TODO add mod authors to the manifest and copy them here
+                .dependencies = std::move(cur_dependencies)
+            });
+        }
+    }
+
+    return ret;
+}
+
 std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const std::string& mod_game_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;

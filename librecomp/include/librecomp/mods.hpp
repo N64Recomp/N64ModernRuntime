@@ -148,6 +148,7 @@ namespace recomp {
         void scan_mods();
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
+        std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
 
         // Internal functions, TODO move to an internal header.
         struct PatchData {
@@ -170,6 +171,7 @@ namespace recomp {
             size_t num_opened_mods();
             std::vector<ModLoadErrorDetails> load_mods(const std::string& mod_game_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
+            std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
         private:
             ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param);
             ModLoadError load_mod(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_map, recomp::mods::ModHandle& handle, int32_t load_address, uint32_t& ram_used, std::string& error_param);

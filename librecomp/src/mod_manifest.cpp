@@ -135,33 +135,21 @@ enum class ManifestField {
     Id,
     Version,
     MinimumRecompVersion,
-    BinaryPath,
-    BinarySymsPath,
-    RomPatchPath,
-    RomPatchSymsPath,
-    NativeLibraryPaths,
+    NativeLibraries,
 };
 
 const std::string game_mod_id_key = "game_id";
 const std::string mod_id_key = "id";
 const std::string version_key = "version";
 const std::string minimum_recomp_version_key = "minimum_recomp_version";
-const std::string binary_path_key = "binary";
-const std::string binary_syms_path_key = "binary_syms";
-const std::string rom_patch_path_key = "rom_patch";
-const std::string rom_patch_syms_path_key = "rom_patch_syms";
-const std::string native_library_paths_key = "native_libraries";
+const std::string native_libraries_key = "native_libraries";
 
 std::unordered_map<std::string, ManifestField> field_map {
     { game_mod_id_key,            ManifestField::GameModId            },
     { mod_id_key,                 ManifestField::Id                   },
     { version_key,                ManifestField::Version              },
     { minimum_recomp_version_key, ManifestField::MinimumRecompVersion },
-    { binary_path_key,            ManifestField::BinaryPath           },
-    { binary_syms_path_key,       ManifestField::BinarySymsPath       },
-    { rom_patch_path_key,         ManifestField::RomPatchPath         },
-    { rom_patch_syms_path_key,    ManifestField::RomPatchSymsPath     },
-    { native_library_paths_key,   ManifestField::NativeLibraryPaths   },
+    { native_libraries_key,       ManifestField::NativeLibraries      },
 };
 
 template <typename T1, typename T2>
@@ -263,31 +251,7 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
                     ret.minimum_recomp_version.suffix.clear();
                 }
                 break;
-            case ManifestField::BinaryPath:
-                if (!get_to<json::string_t>(val, ret.binary_path)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                }
-                break;
-            case ManifestField::BinarySymsPath:
-                if (!get_to<json::string_t>(val, ret.binary_syms_path)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                }
-                break;
-            case ManifestField::RomPatchPath:
-                if (!get_to<json::string_t>(val, ret.rom_patch_path)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                }
-                break;
-            case ManifestField::RomPatchSymsPath:
-                if (!get_to<json::string_t>(val, ret.rom_patch_syms_path)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                }
-                break;
-            case ManifestField::NativeLibraryPaths:
+            case ManifestField::NativeLibraries:
                 {
                     if (!val.is_object()) {
                         error_param = key;
@@ -310,18 +274,6 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
     return recomp::mods::ModOpenError::Good;
 }
 
-recomp::mods::ModOpenError validate_file_exists(const recomp::mods::ModManifest& manifest, const std::string& filepath, std::string& error_param) {
-    // No file provided, so nothing to check for.
-    if (filepath.empty()) {
-        return recomp::mods::ModOpenError::Good;
-    }
-    if (!manifest.file_handle->file_exists(filepath)) {
-        error_param = filepath;
-        return recomp::mods::ModOpenError::InnerFileDoesNotExist;
-    }
-    return recomp::mods::ModOpenError::Good;
-}
-
 recomp::mods::ModOpenError validate_manifest(const recomp::mods::ModManifest& manifest, std::string& error_param) {
     using namespace recomp::mods;
 
@@ -341,38 +293,6 @@ recomp::mods::ModOpenError validate_manifest(const recomp::mods::ModManifest& ma
     if (manifest.minimum_recomp_version.major == -1 || manifest.minimum_recomp_version.major == -1 || manifest.minimum_recomp_version.major == -1) {
         error_param = minimum_recomp_version_key;
         return ModOpenError::MissingManifestField;
-    }
-
-    // If either a binary file or binary symbol file is provided, the other must be as well.
-    if (manifest.binary_path.empty() != manifest.binary_syms_path.empty()) {
-        if (manifest.binary_path.empty()) {
-            error_param = binary_path_key;
-        }
-        else {
-            error_param = binary_syms_path_key;
-        }
-        return ModOpenError::MissingManifestField;
-    }
-
-    // If a ROM patch symbol file is provided, a ROM patch file must be as well.
-    if (!manifest.rom_patch_syms_path.empty() && manifest.rom_patch_path.empty()) {
-        error_param = rom_patch_path_key;
-        return ModOpenError::MissingManifestField;
-    }
-
-    // Validate that provided files exist.
-    ModOpenError validate_error;
-    if ((validate_error = validate_file_exists(manifest, manifest.binary_path, error_param)) != ModOpenError::Good) {
-        return validate_error;
-    }
-    if ((validate_error = validate_file_exists(manifest, manifest.binary_syms_path, error_param)) != ModOpenError::Good) {
-        return validate_error;
-    }
-    if ((validate_error = validate_file_exists(manifest, manifest.rom_patch_path, error_param)) != ModOpenError::Good) {
-        return validate_error;
-    }
-    if ((validate_error = validate_file_exists(manifest, manifest.rom_patch_syms_path, error_param)) != ModOpenError::Good) {
-        return validate_error;
     }
 
     return ModOpenError::Good;
@@ -485,8 +405,6 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Invalid minimum recomp version string in manifest.json";
         case ModOpenError::MissingManifestField:
             return "Missing required field in manifest";
-        case ModOpenError::InnerFileDoesNotExist:
-            return "File inside mod does not exist";
         case ModOpenError::DuplicateMod:
             return "Duplicate mod found";
         case ModOpenError::WrongGame:
@@ -503,10 +421,12 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
             return "Invalid game";
         case ModLoadError::MinimumRecompVersionNotMet:
             return "Mod requires a newer version of this project";
-        case ModLoadError::FailedToLoadSyms:
-            return "Failed to load mod symbol file";
-        case ModLoadError::FailedToLoadBinary:
-            return "Failed to load mod binary file";
+        case ModLoadError::HasSymsButNoBinary:
+            return "Mod has a symbol file but no binary file";
+        case ModLoadError::HasBinaryButNoSyms:
+            return "Mod has a binary file but no symbol file";
+        case ModLoadError::FailedToParseSyms:
+            return "Failed to parse mod symbol file";
         case ModLoadError::FailedToLoadNativeCode:
             return "Failed to load mod code DLL";
         case ModLoadError::FailedToLoadNativeLibrary:

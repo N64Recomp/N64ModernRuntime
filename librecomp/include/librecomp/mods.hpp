@@ -43,7 +43,6 @@ namespace recomp {
             InvalidVersionString,
             InvalidMinimumRecompVersionString,
             MissingManifestField,
-            InnerFileDoesNotExist,
             DuplicateMod,
             WrongGame
         };
@@ -54,8 +53,9 @@ namespace recomp {
             Good,
             InvalidGame,
             MinimumRecompVersionNotMet,
-            FailedToLoadSyms,
-            FailedToLoadBinary,
+            HasSymsButNoBinary,
+            HasBinaryButNoSyms,
+            FailedToParseSyms,
             FailedToLoadNativeCode,
             FailedToLoadNativeLibrary,
             FailedToFindNativeExport,
@@ -129,13 +129,7 @@ namespace recomp {
             Version minimum_recomp_version;
             Version version;
 
-            // These are all relative to the base path for loose mods or inside the zip for zipped mods.
-            std::string binary_path;
-            std::string binary_syms_path;
-            std::string rom_patch_path;
-            std::string rom_patch_syms_path;
             std::vector<NativeLibraryManifest> native_libraries;
-
             std::unique_ptr<ModFileHandle> file_handle;
         };
 

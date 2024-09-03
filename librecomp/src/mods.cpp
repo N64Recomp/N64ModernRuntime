@@ -98,6 +98,11 @@ void protect(void* target_func, uint64_t old_flags) {
 #   error "Mods not implemented yet on this platform"
 #endif
 
+namespace modpaths {
+    const std::string binary_path = "mod_binary.bin";
+    const std::string binary_syms_path = "mod_syms.bin";
+};
+
 recomp::mods::ModLoadError recomp::mods::validate_api_version(uint32_t api_version, std::string& error_param) {
     switch (api_version) {
         case 1:
@@ -323,18 +328,18 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, co
     
     // Load the mod symbol data from the file provided in the manifest.
     bool binary_syms_exists = false;
-    std::vector<char> syms_data = handle.manifest.file_handle->read_file(handle.manifest.binary_syms_path, binary_syms_exists);
-
-    if (!binary_syms_exists) {
-        return recomp::mods::ModLoadError::FailedToLoadSyms;
-    }
+    std::vector<char> syms_data = handle.manifest.file_handle->read_file(modpaths::binary_syms_path, binary_syms_exists);
     
     // Load the binary data from the file provided in the manifest.
     bool binary_exists = false;
-    std::vector<char> binary_data = handle.manifest.file_handle->read_file(handle.manifest.binary_path, binary_exists);
+    std::vector<char> binary_data = handle.manifest.file_handle->read_file(modpaths::binary_path, binary_exists);
 
-    if (!binary_exists) {
-        return recomp::mods::ModLoadError::FailedToLoadBinary;
+    if (binary_syms_exists && !binary_exists) {
+        return recomp::mods::ModLoadError::HasSymsButNoBinary;
+    }
+
+    if (binary_exists && !binary_syms_exists) {
+        return recomp::mods::ModLoadError::HasBinaryButNoSyms;
     }
 
     std::span<uint8_t> binary_span {reinterpret_cast<uint8_t*>(binary_data.data()), binary_data.size() };
@@ -342,7 +347,7 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, co
     // Parse the symbol file into the recompiler context.
     N64Recomp::ModSymbolsError symbol_load_error = N64Recomp::parse_mod_symbols(syms_data, binary_span, section_vrom_map, *handle.recompiler_context);
     if (symbol_load_error != N64Recomp::ModSymbolsError::Good) {
-        return ModLoadError::FailedToLoadSyms;
+        return ModLoadError::FailedToParseSyms;
     }
     
     handle.section_load_addresses.resize(handle.recompiler_context->sections.size());

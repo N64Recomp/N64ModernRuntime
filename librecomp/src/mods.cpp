@@ -314,6 +314,12 @@ void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, std::vecto
 recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& handle, int32_t load_address, uint32_t& ram_used, std::string& error_param) {
     using namespace recomp::mods;
     handle.section_load_addresses.clear();
+
+    // Check that the mod's minimum recomp version is met.
+    if (get_project_version() < handle.manifest.minimum_recomp_version) {
+        error_param = handle.manifest.minimum_recomp_version.to_string();
+        return recomp::mods::ModLoadError::MinimumRecompVersionNotMet;
+    }
     
     // Load the mod symbol data from the file provided in the manifest.
     bool binary_syms_exists = false;
@@ -365,7 +371,7 @@ std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mo
     std::vector<recomp::mods::ModOpenErrorDetails> ret{};
     std::error_code ec;
     for (const auto& mod_path : std::filesystem::directory_iterator{mod_folder, std::filesystem::directory_options::skip_permission_denied, ec}) {
-        if ((mod_path.is_regular_file() && mod_path.path().extension() == ".zip") || mod_path.is_directory()) {
+        if ((mod_path.is_regular_file() && mod_path.path().extension() == ".nrm") || mod_path.is_directory()) {
             printf("Opening mod " PATHFMT "\n", mod_path.path().stem().c_str());
             std::string open_error_param;
             ModOpenError open_error = open_mod(mod_path, open_error_param);
@@ -510,27 +516,6 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     return ret;
 }
 
-bool dependency_version_met(uint8_t major, uint8_t minor, uint8_t patch, uint8_t major_target, uint8_t minor_target, uint8_t patch_target) {
-    if (major > major_target) {
-        return true;
-    }
-    else if (major < major_target) {
-        return false;
-    }
-
-    if (minor > minor_target) {
-        return true;
-    }
-    else if (minor < minor_target) {
-        return false;
-    }
-
-    if (patch >= patch_target) {
-        return true;
-    }
-    return false;
-}
-
 void recomp::mods::ModContext::check_dependencies(recomp::mods::ModHandle& mod, std::vector<std::pair<recomp::mods::ModLoadError, std::string>>& errors) {
     errors.clear();
     for (N64Recomp::Dependency& cur_dep : mod.recompiler_context->dependencies) {
@@ -546,15 +531,18 @@ void recomp::mods::ModContext::check_dependencies(recomp::mods::ModHandle& mod, 
             continue;
         }
 
-        const auto& mod = opened_mods[find_it->second];
-        if (!dependency_version_met(
-            mod.manifest.major_version, mod.manifest.minor_version, mod.manifest.patch_version,
-            cur_dep.major_version, cur_dep.minor_version, cur_dep.patch_version))
+        const ModHandle& dep_mod = opened_mods[find_it->second];
+        Version dep_version {
+            .major = cur_dep.major_version,
+            .minor = cur_dep.minor_version,
+            .patch = cur_dep.patch_version
+        };
+        if (dep_version > dep_mod.manifest.version)
         {
             std::stringstream error_param_stream{};
             error_param_stream << "requires mod \"" << cur_dep.mod_id << "\" " <<
                 (int)cur_dep.major_version << "." << (int)cur_dep.minor_version << "." << (int)cur_dep.patch_version << ", got " <<
-                (int)mod.manifest.major_version << "." << (int)mod.manifest.minor_version << "." << (int)mod.manifest.patch_version << "";
+                (int)dep_mod.manifest.version.major << "." << (int)dep_mod.manifest.version.minor << "." << (int)dep_mod.manifest.version.patch << "";
             errors.emplace_back(ModLoadError::WrongDependencyVersion, error_param_stream.str());
         }
     }

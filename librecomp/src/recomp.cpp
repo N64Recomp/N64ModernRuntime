@@ -55,6 +55,8 @@ std::filesystem::path config_path;
 std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
 // The global mod context.
 std::unique_ptr<recomp::mods::ModContext> mod_context = std::make_unique<recomp::mods::ModContext>();
+// The project's version.
+recomp::Version project_version;
 
 std::u8string recomp::GameEntry::stored_filename() const {
     return game_id + u8".z64";
@@ -164,6 +166,70 @@ bool recomp::load_stored_rom(std::u8string& game_id) {
     }
 
     recomp::set_rom_contents(std::move(stored_rom_data));
+    return true;
+}
+
+const recomp::Version& recomp::get_project_version() {
+    return project_version;
+}
+
+bool recomp::Version::from_string(const std::string& str, Version& out) {
+    std::array<size_t, 2> period_indices;
+    size_t num_periods = 0;
+    size_t cur_pos = 0;
+    uint16_t major;
+    uint16_t minor;
+    uint16_t patch;
+    std::string suffix;
+
+    // Find the 2 required periods.
+    cur_pos = str.find('.', cur_pos);
+    period_indices[0] = cur_pos;
+    cur_pos = str.find('.', cur_pos + 1);
+    period_indices[1] = cur_pos;
+
+    // Check that both were found.
+    if (period_indices[0] == std::string::npos || period_indices[1] == std::string::npos) {
+        return false;
+    }
+
+    // Parse the 3 numbers formed by splitting the string via the periods.
+    std::array<std::from_chars_result, 3> parse_results; 
+    std::array<size_t, 3> parse_starts { 0, period_indices[0] + 1, period_indices[1] + 1 };
+    std::array<size_t, 3> parse_ends { period_indices[0], period_indices[1], str.size() };
+    parse_results[0] = std::from_chars(str.data() + parse_starts[0], str.data() + parse_ends[0], major);
+    parse_results[1] = std::from_chars(str.data() + parse_starts[1], str.data() + parse_ends[1], minor);
+    parse_results[2] = std::from_chars(str.data() + parse_starts[2], str.data() + parse_ends[2], patch);
+
+    // Check that the first two parsed correctly.
+    auto did_parse = [&](size_t i) {
+        return parse_results[i].ec == std::errc{} && parse_results[i].ptr == str.data() + parse_ends[i];
+    };
+    
+    if (!did_parse(0) || !did_parse(1)) {
+        return false;
+    }
+
+    // Check that the third had a successful parse, but not necessarily read all the characters.
+    if (parse_results[2].ec != std::errc{}) {
+        return false;
+    }
+
+    // Allow a plus or minus directly after the third number.
+    if (parse_results[2].ptr != str.data() + parse_ends[2]) {
+        if (*parse_results[2].ptr == '+' || *parse_results[2].ptr == '-') {
+            suffix = str.substr(std::distance(str.data(), parse_results[2].ptr));
+        }
+        // Failed to parse, as nothing is allowed directly after the last number besides a plus or minus.
+        else {
+            return false;
+        }
+    }
+
+    out.major = major;
+    out.minor = minor;
+    out.patch = patch;
+    out.suffix = std::move(suffix);
     return true;
 }
 
@@ -477,6 +543,7 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
 
 void recomp::start(
     uint32_t rdram_size,
+    const recomp::Version& version,
     ultramodern::renderer::WindowHandle window_handle,
     const recomp::rsp::callbacks_t& rsp_callbacks,
     const ultramodern::renderer::callbacks_t& renderer_callbacks,
@@ -487,6 +554,7 @@ void recomp::start(
     const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
     const ultramodern::threads::callbacks_t& threads_callbacks
 ) {
+    project_version = version;
     recomp::check_all_stored_roms();
 
     recomp::rsp::set_callbacks(rsp_callbacks);

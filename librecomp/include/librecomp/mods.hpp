@@ -19,6 +19,7 @@
 #include "miniz.h"
 #include "miniz_zip.h"
 
+#include "librecomp/game.hpp"
 #include "librecomp/recomp.h"
 #include "librecomp/sections.h"
 
@@ -39,6 +40,8 @@ namespace recomp {
             InvalidManifestSchema,
             UnrecognizedManifestField,
             IncorrectManifestFieldType,
+            InvalidVersionString,
+            InvalidMinimumRecompVersionString,
             MissingManifestField,
             InnerFileDoesNotExist,
             DuplicateMod,
@@ -50,6 +53,7 @@ namespace recomp {
         enum class ModLoadError {
             Good,
             InvalidGame,
+            MinimumRecompVersionNotMet,
             FailedToLoadSyms,
             FailedToLoadBinary,
             FailedToLoadNativeCode,
@@ -105,15 +109,25 @@ namespace recomp {
             std::vector<std::string> exports;
         };
 
+        struct DependencyDetails {
+            std::string mod_id;
+            Version version;
+        };
+
+        struct ModDetails {
+            std::string mod_id;
+            Version version;
+            std::vector<std::string> authors;
+            std::vector<DependencyDetails> dependencies;
+        };
+
         struct ModManifest {
             std::filesystem::path mod_root_path;
 
             std::vector<std::string> mod_game_ids;
             std::string mod_id;
-
-            int major_version = -1;
-            int minor_version = -1;
-            int patch_version = -1;
+            Version minimum_recomp_version;
+            Version version;
 
             // These are all relative to the base path for loose mods or inside the zip for zipped mods.
             std::string binary_path;

@@ -22,6 +22,28 @@ namespace recomp {
 
         std::u8string stored_filename() const;
     };
+	struct Version {
+		int major = -1;
+		int minor = -1;
+		int patch = -1;
+		std::string suffix;
+
+		std::string to_string() const {
+			return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch) + suffix;
+		}
+
+		static bool from_string(const std::string& str, Version& out);
+
+		auto operator<=>(const Version& rhs) {
+			if (major != rhs.major) {
+				return major <=> rhs.major;
+			}
+			if (minor != rhs.minor) {
+				return minor <=> rhs.minor;
+			}
+			return patch <=> rhs.patch;
+		} 
+	};
 	enum class RomValidationError {
 		Good,
 		FailedToOpen,
@@ -41,6 +63,7 @@ namespace recomp {
 	void set_rom_contents(std::vector<uint8_t>&& new_rom);
 	void do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes);
 	void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
+	const Version& get_project_version();
 
 	/**
 	 * The following arguments contain mandatory callbacks that need to be registered (i.e., can't be `nullptr`):
@@ -51,6 +74,7 @@ namespace recomp {
 	 */
     void start(
 		uint32_t rdram_size,
+		const Version& project_version,
         ultramodern::renderer::WindowHandle window_handle,
         const recomp::rsp::callbacks_t& rsp_callbacks,
         const ultramodern::renderer::callbacks_t& renderer_callbacks,

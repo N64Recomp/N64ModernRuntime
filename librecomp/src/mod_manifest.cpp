@@ -133,9 +133,8 @@ bool recomp::mods::LooseModFileHandle::file_exists(const std::string& filepath) 
 enum class ManifestField {
     GameModId,
     Id,
-    MajorVersion,
-    MinorVersion,
-    PatchVersion,
+    Version,
+    MinimumRecompVersion,
     BinaryPath,
     BinarySymsPath,
     RomPatchPath,
@@ -145,9 +144,8 @@ enum class ManifestField {
 
 const std::string game_mod_id_key = "game_id";
 const std::string mod_id_key = "id";
-const std::string major_version_key = "major_version";
-const std::string minor_version_key = "minor_version";
-const std::string patch_version_key = "patch_version";
+const std::string version_key = "version";
+const std::string minimum_recomp_version_key = "minimum_recomp_version";
 const std::string binary_path_key = "binary";
 const std::string binary_syms_path_key = "binary_syms";
 const std::string rom_patch_path_key = "rom_patch";
@@ -155,16 +153,15 @@ const std::string rom_patch_syms_path_key = "rom_patch_syms";
 const std::string native_library_paths_key = "native_libraries";
 
 std::unordered_map<std::string, ManifestField> field_map {
-    { game_mod_id_key,          ManifestField::GameModId          },
-    { mod_id_key,               ManifestField::Id                 },
-    { major_version_key,        ManifestField::MajorVersion       },
-    { minor_version_key,        ManifestField::MinorVersion       },
-    { patch_version_key,        ManifestField::PatchVersion       },
-    { binary_path_key,          ManifestField::BinaryPath         },
-    { binary_syms_path_key,     ManifestField::BinarySymsPath     },
-    { rom_patch_path_key,       ManifestField::RomPatchPath       },
-    { rom_patch_syms_path_key,  ManifestField::RomPatchSymsPath   },
-    { native_library_paths_key, ManifestField::NativeLibraryPaths },
+    { game_mod_id_key,            ManifestField::GameModId            },
+    { mod_id_key,                 ManifestField::Id                   },
+    { version_key,                ManifestField::Version              },
+    { minimum_recomp_version_key, ManifestField::MinimumRecompVersion },
+    { binary_path_key,            ManifestField::BinaryPath           },
+    { binary_syms_path_key,       ManifestField::BinarySymsPath       },
+    { rom_patch_path_key,         ManifestField::RomPatchPath         },
+    { rom_patch_syms_path_key,    ManifestField::RomPatchSymsPath     },
+    { native_library_paths_key,   ManifestField::NativeLibraryPaths   },
 };
 
 template <typename T1, typename T2>
@@ -239,22 +236,31 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
                     return recomp::mods::ModOpenError::IncorrectManifestFieldType;
                 }
                 break;
-            case ManifestField::MajorVersion:
-                if (!get_to<json::number_unsigned_t>(val, ret.major_version)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+            case ManifestField::Version:
+                {
+                    const std::string* version_str = val.get_ptr<const std::string*>();
+                    if (version_str == nullptr) {
+                        error_param = key;
+                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                    }
+                    if (!recomp::Version::from_string(*version_str, ret.version)) {
+                        error_param = *version_str;
+                        return recomp::mods::ModOpenError::InvalidVersionString;
+                    }
                 }
                 break;
-            case ManifestField::MinorVersion:
-                if (!get_to<json::number_unsigned_t>(val, ret.minor_version)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                }
-                break;
-            case ManifestField::PatchVersion:
-                if (!get_to<json::number_unsigned_t>(val, ret.patch_version)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+            case ManifestField::MinimumRecompVersion:
+                {
+                    const std::string* version_str = val.get_ptr<const std::string*>();
+                    if (version_str == nullptr) {
+                        error_param = key;
+                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                    }
+                    if (!recomp::Version::from_string(*version_str, ret.minimum_recomp_version)) {
+                        error_param = *version_str;
+                        return recomp::mods::ModOpenError::InvalidMinimumRecompVersionString;
+                    }
+                    ret.minimum_recomp_version.suffix.clear();
                 }
                 break;
             case ManifestField::BinaryPath:
@@ -328,16 +334,12 @@ recomp::mods::ModOpenError validate_manifest(const recomp::mods::ModManifest& ma
         error_param = mod_id_key;
         return ModOpenError::MissingManifestField;
     }
-    if (manifest.major_version == -1) {
-        error_param = major_version_key;
+    if (manifest.version.major == -1 || manifest.version.major == -1 || manifest.version.major == -1) {
+        error_param = version_key;
         return ModOpenError::MissingManifestField;
     }
-    if (manifest.minor_version == -1) {
-        error_param = minor_version_key;
-        return ModOpenError::MissingManifestField;
-    }
-    if (manifest.patch_version == -1) {
-        error_param = patch_version_key;
+    if (manifest.minimum_recomp_version.major == -1 || manifest.minimum_recomp_version.major == -1 || manifest.minimum_recomp_version.major == -1) {
+        error_param = minimum_recomp_version_key;
         return ModOpenError::MissingManifestField;
     }
 
@@ -477,6 +479,10 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Unrecognized field in manifest.json";
         case ModOpenError::IncorrectManifestFieldType:
             return "Incorrect type for field in manifest.json";
+        case ModOpenError::InvalidVersionString:
+            return "Invalid version string in manifest.json";
+        case ModOpenError::InvalidMinimumRecompVersionString:
+            return "Invalid minimum recomp version string in manifest.json";
         case ModOpenError::MissingManifestField:
             return "Missing required field in manifest";
         case ModOpenError::InnerFileDoesNotExist:
@@ -495,6 +501,8 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
             return "Good";
         case ModLoadError::InvalidGame:
             return "Invalid game";
+        case ModLoadError::MinimumRecompVersionNotMet:
+            return "Mod requires a newer version of this project";
         case ModLoadError::FailedToLoadSyms:
             return "Failed to load mod symbol file";
         case ModLoadError::FailedToLoadBinary:

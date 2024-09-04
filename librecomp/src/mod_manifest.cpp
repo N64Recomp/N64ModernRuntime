@@ -2,6 +2,7 @@
 
 #include "json/json.hpp"
 
+#include "n64recomp.h"
 #include "librecomp/mods.hpp"
 
 recomp::mods::ZipModFileHandle::~ZipModFileHandle() {
@@ -134,21 +135,27 @@ enum class ManifestField {
     GameModId,
     Id,
     Version,
+    Authors,
     MinimumRecompVersion,
+    Dependencies,
     NativeLibraries,
 };
 
 const std::string game_mod_id_key = "game_id";
 const std::string mod_id_key = "id";
 const std::string version_key = "version";
+const std::string authors_key = "authors";
 const std::string minimum_recomp_version_key = "minimum_recomp_version";
+const std::string dependencies_key = "dependencies";
 const std::string native_libraries_key = "native_libraries";
 
 std::unordered_map<std::string, ManifestField> field_map {
     { game_mod_id_key,            ManifestField::GameModId            },
     { mod_id_key,                 ManifestField::Id                   },
     { version_key,                ManifestField::Version              },
+    { authors_key,                ManifestField::Authors              },
     { minimum_recomp_version_key, ManifestField::MinimumRecompVersion },
+    { dependencies_key,           ManifestField::Dependencies         },
     { native_libraries_key,       ManifestField::NativeLibraries      },
 };
 
@@ -183,6 +190,38 @@ bool get_to_vec(const nlohmann::json& val, std::vector<T2>& out) {
     }
 
     return true;
+}
+
+static bool parse_dependency(const std::string& val, recomp::mods::Dependency& out) {
+    recomp::mods::Dependency ret;
+
+    bool validated_name;
+    bool validated_version;
+
+    // Check if there's a version number specified.
+    size_t colon_pos = val.find(':');
+    if (colon_pos == std::string::npos) {
+        // No version present, so just validate the dependency's id.
+        validated_name = N64Recomp::validate_mod_id(std::string_view{val});
+        ret.mod_id = val;
+        validated_version = true;
+        ret.version.minor = 0;
+        ret.version.major = 0;
+        ret.version.patch = 0;
+    }
+    else {
+        // Version present, validate both the id and version.        
+        ret.mod_id = val.substr(0, colon_pos);
+        validated_name = N64Recomp::validate_mod_id(ret.mod_id);
+        validated_version = recomp::Version::from_string(val.substr(colon_pos + 1), ret.version);
+    }
+
+    if (validated_name && validated_version) {
+        out = std::move(ret);
+        return true;
+    }
+
+    return false;
 }
 
 recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param) {
@@ -237,6 +276,12 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
                     }
                 }
                 break;
+            case ManifestField::Authors:
+                if (!get_to_vec<std::string>(val, ret.authors)) {
+                    error_param = key;
+                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                }
+                break;
             case ManifestField::MinimumRecompVersion:
                 {
                     const std::string* version_str = val.get_ptr<const std::string*>();
@@ -249,6 +294,27 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
                         return recomp::mods::ModOpenError::InvalidMinimumRecompVersionString;
                     }
                     ret.minimum_recomp_version.suffix.clear();
+                }
+                break;
+            case ManifestField::Dependencies:
+                {
+                    std::vector<std::string> dep_strings{};
+                    if (!get_to_vec<std::string>(val, dep_strings)) {
+                        error_param = key;
+                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                    }
+
+                    for (const std::string& dep_string : dep_strings) {
+                        recomp::mods::Dependency cur_dep;
+                        if (!parse_dependency(dep_string, cur_dep)) {
+                            error_param = dep_string;
+                            return recomp::mods::ModOpenError::InvalidDependencyString;
+                        }
+
+                        size_t dependency_index = ret.dependencies.size();
+                        ret.dependencies_by_id.emplace(cur_dep.mod_id, dependency_index);
+                        ret.dependencies.emplace_back(std::move(cur_dep));
+                    }
                 }
                 break;
             case ManifestField::NativeLibraries:
@@ -288,6 +354,10 @@ recomp::mods::ModOpenError validate_manifest(const recomp::mods::ModManifest& ma
     }
     if (manifest.version.major == -1 || manifest.version.major == -1 || manifest.version.major == -1) {
         error_param = version_key;
+        return ModOpenError::MissingManifestField;
+    }
+    if (manifest.authors.empty()) {
+        error_param = authors_key;
         return ModOpenError::MissingManifestField;
     }
     if (manifest.minimum_recomp_version.major == -1 || manifest.minimum_recomp_version.major == -1 || manifest.minimum_recomp_version.major == -1) {
@@ -445,6 +515,8 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
             return "Failed to find replacement function";
         case ModLoadError::ReplacementConflict:
             return "Attempted to replace a function that cannot be replaced";
+        case ModLoadError::MissingDependencyInManifest:
+            return "Dependency is present in mod symbols but not in the manifest";
         case ModLoadError::MissingDependency:
             return "Missing dependency";
         case ModLoadError::WrongDependencyVersion:

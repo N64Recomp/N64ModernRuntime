@@ -34,7 +34,7 @@ namespace recomp {
 
 		static bool from_string(const std::string& str, Version& out);
 
-		auto operator<=>(const Version& rhs) {
+		auto operator<=>(const Version& rhs) const {
 			if (major != rhs.major) {
 				return major <=> rhs.major;
 			}

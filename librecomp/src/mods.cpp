@@ -426,22 +426,13 @@ std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_mod_details(
 
     for (const ModHandle& mod : opened_mods) {
         if (all_games || mod.is_for_game(game_index)) {
-            std::vector<DependencyDetails> cur_dependencies{};
-
-            // TODO the recompiler context isn't available at this point, since it's parsed on mod load.
-            // Move that parsing to mod opening so it can be used here.
-            // for (const auto& cur_dep : mod.recompiler_context->dependencies) {
-            //     cur_dependencies.emplace_back(DependencyDetails{
-            //         .mod_id = cur_dep.mod_id,
-            //         .version = Version{.major = cur_dep.major_version, .minor = cur_dep.minor_version, .patch = cur_dep.patch_version}
-            //     });
-            // }
+            std::vector<Dependency> cur_dependencies{};
 
             ret.emplace_back(ModDetails{
                 .mod_id = mod.manifest.mod_id,
                 .version = mod.manifest.version,
-                .authors = {}, // TODO add mod authors to the manifest and copy them here
-                .dependencies = std::move(cur_dependencies)
+                .authors = mod.manifest.authors,
+                .dependencies = mod.manifest.dependencies
             });
         }
     }
@@ -558,30 +549,34 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
 
 void recomp::mods::ModContext::check_dependencies(recomp::mods::ModHandle& mod, std::vector<std::pair<recomp::mods::ModLoadError, std::string>>& errors) {
     errors.clear();
-    for (N64Recomp::Dependency& cur_dep : mod.recompiler_context->dependencies) {
+    for (const auto& [cur_dep_id, cur_dep_index] : mod.recompiler_context->dependencies_by_name) {
         // Handle special dependency names.
-        if (cur_dep.mod_id == N64Recomp::DependencyBaseRecomp || cur_dep.mod_id == N64Recomp::DependencySelf) {
+        if (cur_dep_id == N64Recomp::DependencyBaseRecomp || cur_dep_id == N64Recomp::DependencySelf) {
             continue;
         }
+
+        // Find the dependency in the mod manifest to get its version.
+        auto find_manifest_dep_it = mod.manifest.dependencies_by_id.find(cur_dep_id);
+        if (find_manifest_dep_it == mod.manifest.dependencies_by_id.end()) {
+            errors.emplace_back(ModLoadError::MissingDependencyInManifest, cur_dep_id);
+            continue;
+        }
+
+        const auto& cur_dep = mod.manifest.dependencies[find_manifest_dep_it->second];
 
         // Look for the dependency in the loaded mod mapping.
-        auto find_it = loaded_mods_by_id.find(cur_dep.mod_id);
-        if (find_it == loaded_mods_by_id.end()) {
-            errors.emplace_back(ModLoadError::MissingDependency, cur_dep.mod_id);
+        auto find_loaded_dep_it = loaded_mods_by_id.find(cur_dep_id);
+        if (find_loaded_dep_it == loaded_mods_by_id.end()) {
+            errors.emplace_back(ModLoadError::MissingDependency, cur_dep_id);
             continue;
         }
 
-        const ModHandle& dep_mod = opened_mods[find_it->second];
-        Version dep_version {
-            .major = cur_dep.major_version,
-            .minor = cur_dep.minor_version,
-            .patch = cur_dep.patch_version
-        };
-        if (dep_version > dep_mod.manifest.version)
+        const ModHandle& dep_mod = opened_mods[find_loaded_dep_it->second];
+        if (cur_dep.version > dep_mod.manifest.version)
         {
             std::stringstream error_param_stream{};
             error_param_stream << "requires mod \"" << cur_dep.mod_id << "\" " <<
-                (int)cur_dep.major_version << "." << (int)cur_dep.minor_version << "." << (int)cur_dep.patch_version << ", got " <<
+                (int)cur_dep.version.major << "." << (int)cur_dep.version.minor << "." << (int)cur_dep.version.patch << ", got " <<
                 (int)dep_mod.manifest.version.major << "." << (int)dep_mod.manifest.version.minor << "." << (int)dep_mod.manifest.version.patch << "";
             errors.emplace_back(ModLoadError::WrongDependencyVersion, error_param_stream.str());
         }
@@ -666,26 +661,34 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
         mod.code_handle->set_reference_symbol_pointer(reference_sym_index, found_func);
     }
 
+    // Create a list of dependencies ordered by their index in the recompiler context.
+    std::vector<std::string> dependencies_ordered{};
+    dependencies_ordered.resize(mod.recompiler_context->dependencies_by_name.size());
+
+    for (const auto& [dependency, dependency_index] : mod.recompiler_context->dependencies_by_name) {
+        dependencies_ordered[dependency_index] = dependency;
+    }
+
     // Imported symbols.
     for (size_t import_index = 0; import_index < mod.recompiler_context->import_symbols.size(); import_index++) {
         const N64Recomp::ImportSymbol& imported_func = mod.recompiler_context->import_symbols[import_index];
-        const N64Recomp::Dependency& dependency = mod.recompiler_context->dependencies[imported_func.dependency_index];
+        const std::string& dependency_id = dependencies_ordered[imported_func.dependency_index];
 
         GenericFunction func_handle{};
         bool did_find_func = false;
 
-        if (dependency.mod_id == N64Recomp::DependencyBaseRecomp) {
+        if (dependency_id == N64Recomp::DependencyBaseRecomp) {
             recomp_func_t* func_ptr = recomp::overlays::get_base_export(imported_func.base.name);
             did_find_func = func_ptr != nullptr;
             func_handle = func_ptr;
         }
-        else if (dependency.mod_id == N64Recomp::DependencySelf) {
+        else if (dependency_id == N64Recomp::DependencySelf) {
             did_find_func = mod.get_export_function(imported_func.base.name, func_handle);
         }
         else {
-            auto find_mod_it = loaded_mods_by_id.find(dependency.mod_id);
+            auto find_mod_it = loaded_mods_by_id.find(dependency_id);
             if (find_mod_it == loaded_mods_by_id.end()) {
-                error_param = dependency.mod_id;
+                error_param = dependency_id;
                 return ModLoadError::MissingDependency;
             }
             const auto& dependency = opened_mods[find_mod_it->second];
@@ -693,7 +696,7 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
         }
 
         if (!did_find_func) {
-            error_param = dependency.mod_id + ":" + imported_func.base.name;
+            error_param = dependency_id + ":" + imported_func.base.name;
             return ModLoadError::InvalidImport;
         }
 
@@ -703,24 +706,24 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
     // Register callbacks.
     for (const N64Recomp::Callback& callback : mod.recompiler_context->callbacks) {
         const N64Recomp::DependencyEvent& dependency_event = mod.recompiler_context->dependency_events[callback.dependency_event_index];
-        const N64Recomp::Dependency& dependency = mod.recompiler_context->dependencies[dependency_event.dependency_index];
+        const std::string& dependency_id = dependencies_ordered[dependency_event.dependency_index];
         GenericFunction func = mod.code_handle->get_function_handle(callback.function_index);
         size_t event_index = 0;
         bool did_find_event = false;
 
-        if (dependency.mod_id == N64Recomp::DependencyBaseRecomp) {
+        if (dependency_id == N64Recomp::DependencyBaseRecomp) {
             event_index = recomp::overlays::get_base_event_index(dependency_event.event_name);
             if (event_index != (size_t)-1) {
                 did_find_event = true;
             }
         }
-        else if (dependency.mod_id == N64Recomp::DependencySelf) {
+        else if (dependency_id == N64Recomp::DependencySelf) {
             did_find_event = mod.get_global_event_index(dependency_event.event_name, event_index);
         }
         else {
-            auto find_mod_it = loaded_mods_by_id.find(dependency.mod_id);
+            auto find_mod_it = loaded_mods_by_id.find(dependency_id);
             if (find_mod_it == loaded_mods_by_id.end()) {
-                error_param = dependency.mod_id;
+                error_param = dependency_id;
                 return ModLoadError::MissingDependency;
             }
             const auto& dependency_mod = opened_mods[find_mod_it->second];
@@ -728,7 +731,7 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
         }
 
         if (!did_find_event) {
-            error_param = dependency.mod_id + ":" + dependency_event.event_name;
+            error_param = dependency_id + ":" + dependency_event.event_name;
             return ModLoadError::InvalidCallbackEvent;
         }
 

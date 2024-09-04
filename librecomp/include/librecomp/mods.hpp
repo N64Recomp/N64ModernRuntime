@@ -42,6 +42,7 @@ namespace recomp {
             IncorrectManifestFieldType,
             InvalidVersionString,
             InvalidMinimumRecompVersionString,
+            InvalidDependencyString,
             MissingManifestField,
             DuplicateMod,
             WrongGame
@@ -65,6 +66,7 @@ namespace recomp {
             InvalidFunctionReplacement,
             FailedToFindReplacement,
             ReplacementConflict,
+            MissingDependencyInManifest,
             MissingDependency,
             WrongDependencyVersion,
             ModConflict,
@@ -109,7 +111,7 @@ namespace recomp {
             std::vector<std::string> exports;
         };
 
-        struct DependencyDetails {
+        struct Dependency {
             std::string mod_id;
             Version version;
         };
@@ -118,7 +120,7 @@ namespace recomp {
             std::string mod_id;
             Version version;
             std::vector<std::string> authors;
-            std::vector<DependencyDetails> dependencies;
+            std::vector<Dependency> dependencies;
         };
 
         struct ModManifest {
@@ -126,6 +128,9 @@ namespace recomp {
 
             std::vector<std::string> mod_game_ids;
             std::string mod_id;
+            std::vector<std::string> authors;
+            std::vector<Dependency> dependencies;
+            std::unordered_map<std::string, size_t> dependencies_by_id;
             Version minimum_recomp_version;
             Version version;
 

@@ -83,7 +83,7 @@ namespace recomp {
             virtual bool file_exists(const std::string& filepath) const = 0;
         };
 
-        struct ZipModFileHandle : public ModFileHandle {
+        struct ZipModFileHandle final : public ModFileHandle {
             FILE* file_handle = nullptr;
             std::unique_ptr<mz_zip_archive> archive;
 
@@ -95,7 +95,7 @@ namespace recomp {
             bool file_exists(const std::string& filepath) const final;
         };
 
-        struct LooseModFileHandle : public ModFileHandle {
+        struct LooseModFileHandle final : public ModFileHandle {
             std::filesystem::path root_path;
 
             LooseModFileHandle() = default;
@@ -286,7 +286,7 @@ namespace recomp {
             }
         private:
             void set_bad();
-            bool is_good;
+            bool is_good = false;
             std::unique_ptr<DynamicLibrary> dynamic_lib;
             std::vector<recomp_func_t*> functions;
             recomp_func_t** imported_funcs;

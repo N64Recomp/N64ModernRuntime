@@ -1,7 +1,5 @@
 #include <span>
 #include <fstream>
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
 
 #include "librecomp/mods.hpp"
 #include "librecomp/overlays.hpp"
@@ -95,7 +93,82 @@ void protect(void* target_func, uint64_t old_flags) {
     (void)result;
 }
 #else
-#   error "Mods not implemented yet on this platform"
+#  include <dlfcn.h>
+#  include <sys/mman.h>
+
+class recomp::mods::DynamicLibrary {
+public:
+    static constexpr std::string_view PlatformExtension = ".so";
+    DynamicLibrary() = default;
+    DynamicLibrary(const std::filesystem::path& path) {
+        native_handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+
+        if (good()) {
+            uint32_t* recomp_api_version;
+            if (get_dll_symbol(recomp_api_version, "recomp_api_version")) {
+                api_version = *recomp_api_version;
+            }
+            else {
+                api_version = (uint32_t)-1;
+            }
+        }
+    }
+    ~DynamicLibrary() {
+        unload();
+    }
+    DynamicLibrary(const DynamicLibrary&) = delete;
+    DynamicLibrary& operator=(const DynamicLibrary&) = delete;
+    DynamicLibrary(DynamicLibrary&&) = delete;
+    DynamicLibrary& operator=(DynamicLibrary&&) = delete;
+
+    void unload() {
+        if (native_handle != nullptr) {
+            dlclose(native_handle);
+        }
+        native_handle = nullptr;
+    }
+
+    bool good() const {
+        return native_handle != nullptr;
+    }
+
+    template <typename T>
+    bool get_dll_symbol(T& out, const char* name) const {
+        out = (T)dlsym(native_handle, name);
+        if (out == nullptr) {
+            return false;
+        }
+        return true;
+    };
+
+    uint32_t get_api_version() {
+        return api_version;
+    }
+private:
+    void* native_handle;
+    uint32_t api_version;
+};
+
+void unprotect(void* target_func, uint64_t* old_flags) {
+    // Align the address to a page boundary.
+    uintptr_t page_start = (uintptr_t)target_func;
+    int page_size = getpagesize();
+    page_start = (page_start / page_size) * page_size;
+
+    int result = mprotect((void*)page_start, page_size, PROT_READ | PROT_WRITE);
+    *old_flags = 0;
+    (void)result;
+}
+
+void protect(void* target_func, uint64_t old_flags) {
+    // Align the address to a page boundary.
+    uintptr_t page_start = (uintptr_t)target_func;
+    int page_size = getpagesize();
+    page_start = (page_start / page_size) * page_size;
+
+    int result = mprotect((void*)page_start, page_size, PROT_READ | PROT_EXEC);
+    (void)result;
+}
 #endif
 
 namespace modpaths {
@@ -107,7 +180,7 @@ recomp::mods::ModLoadError recomp::mods::validate_api_version(uint32_t api_versi
     switch (api_version) {
         case 1:
             return ModLoadError::Good;
-        case (size_t)-1:
+        case (uint32_t)-1:
             return ModLoadError::NoSpecifiedApiVersion;
         default:
             error_param = std::to_string(api_version);
@@ -226,6 +299,7 @@ bool recomp::mods::ModHandle::get_global_event_index(const std::string& event_na
 }
 
 recomp::mods::NativeCodeHandle::NativeCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context) {
+    is_good = true;
     // Load the DLL.
     dynamic_lib = std::make_unique<DynamicLibrary>(dll_path);
     if (!dynamic_lib->good()) {
@@ -768,7 +842,7 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
 
         // Copy the original bytes so they can be restored later after the mod is unloaded.
         PatchData& cur_replacement_data = patched_funcs[to_replace];
-        memcpy(cur_replacement_data.replaced_bytes.data(), to_replace, cur_replacement_data.replaced_bytes.size());
+        memcpy(cur_replacement_data.replaced_bytes.data(), reinterpret_cast<void*>(to_replace), cur_replacement_data.replaced_bytes.size());
         cur_replacement_data.mod_id = mod.manifest.mod_id;
 
         // Patch the function to redirect it to the replacement.
@@ -782,7 +856,7 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
 
 void recomp::mods::ModContext::unload_mods() {
     for (auto& [replacement_func, replacement_data] : patched_funcs) {
-        unpatch_func(replacement_func, replacement_data);
+        unpatch_func(reinterpret_cast<void*>(replacement_func), replacement_data);
     }
     patched_funcs.clear();
     loaded_mods_by_id.clear();

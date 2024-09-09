@@ -12,6 +12,7 @@
 #include <array>
 #include <cinttypes>
 #include <cuchar>
+#include <charconv>
 
 #include "librecomp/recomp.h"
 #include "librecomp/overlays.hpp"

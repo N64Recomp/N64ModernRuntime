@@ -24,7 +24,7 @@ recomp::mods::ZipModFileHandle::ZipModFileHandle(const std::filesystem::path& mo
         return;
     }
 #else
-    file_handle = fopen(mod_path.c_str(), L"rb");
+    file_handle = fopen(mod_path.c_str(), "rb");
     if (!file_handle) {
         error = ModOpenError::FileError;
         return;
@@ -473,6 +473,8 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Invalid version string in manifest.json";
         case ModOpenError::InvalidMinimumRecompVersionString:
             return "Invalid minimum recomp version string in manifest.json";
+        case ModOpenError::InvalidDependencyString:
+            return "Invalid dependency string in manifest.json";
         case ModOpenError::MissingManifestField:
             return "Missing required field in manifest";
         case ModOpenError::DuplicateMod:
@@ -498,9 +500,9 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
         case ModLoadError::FailedToParseSyms:
             return "Failed to parse mod symbol file";
         case ModLoadError::FailedToLoadNativeCode:
-            return "Failed to load mod code DLL";
+            return "Failed to load offline mod library";
         case ModLoadError::FailedToLoadNativeLibrary:
-            return "Failed to load mod library DLL";
+            return "Failed to load mod library";
         case ModLoadError::FailedToFindNativeExport:
             return "Failed to find native export";
         case ModLoadError::InvalidReferenceSymbol:

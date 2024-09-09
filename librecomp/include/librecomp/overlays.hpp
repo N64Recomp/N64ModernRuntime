@@ -33,6 +33,8 @@ namespace recomp {
         recomp_func_t* get_base_export(const std::string& export_name);
         size_t get_base_event_index(const std::string& event_name);
         size_t num_base_events();
+
+        void add_loaded_function(int32_t ram_addr, recomp_func_t* func);
     }
 };
 

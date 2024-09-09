@@ -424,17 +424,48 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, co
         return ModLoadError::FailedToParseSyms;
     }
     
-    handle.section_load_addresses.resize(handle.recompiler_context->sections.size());
+    const std::vector<N64Recomp::Section>& mod_sections = handle.recompiler_context->sections;
+    handle.section_load_addresses.resize(mod_sections.size());
     
     // Copy each section's binary into rdram, leaving room for the section's bss before the next one.
     int32_t cur_section_addr = load_address;
-    for (size_t section_index = 0; section_index < handle.recompiler_context->sections.size(); section_index++) {
-        const auto& section = handle.recompiler_context->sections[section_index];
+    for (size_t section_index = 0; section_index < mod_sections.size(); section_index++) {
+        const auto& section = mod_sections[section_index];
         for (size_t i = 0; i < section.size; i++) {
             MEM_B(i, (gpr)cur_section_addr) = binary_data[section.rom_addr + i];
         }
         handle.section_load_addresses[section_index] = cur_section_addr;
         cur_section_addr += section.size + section.bss_size;
+
+    }
+
+    // Iterate over each section again after loading them to perform R_MIPS_32 relocations.
+    for (size_t section_index = 0; section_index < mod_sections.size(); section_index++) {
+        const auto& section = mod_sections[section_index];
+        uint32_t cur_section_original_vram = section.ram_addr;
+        uint32_t cur_section_loaded_vram = handle.section_load_addresses[section_index]; 
+
+        // Perform mips32 relocations for this section.
+        for (const auto& reloc : section.relocs) {
+            if (reloc.type == N64Recomp::RelocType::R_MIPS_32 && !reloc.reference_symbol) {
+                if (reloc.target_section >= mod_sections.size()) {
+                    return ModLoadError::FailedToParseSyms;
+                }
+                // Get the ram address of the word that's being relocated and read its original value.
+                int32_t reloc_word_addr = reloc.address - cur_section_original_vram + cur_section_loaded_vram;
+                uint32_t reloc_word = MEM_W(0, reloc_word_addr);
+
+                // Determine the original and loaded addresses of the section that the relocation points to.
+                uint32_t target_section_original_vram = mod_sections[reloc.target_section].ram_addr;
+                uint32_t target_section_loaded_vram = handle.section_load_addresses[reloc.target_section];
+
+                uint32_t reloc_word_old = reloc_word;
+
+                // Recalculate the word and write it back into ram.
+                reloc_word += (target_section_loaded_vram - target_section_original_vram);
+                MEM_W(0, reloc_word_addr) = reloc_word;           
+            }
+        }
     }
 
     ram_used = cur_section_addr - load_address;
@@ -710,6 +741,25 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod_code(recomp::mods:
     // Allocate the event indices used by the mod.
     num_events += mod.num_events();
 
+    // Add each function from the mod into the function lookup table.
+    const std::vector<N64Recomp::Section>& mod_sections = mod.recompiler_context->sections;
+    for (size_t func_index = 0; func_index < mod.recompiler_context->functions.size(); func_index++) {
+        const auto& func = mod.recompiler_context->functions[func_index];
+        if (func.section_index >= mod_sections.size()) {
+            return ModLoadError::FailedToParseSyms;
+        }
+        // Calculate the loaded address of this function.
+        int32_t func_address = func.vram - mod_sections[func.section_index].ram_addr + mod.section_load_addresses[func.section_index];
+
+        // Get the handle to the function and add it to the lookup table based on its type.
+        recomp::mods::GenericFunction func_handle = mod.code_handle->get_function_handle(func_index);
+        std::visit(overloaded{
+            [func_address](recomp_func_t* native_func) {
+                recomp::overlays::add_loaded_function(func_address, native_func);
+            }
+            }, func_handle);
+    }
+
     return ModLoadError::Good;
 }
 
@@ -848,8 +898,6 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
         // Patch the function to redirect it to the replacement.
         patch_func(to_replace, mod.code_handle->get_function_handle(replacement.func_index));
     }
-
-    // TODO perform mips32 relocations
 
     return ModLoadError::Good;
 }

@@ -108,6 +108,10 @@ const std::unordered_map<uint32_t, uint16_t>& recomp::overlays::get_vrom_to_sect
     return code_sections_by_rom;
 }
 
+void recomp::overlays::add_loaded_function(int32_t ram, recomp_func_t* func) {
+    func_map[ram] = func;
+}
+
 void load_overlay(size_t section_table_index, int32_t ram) {
     const SectionTableEntry& section = sections_info.code_sections[section_table_index];
 
@@ -230,6 +234,7 @@ extern "C" void unload_overlays(int32_t ram_addr, uint32_t size) {
 }
 
 void recomp::overlays::init_overlays() {
+    func_map.clear();
     section_addresses = (int32_t *)calloc(sections_info.total_num_sections, sizeof(int32_t));
 
     // Sort the executable sections by rom address

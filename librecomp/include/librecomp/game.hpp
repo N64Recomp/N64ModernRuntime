@@ -13,7 +13,7 @@ namespace recomp {
         uint64_t rom_hash;
         std::string internal_name;
         std::u8string game_id;
-		std::string mod_game_id;
+        std::string mod_game_id;
         std::span<const char> cache_data;
         bool is_enabled;
 
@@ -22,59 +22,59 @@ namespace recomp {
 
         std::u8string stored_filename() const;
     };
-	struct Version {
-		int major = -1;
-		int minor = -1;
-		int patch = -1;
-		std::string suffix;
+    struct Version {
+        int major = -1;
+        int minor = -1;
+        int patch = -1;
+        std::string suffix;
 
-		std::string to_string() const {
-			return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch) + suffix;
-		}
+        std::string to_string() const {
+            return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch) + suffix;
+        }
 
-		static bool from_string(const std::string& str, Version& out);
+        static bool from_string(const std::string& str, Version& out);
 
-		auto operator<=>(const Version& rhs) const {
-			if (major != rhs.major) {
-				return major <=> rhs.major;
-			}
-			if (minor != rhs.minor) {
-				return minor <=> rhs.minor;
-			}
-			return patch <=> rhs.patch;
-		} 
-	};
-	enum class RomValidationError {
-		Good,
-		FailedToOpen,
-		NotARom,
-		IncorrectRom,
-		NotYet,
-		IncorrectVersion,
-		OtherError
-	};
-	void register_config_path(std::filesystem::path path);
-	bool register_game(const recomp::GameEntry& entry);
-	void check_all_stored_roms();
-	bool load_stored_rom(std::u8string& game_id);
-	RomValidationError select_rom(const std::filesystem::path& rom_path, std::u8string& game_id);
-	bool is_rom_valid(std::u8string& game_id);
-	bool is_rom_loaded();
-	void set_rom_contents(std::vector<uint8_t>&& new_rom);
-	void do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes);
-	void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
-	const Version& get_project_version();
+        auto operator<=>(const Version& rhs) const {
+            if (major != rhs.major) {
+                return major <=> rhs.major;
+            }
+            if (minor != rhs.minor) {
+                return minor <=> rhs.minor;
+            }
+            return patch <=> rhs.patch;
+        } 
+    };
+    enum class RomValidationError {
+        Good,
+        FailedToOpen,
+        NotARom,
+        IncorrectRom,
+        NotYet,
+        IncorrectVersion,
+        OtherError
+    };
+    void register_config_path(std::filesystem::path path);
+    bool register_game(const recomp::GameEntry& entry);
+    void check_all_stored_roms();
+    bool load_stored_rom(std::u8string& game_id);
+    RomValidationError select_rom(const std::filesystem::path& rom_path, std::u8string& game_id);
+    bool is_rom_valid(std::u8string& game_id);
+    bool is_rom_loaded();
+    void set_rom_contents(std::vector<uint8_t>&& new_rom);
+    void do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes);
+    void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
+    const Version& get_project_version();
 
-	/**
-	 * The following arguments contain mandatory callbacks that need to be registered (i.e., can't be `nullptr`):
-	 * - `rsp_callbacks`
-	 * - `renderer_callbacks`
-	 *
-	 * It must be called only once and it must be called before `ultramodern::preinit`.
-	 */
+    /**
+     * The following arguments contain mandatory callbacks that need to be registered (i.e., can't be `nullptr`):
+     * - `rsp_callbacks`
+     * - `renderer_callbacks`
+     *
+     * It must be called only once and it must be called before `ultramodern::preinit`.
+     */
     void start(
-		uint32_t rdram_size,
-		const Version& project_version,
+        uint32_t rdram_size,
+        const Version& project_version,
         ultramodern::renderer::WindowHandle window_handle,
         const recomp::rsp::callbacks_t& rsp_callbacks,
         const ultramodern::renderer::callbacks_t& renderer_callbacks,
@@ -86,8 +86,8 @@ namespace recomp {
         const ultramodern::threads::callbacks_t& threads_callbacks
     );
 
-	void start_game(const std::u8string& game_id);
-	std::u8string current_game_id();
+    void start_game(const std::u8string& game_id);
+    std::u8string current_game_id();
 }
 
 #endif

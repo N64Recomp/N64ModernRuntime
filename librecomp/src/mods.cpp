@@ -6,6 +6,22 @@
 #include "librecomp/game.hpp"
 #include "n64recomp.h"
 
+// Architecture detection.
+
+// MSVC x86_64
+#if defined (_M_AMD64) && (_M_AMD64 == 100) && !defined (_M_ARM64EC)
+#   define IS_X86_64
+// GCC/Clang x86_64
+#elif defined(__x86_64__)
+#   define IS_X86_64
+// MSVC/GCC/Clang ARM64
+#elif defined(__ARM_ARCH_ISA_A64)
+#   define IS_ARM64
+#else
+#   error "Unsupported architecture!"
+#endif
+
+
 #if defined(_WIN32)
 #define PATHFMT "%ls"
 #else
@@ -355,8 +371,6 @@ void recomp::mods::NativeCodeHandle::set_imported_function(size_t import_index, 
 }
 
 void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replacement_func) {
-    static const uint8_t movabs_rax[] = {0x48, 0xB8};
-    static const uint8_t jmp_rax[] = {0xFF, 0xE0};
     uint8_t* target_func_u8 = reinterpret_cast<uint8_t*>(target_func);
     size_t offset = 0;
 
@@ -368,6 +382,9 @@ void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replac
     uint64_t old_flags;
     unprotect(target_func_u8, &old_flags);
 
+#ifdef IS_X86_64
+    static const uint8_t movabs_rax[] = {0x48, 0xB8};
+    static const uint8_t jmp_rax[] = {0xFF, 0xE0};
     std::visit(overloaded {
         [&write_bytes](recomp_func_t* native_func) {
            write_bytes(movabs_rax, sizeof(movabs_rax));
@@ -375,6 +392,11 @@ void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replac
            write_bytes(jmp_rax, sizeof(jmp_rax));
         }
     }, replacement_func);
+#elif IS_ARM64
+    ultramodern::error_handling::message_box("Mod loading not currently implemented on ARM CPUs!\n");
+#else
+#   error "Unsupported architecture"
+#endif
 
     protect(target_func_u8, old_flags);
 }

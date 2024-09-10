@@ -109,6 +109,7 @@ void protect(void* target_func, uint64_t old_flags) {
     (void)result;
 }
 #else
+#  include <unistd.h>
 #  include <dlfcn.h>
 #  include <sys/mman.h>
 
@@ -382,7 +383,7 @@ void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replac
     uint64_t old_flags;
     unprotect(target_func_u8, &old_flags);
 
-#ifdef IS_X86_64
+#if defined(IS_X86_64)
     static const uint8_t movabs_rax[] = {0x48, 0xB8};
     static const uint8_t jmp_rax[] = {0xFF, 0xE0};
     std::visit(overloaded {
@@ -392,7 +393,7 @@ void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replac
            write_bytes(jmp_rax, sizeof(jmp_rax));
         }
     }, replacement_func);
-#elif IS_ARM64
+#elif defined(IS_ARM64)
     ultramodern::error_handling::message_box("Mod loading not currently implemented on ARM CPUs!\n");
 #else
 #   error "Unsupported architecture"

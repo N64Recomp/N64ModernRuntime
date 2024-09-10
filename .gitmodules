@@ -1,3 +1,9 @@
 [submodule "thirdparty/xxHash"]
 	path = thirdparty/xxHash
 	url = https://github.com/Cyan4973/xxHash.git
+[submodule "thirdparty/miniz"]
+	path = thirdparty/miniz
+	url = https://github.com/richgel999/miniz
+[submodule "N64Recomp"]
+	path = N64Recomp
+	url = https://github.com/N64Recomp/N64Recomp

@@ -2,7 +2,8 @@
 #include <cassert>
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
-#include "recomp.h"
+#include "librecomp/recomp.h"
+#include "librecomp/addresses.hpp"
 
 // TODO move this out into ultramodern code
 
@@ -21,7 +22,7 @@ void save_clear(uint32_t start, uint32_t size, char value);
 std::array<char, page_size> write_buffer;
 
 extern "C" void osFlashInit_recomp(uint8_t * rdram, recomp_context * ctx) {
-    ctx->r2 = ultramodern::flash_handle;
+    ctx->r2 = recomp::flash_handle;
 }
 
 extern "C" void osFlashReadStatus_recomp(uint8_t * rdram, recomp_context * ctx) {

@@ -6,17 +6,29 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <fstream>
+#include <sstream>
 #include <iostream>
 #include <optional>
 #include <mutex>
 #include <array>
+#include <cinttypes>
+#include <cuchar>
+#include <charconv>
 
-#include "recomp.h"
-#include "overlays.hpp"
-#include "game.hpp"
+#include "librecomp/recomp.h"
+#include "librecomp/overlays.hpp"
+#include "librecomp/game.hpp"
 #include "xxHash/xxh3.h"
 #include "ultramodern/ultramodern.hpp"
 #include "ultramodern/error_handling.hpp"
+#include "librecomp/addresses.hpp"
+#include "librecomp/mods.hpp"
+
+#if defined(_WIN32)
+#define PATHFMT "%ls"
+#else
+#define PATHFMT "%s"
+#endif
 
 #ifdef _MSC_VER
 inline uint32_t byteswap(uint32_t val) {
@@ -37,10 +49,16 @@ enum GameStatus {
 // Mutexes
 std::mutex game_roms_mutex;
 std::mutex current_game_mutex;
+std::mutex mod_context_mutex{};
 
 // Global variables
 std::filesystem::path config_path;
+// Maps game_id to the game's entry.
 std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
+// The global mod context.
+std::unique_ptr<recomp::mods::ModContext> mod_context = std::make_unique<recomp::mods::ModContext>();
+// The project's version.
+recomp::Version project_version;
 
 std::u8string recomp::GameEntry::stored_filename() const {
     return game_id + u8".z64";
@@ -51,9 +69,28 @@ void recomp::register_config_path(std::filesystem::path path) {
 }
 
 bool recomp::register_game(const recomp::GameEntry& entry) {
-    std::lock_guard<std::mutex> lock(game_roms_mutex);
-    game_roms.insert({ entry.game_id, entry });
+    // TODO verify that there's no game with this ID already.
+    {
+        std::lock_guard<std::mutex> lock(game_roms_mutex);
+        game_roms.insert({ entry.game_id, entry });
+    }
+    if (!entry.mod_game_id.empty()) {
+        std::lock_guard<std::mutex> lock(mod_context_mutex);
+        mod_context->register_game(entry.mod_game_id);
+    }
+
     return true;
+}
+
+void recomp::mods::scan_mods() {
+    std::vector<recomp::mods::ModOpenErrorDetails> mod_open_errors;
+    {
+        std::lock_guard mod_lock{ mod_context_mutex };
+        mod_open_errors = mod_context->scan_mod_folder(config_path / "mods");
+    }
+    for (const auto& cur_error : mod_open_errors) {
+        printf("Error opening mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
+    }
 }
 
 bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
@@ -131,6 +168,70 @@ bool recomp::load_stored_rom(std::u8string& game_id) {
     }
 
     recomp::set_rom_contents(std::move(stored_rom_data));
+    return true;
+}
+
+const recomp::Version& recomp::get_project_version() {
+    return project_version;
+}
+
+bool recomp::Version::from_string(const std::string& str, Version& out) {
+    std::array<size_t, 2> period_indices;
+    size_t num_periods = 0;
+    size_t cur_pos = 0;
+    uint16_t major;
+    uint16_t minor;
+    uint16_t patch;
+    std::string suffix;
+
+    // Find the 2 required periods.
+    cur_pos = str.find('.', cur_pos);
+    period_indices[0] = cur_pos;
+    cur_pos = str.find('.', cur_pos + 1);
+    period_indices[1] = cur_pos;
+
+    // Check that both were found.
+    if (period_indices[0] == std::string::npos || period_indices[1] == std::string::npos) {
+        return false;
+    }
+
+    // Parse the 3 numbers formed by splitting the string via the periods.
+    std::array<std::from_chars_result, 3> parse_results; 
+    std::array<size_t, 3> parse_starts { 0, period_indices[0] + 1, period_indices[1] + 1 };
+    std::array<size_t, 3> parse_ends { period_indices[0], period_indices[1], str.size() };
+    parse_results[0] = std::from_chars(str.data() + parse_starts[0], str.data() + parse_ends[0], major);
+    parse_results[1] = std::from_chars(str.data() + parse_starts[1], str.data() + parse_ends[1], minor);
+    parse_results[2] = std::from_chars(str.data() + parse_starts[2], str.data() + parse_ends[2], patch);
+
+    // Check that the first two parsed correctly.
+    auto did_parse = [&](size_t i) {
+        return parse_results[i].ec == std::errc{} && parse_results[i].ptr == str.data() + parse_ends[i];
+    };
+    
+    if (!did_parse(0) || !did_parse(1)) {
+        return false;
+    }
+
+    // Check that the third had a successful parse, but not necessarily read all the characters.
+    if (parse_results[2].ec != std::errc{}) {
+        return false;
+    }
+
+    // Allow a plus or minus directly after the third number.
+    if (parse_results[2].ptr != str.data() + parse_ends[2]) {
+        if (*parse_results[2].ptr == '+' || *parse_results[2].ptr == '-') {
+            suffix = str.substr(std::distance(str.data(), parse_results[2].ptr));
+        }
+        // Failed to parse, as nothing is allowed directly after the last number besides a plus or minus.
+        else {
+            return false;
+        }
+    }
+
+    out.major = major;
+    out.minor = minor;
+    out.patch = patch;
+    out.suffix = std::move(suffix);
     return true;
 }
 
@@ -322,7 +423,7 @@ void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
     recomp::do_rom_read(rdram, entrypoint, 0x10001000, 0x100000);
 
     // Read in any extra data from patches
-    recomp::overlays::read_patch_data(rdram, (gpr)(s32)0x80801000);
+    recomp::overlays::read_patch_data(rdram, (gpr)recomp::patch_rdram_start);
 
     // Set up context floats
     ctx->f_odd = &ctx->f0.u32h;
@@ -373,7 +474,83 @@ void ultramodern::quit() {
     current_game.reset();
 }
 
+void recomp::mods::enable_mod(const std::string& mod_id, bool enabled) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->enable_mod(mod_id, enabled);
+}
+
+bool recomp::mods::is_mod_enabled(const std::string& mod_id) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->is_mod_enabled(mod_id);
+}
+
+std::vector<recomp::mods::ModDetails> recomp::mods::get_mod_details(const std::string& mod_game_id) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->get_mod_details(mod_game_id);
+}
+
+bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
+    game_status.wait(GameStatus::None);
+
+    switch (game_status.load()) {
+        // TODO refactor this to allow a project to specify what entrypoint function to run for a give game.
+        case GameStatus::Running:
+            {
+                if (!recomp::load_stored_rom(current_game.value())) {
+                    ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
+                }
+
+                auto find_it = game_roms.find(current_game.value());
+                const recomp::GameEntry& game_entry = find_it->second;
+
+                init(rdram, context, game_entry.entrypoint_address);
+
+                if (!game_entry.mod_game_id.empty()) {
+                    uint32_t mod_ram_used = 0;
+                    std::vector<recomp::mods::ModLoadErrorDetails> mod_load_errors;
+                    {
+                        std::lock_guard lock { mod_context_mutex };
+                        mod_load_errors = mod_context->load_mods(game_entry.mod_game_id, rdram, recomp::mod_rdram_start, mod_ram_used);
+                    }
+
+                    if (!mod_load_errors.empty()) {
+                        std::ostringstream mod_error_stream;
+                        mod_error_stream << "Error loading mods:\n\n";
+                        for (const auto& cur_error : mod_load_errors) {
+                            mod_error_stream << cur_error.mod_id.c_str() << ": " << recomp::mods::error_to_string(cur_error.error);
+                            if (!cur_error.error_param.empty()) {
+                                mod_error_stream << " (" << cur_error.error_param.c_str() << ")";
+                            }
+                            mod_error_stream << "\n";                                
+                        }
+                        ultramodern::error_handling::message_box(mod_error_stream.str().c_str());
+                        game_status.store(GameStatus::None);
+                        return false;
+                    }
+                }
+                
+                ultramodern::init_saving(rdram);
+                ultramodern::load_shader_cache(game_entry.cache_data);
+
+                try {
+                    game_entry.entrypoint(rdram, context);
+                } catch (ultramodern::thread_terminated& terminated) {
+
+                }
+            }
+            return true;
+
+        case GameStatus::Quit:
+            return true;
+
+        case GameStatus::None:
+            return true;
+    }
+}
+
 void recomp::start(
+    uint32_t rdram_size,
+    const recomp::Version& version,
     ultramodern::renderer::WindowHandle window_handle,
     const recomp::rsp::callbacks_t& rsp_callbacks,
     const ultramodern::renderer::callbacks_t& renderer_callbacks,
@@ -384,6 +561,7 @@ void recomp::start(
     const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
     const ultramodern::threads::callbacks_t& threads_callbacks
 ) {
+    project_version = version;
     recomp::check_all_stored_roms();
 
     recomp::rsp::set_callbacks(rsp_callbacks);
@@ -413,8 +591,8 @@ void recomp::start(
     }
 
     // Allocate rdram_buffer
-    std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(ultramodern::rdram_size);
-    std::memset(rdram_buffer.get(), 0, ultramodern::rdram_size);
+    std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(rdram_size);
+    std::memset(rdram_buffer.get(), 0, rdram_size);
 
     std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");
@@ -423,40 +601,10 @@ void recomp::start(
 
         ultramodern::preinit(rdram, window_handle);
 
-        game_status.wait(GameStatus::None);
         recomp_context context{};
 
-        switch (game_status.load()) {
-            // TODO refactor this to allow a project to specify what entrypoint function to run for a give game.
-            case GameStatus::Running:
-                {
-                    if (!recomp::load_stored_rom(current_game.value())) {
-                        ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
-                    }
-
-                    ultramodern::init_saving(rdram);
-
-                    auto find_it = game_roms.find(current_game.value());
-                    const recomp::GameEntry& game_entry = find_it->second;
-
-                    ultramodern::load_shader_cache(game_entry.cache_data);
-                    init(rdram, &context, game_entry.entrypoint_address);
-                    try {
-                        game_entry.entrypoint(rdram, &context);
-                    } catch (ultramodern::thread_terminated& terminated) {
-
-                    }
-                }
-                break;
-
-            case GameStatus::Quit:
-                break;
-
-            case GameStatus::None:
-                break;
-        }
-
-        debug_printf("[Recomp] Quitting\n");
+        // Loop until the game starts.
+        while (!wait_for_game_started(rdram, &context)) {}
     }, window_handle, rdram_buffer.get()};
 
     while (!exited) {

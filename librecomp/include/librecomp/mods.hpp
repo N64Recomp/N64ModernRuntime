@@ -142,12 +142,18 @@ namespace recomp {
             std::filesystem::path mod_path;
             ModOpenError error;
             std::string error_param;
+            ModOpenErrorDetails() = default;
+            ModOpenErrorDetails(const std::filesystem::path& mod_path_, ModOpenError error_, const std::string& error_param_) :
+                mod_path(mod_path_), error(error_), error_param(error_param_) {}
         };
 
         struct ModLoadErrorDetails {
             std::string mod_id;
             ModLoadError error;
             std::string error_param;
+            ModLoadErrorDetails() = default;
+            ModLoadErrorDetails(const std::string& mod_id_, ModLoadError error_, const std::string& error_param_) :
+                mod_id(mod_id_), error(error_), error_param(error_param_) {}
         };
         
         void scan_mods();

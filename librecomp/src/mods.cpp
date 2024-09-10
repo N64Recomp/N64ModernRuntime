@@ -1,5 +1,6 @@
 #include <span>
 #include <fstream>
+#include <sstream>
 
 #include "librecomp/mods.hpp"
 #include "librecomp/overlays.hpp"

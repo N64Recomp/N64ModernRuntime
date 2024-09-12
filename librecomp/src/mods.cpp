@@ -347,6 +347,10 @@ recomp::mods::NativeCodeHandle::NativeCodeHandle(const std::filesystem::path& dl
     is_good &= dynamic_lib->get_dll_symbol(base_event_index, "base_event_index");
     is_good &= dynamic_lib->get_dll_symbol(recomp_trigger_event, "recomp_trigger_event");
     is_good &= dynamic_lib->get_dll_symbol(get_function, "get_function");
+    is_good &= dynamic_lib->get_dll_symbol(cop0_status_write, "cop0_status_write");
+    is_good &= dynamic_lib->get_dll_symbol(cop0_status_read, "cop0_status_read");
+    is_good &= dynamic_lib->get_dll_symbol(switch_error, "switch_error");
+    is_good &= dynamic_lib->get_dll_symbol(do_break, "do_break");
     is_good &= dynamic_lib->get_dll_symbol(reference_section_addresses, "reference_section_addresses");
     is_good &= dynamic_lib->get_dll_symbol(section_addresses, "section_addresses");
 }
@@ -482,8 +486,6 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(uint8_t* rdram, co
                 // Determine the original and loaded addresses of the section that the relocation points to.
                 uint32_t target_section_original_vram = mod_sections[reloc.target_section].ram_addr;
                 uint32_t target_section_loaded_vram = handle.section_load_addresses[reloc.target_section];
-
-                uint32_t reloc_word_old = reloc_word;
 
                 // Recalculate the word and write it back into ram.
                 reloc_word += (target_section_loaded_vram - target_section_original_vram);
@@ -889,6 +891,10 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
     // Populate the mod's state fields.
     mod.code_handle->set_recomp_trigger_event_pointer(recomp_trigger_event);
     mod.code_handle->set_get_function_pointer(get_function);
+    mod.code_handle->set_cop0_status_write_pointer(cop0_status_write);
+    mod.code_handle->set_cop0_status_read_pointer(cop0_status_read);
+    mod.code_handle->set_switch_error_pointer(switch_error);
+    mod.code_handle->set_do_break_pointer(do_break);
     mod.code_handle->set_reference_section_addresses_pointer(section_addresses);
     for (size_t section_index = 0; section_index < mod.section_load_addresses.size(); section_index++) {
         mod.code_handle->set_local_section_address(section_index, mod.section_load_addresses[section_index]);

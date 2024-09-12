@@ -212,6 +212,10 @@ namespace recomp {
             virtual uint32_t get_base_event_index() = 0;
             virtual void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) = 0;
             virtual void set_get_function_pointer(recomp_func_t* (*ptr)(int32_t)) = 0;
+            virtual void set_cop0_status_write_pointer(void (*ptr)(recomp_context* ctx, gpr value)) = 0;
+            virtual void set_cop0_status_read_pointer(gpr (*ptr)(recomp_context* ctx)) = 0;
+            virtual void set_switch_error_pointer(void (*ptr)(const char* func, uint32_t vram, uint32_t jtbl)) = 0;
+            virtual void set_do_break_pointer(void (*ptr)(uint32_t vram)) = 0;
             virtual void set_reference_section_addresses_pointer(int32_t* ptr) = 0;
             virtual void set_local_section_address(size_t section_index, int32_t address) = 0;
             virtual GenericFunction get_function_handle(size_t func_index) = 0;
@@ -281,6 +285,18 @@ namespace recomp {
             void set_get_function_pointer(recomp_func_t* (*ptr)(int32_t)) final {
                 *get_function = ptr;
             };
+            void set_cop0_status_write_pointer(void (*ptr)(recomp_context* ctx, gpr value)) final {
+                *cop0_status_write = ptr;
+            }
+            void set_cop0_status_read_pointer(gpr (*ptr)(recomp_context* ctx)) final {
+                *cop0_status_read = ptr;
+            }
+            void set_switch_error_pointer(void (*ptr)(const char* func, uint32_t vram, uint32_t jtbl)) final {
+                *switch_error = ptr;
+            }
+            void set_do_break_pointer(void (*ptr)(uint32_t vram)) final {
+                *do_break = ptr;
+            }
             void set_reference_section_addresses_pointer(int32_t* ptr) final {
                 *reference_section_addresses = ptr;
             };
@@ -300,6 +316,10 @@ namespace recomp {
             uint32_t* base_event_index;
             void (**recomp_trigger_event)(uint8_t* rdram, recomp_context* ctx, uint32_t index);
             recomp_func_t* (**get_function)(int32_t vram);
+            void (**cop0_status_write)(recomp_context* ctx, gpr value);
+            gpr (**cop0_status_read)(recomp_context* ctx);
+            void (**switch_error)(const char* func, uint32_t vram, uint32_t jtbl);
+            void (**do_break)(uint32_t vram);
             int32_t** reference_section_addresses;
             int32_t* section_addresses;
         };

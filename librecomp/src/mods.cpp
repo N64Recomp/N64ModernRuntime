@@ -788,25 +788,25 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod_code(recomp::mods:
 }
 
 recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp::mods::ModHandle& mod, std::string& error_param) {
-    // Reference symbols from the base recomp.
-    for (size_t reference_sym_index = 0; reference_sym_index < mod.recompiler_context->num_regular_reference_symbols(); reference_sym_index++) {
-        const N64Recomp::ReferenceSymbol& reference_sym = mod.recompiler_context->get_regular_reference_symbol(reference_sym_index);
-        uint32_t reference_section_vrom = mod.recompiler_context->get_reference_section_rom(reference_sym.section_index);
-        uint32_t reference_section_vram = mod.recompiler_context->get_reference_section_vram(reference_sym.section_index);
-        uint32_t reference_symbol_vram = reference_section_vram + reference_sym.section_offset;
-
-        recomp_func_t* found_func = recomp::overlays::get_func_by_section_ram(reference_section_vrom, reference_symbol_vram);
-
-        if (found_func == nullptr) {
-            std::stringstream error_param_stream{};
-            error_param_stream << std::hex <<
-                "section: 0x" << reference_section_vrom <<
-                " func: 0x" << std::setfill('0') << std::setw(8) << reference_symbol_vram;
-            error_param = error_param_stream.str();
-            return ModLoadError::InvalidReferenceSymbol;
+    // Reference symbols from the base recomp.1:1 with relocs for offline mods.
+    // TODO this won't be needed for LuaJIT recompilation, so move this logic into the code handle.
+    size_t reference_symbol_index = 0;
+    for (const auto& section : mod.recompiler_context->sections) {
+        for (const auto& reloc : section.relocs) {
+            if (reloc.type == N64Recomp::RelocType::R_MIPS_26 && reloc.reference_symbol && mod.recompiler_context->is_regular_reference_section(reloc.target_section)) {
+                recomp_func_t* cur_func = recomp::overlays::get_func_by_section_index_function_offset(reloc.target_section, reloc.target_section_offset);
+                if (cur_func == nullptr) {
+                    std::stringstream error_param_stream{};
+                    error_param_stream << std::hex <<
+                        "section: " << reloc.target_section <<
+                        " func offset: 0x" << reloc.target_section_offset;
+                    error_param = error_param_stream.str();
+                    return ModLoadError::InvalidReferenceSymbol;
+                }
+                mod.code_handle->set_reference_symbol_pointer(reference_symbol_index, cur_func);
+                reference_symbol_index++;
+            }
         }
-
-        mod.code_handle->set_reference_symbol_pointer(reference_sym_index, found_func);
     }
 
     // Create a list of dependencies ordered by their index in the recompiler context.
@@ -896,7 +896,7 @@ recomp::mods::ModLoadError recomp::mods::ModContext::resolve_dependencies(recomp
 
     // Apply all the function replacements in the mod.
     for (const auto& replacement : mod.recompiler_context->replacements) {
-        recomp_func_t* to_replace = recomp::overlays::get_func_by_section_ram(replacement.original_section_vrom, replacement.original_vram);
+        recomp_func_t* to_replace = recomp::overlays::get_func_by_section_rom_function_vram(replacement.original_section_vrom, replacement.original_vram);
 
         if (to_replace == nullptr) {
             std::stringstream error_param_stream{};

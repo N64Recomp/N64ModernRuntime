@@ -254,26 +254,37 @@ void recomp::overlays::init_overlays() {
     load_patch_functions();
 }
 
-recomp_func_t* recomp::overlays::get_func_by_section_ram(uint32_t section_rom, uint32_t function_vram) {
+// Finds a function given a section's index and the function's offset into the section.
+recomp_func_t* recomp::overlays::get_func_by_section_index_function_offset(uint16_t code_section_index, uint32_t function_offset) {
+    if (code_section_index >= sections_info.num_code_sections) {
+        return nullptr;
+    }
+
+    SectionTableEntry* section = &sections_info.code_sections[code_section_index];
+    if (function_offset >= section->size) {
+        return nullptr;
+    }
+    
+    for (size_t func_index = 0; func_index < section->num_funcs; func_index++) {
+        if (section->funcs[func_index].offset == function_offset) {
+            return section->funcs[func_index].func;
+        }
+    }
+
+    return nullptr;
+}
+
+// Finds a function given a section's rom address and the function's vram address.
+recomp_func_t* recomp::overlays::get_func_by_section_rom_function_vram(uint32_t section_rom, uint32_t function_vram) {
     auto find_section_it = code_sections_by_rom.find(section_rom);
     if (find_section_it == code_sections_by_rom.end()) {
         return nullptr;
     }
 
     SectionTableEntry* section = &sections_info.code_sections[find_section_it->second];
-    if (function_vram < section->ram_addr || function_vram >= section->ram_addr + section->size) {
-        return nullptr;
-    }
-
-    uint32_t func_offset = function_vram - section->ram_addr;
-
-    for (size_t func_index = 0; func_index < section->num_funcs; func_index++) {
-        if (section->funcs[func_index].offset == func_offset) {
-            return section->funcs[func_index].func;
-        }
-    }
-
-    return nullptr;
+    int32_t func_offset = function_vram - section->ram_addr;
+    
+    return get_func_by_section_index_function_offset(find_section_it->second, func_offset);
 }
 
 extern "C" recomp_func_t * get_function(int32_t addr) {

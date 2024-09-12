@@ -29,7 +29,8 @@ namespace recomp {
 
         void init_overlays();
         const std::unordered_map<uint32_t, uint16_t>& get_vrom_to_section_map();
-        recomp_func_t* get_func_by_section_ram(uint32_t section_rom, uint32_t function_vram);
+        recomp_func_t* get_func_by_section_rom_function_vram(uint32_t section_rom, uint32_t function_vram);
+        recomp_func_t* get_func_by_section_index_function_offset(uint16_t code_section_index, uint32_t function_offset);
         recomp_func_t* get_base_export(const std::string& export_name);
         size_t get_base_event_index(const std::string& event_name);
         size_t num_base_events();

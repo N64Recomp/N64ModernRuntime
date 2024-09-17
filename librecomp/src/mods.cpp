@@ -116,7 +116,11 @@ void protect(void* target_func, uint64_t old_flags) {
 
 class recomp::mods::DynamicLibrary {
 public:
+    #if defined(__APPLE__)
+    static constexpr std::string_view PlatformExtension = ".dylib";
+    #else
     static constexpr std::string_view PlatformExtension = ".so";
+    #endif
     DynamicLibrary() = default;
     DynamicLibrary(const std::filesystem::path& path) {
         native_handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -399,7 +403,13 @@ void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replac
         }
     }, replacement_func);
 #elif defined(IS_ARM64)
-    ultramodern::error_handling::message_box("Mod loading not currently implemented on ARM CPUs!\n");
+    static const uint8_t ldr_x2_8__br_x2[] = {0x42, 0x00, 0x00, 0x58, 0x40, 0x00, 0x1F, 0xD6};
+    std::visit(overloaded {
+        [&write_bytes](recomp_func_t* native_func) {
+           write_bytes(ldr_x2_8__br_x2, sizeof(ldr_x2_8__br_x2));
+           write_bytes(&native_func, sizeof(&native_func));
+        }
+    }, replacement_func);
 #else
 #   error "Unsupported architecture"
 #endif

@@ -35,23 +35,23 @@ typedef uint64_t gpr;
     ((gpr)(int32_t)((a) - (b)))
 
 #define MEM_W(offset, reg) \
-    (*(int32_t*)(rdram + ((((reg) + (offset))) - 0xFFFFFFFF80000000)))
+    (*(int32_t*)(rdram + ((((gpr)(reg) + (gpr)(offset))) - 0xFFFFFFFF80000000ULL)))
 
 #define MEM_H(offset, reg) \
-    (*(int16_t*)(rdram + ((((reg) + (offset)) ^ 2) - 0xFFFFFFFF80000000)))
+    (*(int16_t*)(rdram + ((((gpr)(reg) + (gpr)(offset)) ^ 2) - 0xFFFFFFFF80000000ULL)))
 
 #define MEM_B(offset, reg) \
-    (*(int8_t*)(rdram + ((((reg) + (offset)) ^ 3) - 0xFFFFFFFF80000000)))
+    (*(int8_t*)(rdram + ((((gpr)(reg) + (gpr)(offset)) ^ 3) - 0xFFFFFFFF80000000ULL)))
 
 #define MEM_HU(offset, reg) \
-    (*(uint16_t*)(rdram + ((((reg) + (offset)) ^ 2) - 0xFFFFFFFF80000000)))
+    (*(uint16_t*)(rdram + ((((gpr)(reg) + (gpr)(offset)) ^ 2) - 0xFFFFFFFF80000000ULL)))
 
 #define MEM_BU(offset, reg) \
-    (*(uint8_t*)(rdram + ((((reg) + (offset)) ^ 3) - 0xFFFFFFFF80000000)))
+    (*(uint8_t*)(rdram + ((((gpr)(reg) + (gpr)(offset)) ^ 3) - 0xFFFFFFFF80000000ULL)))
 
 #define SD(val, offset, reg) { \
-    *(uint32_t*)(rdram + ((((reg) + (offset) + 4)) - 0xFFFFFFFF80000000)) = (uint32_t)((gpr)(val) >> 0); \
-    *(uint32_t*)(rdram + ((((reg) + (offset) + 0)) - 0xFFFFFFFF80000000)) = (uint32_t)((gpr)(val) >> 32); \
+    *(uint32_t*)(rdram + ((((gpr)(reg) + (gpr)(offset) + 4)) - 0xFFFFFFFF80000000ULL)) = (uint32_t)((gpr)(val) >> 0); \
+    *(uint32_t*)(rdram + ((((gpr)(reg) + (gpr)(offset) + 0)) - 0xFFFFFFFF80000000ULL)) = (uint32_t)((gpr)(val) >> 32); \
 }
 
 static inline uint64_t load_doubleword(uint8_t* rdram, gpr reg, gpr offset) {

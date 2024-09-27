@@ -43,7 +43,7 @@ public:
     static constexpr std::string_view PlatformExtension = ".dll";
     DynamicLibrary() = default;
     DynamicLibrary(const std::filesystem::path& path) {
-        native_handle = LoadLibraryW(path.c_str());
+        native_handle = LoadLibraryExW(std::filesystem::absolute(path).c_str(), nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS | LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR);
 
         if (good()) {
             uint32_t* recomp_api_version;

@@ -236,7 +236,7 @@ namespace recomp {
             static void on_code_mod_enabled(ModContext& context, const ModHandle& mod);
 
             std::vector<ModContentType> content_types;
-            std::unordered_map<std::filesystem::path, ModContainerType> container_types;
+            std::unordered_map<std::string, ModContainerType> container_types;
             // Maps game mod ID to the mod's internal integer ID. 
             std::unordered_map<std::string, size_t> mod_game_ids;
             std::vector<ModHandle> opened_mods;

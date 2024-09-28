@@ -469,7 +469,7 @@ std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mo
         static const std::vector<ModContentTypeId> empty_content_types{};
         std::reference_wrapper<const std::vector<ModContentTypeId>> supported_content_types = std::cref(empty_content_types);
         if (mod_path.is_regular_file()) {
-            auto find_container_it = container_types.find(mod_path.path().extension());
+            auto find_container_it = container_types.find(mod_path.path().extension().string());
             if (find_container_it != container_types.end()) {
                 is_mod = true;
                 supported_content_types = find_container_it->second.supported_content_types;

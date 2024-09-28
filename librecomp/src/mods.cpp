@@ -552,7 +552,11 @@ bool recomp::mods::ModContext::register_container_type(const std::string& extens
     }
 
     // Register the container type.
-    container_types.emplace(true_extension, container_content_types);
+    container_types.emplace(true_extension,
+        ModContainerType {
+            .supported_content_types = container_content_types,
+            .requires_manifest = requires_manifest
+        });
 
     return true;
 }

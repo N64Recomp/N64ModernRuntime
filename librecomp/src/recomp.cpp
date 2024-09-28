@@ -93,6 +93,16 @@ void recomp::mods::scan_mods() {
     }
 }
 
+recomp::mods::ModContentTypeId recomp::mods::register_mod_content_type(const ModContentType& type) {
+    std::lock_guard mod_lock{ mod_context_mutex };
+    return mod_context->register_content_type(type);
+}
+
+bool recomp::mods::register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest) {
+    std::lock_guard mod_lock{ mod_context_mutex };
+    return mod_context->register_container_type(extension, content_types, requires_manifest);
+}
+
 bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
     uint64_t calculated_hash = XXH3_64bits(rom_data.data(), rom_data.size());
     return calculated_hash == expected_hash;
@@ -177,7 +187,6 @@ const recomp::Version& recomp::get_project_version() {
 
 bool recomp::Version::from_string(const std::string& str, Version& out) {
     std::array<size_t, 2> period_indices;
-    size_t num_periods = 0;
     size_t cur_pos = 0;
     uint16_t major;
     uint16_t minor;

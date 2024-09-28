@@ -54,9 +54,20 @@ namespace recomp {
             Good,
             InvalidGame,
             MinimumRecompVersionNotMet,
+            MissingDependency,
+            WrongDependencyVersion,
+            FailedToLoadCode,
+        };
+
+        std::string error_to_string(ModLoadError);
+
+        enum class CodeModLoadError {
+            Good,
+            InternalError,
             HasSymsButNoBinary,
             HasBinaryButNoSyms,
             FailedToParseSyms,
+            MissingDependencyInManifest,
             FailedToLoadNativeCode,
             FailedToLoadNativeLibrary,
             FailedToFindNativeExport,
@@ -66,16 +77,13 @@ namespace recomp {
             InvalidFunctionReplacement,
             FailedToFindReplacement,
             ReplacementConflict,
-            MissingDependencyInManifest,
-            MissingDependency,
-            WrongDependencyVersion,
             ModConflict,
             DuplicateExport,
             NoSpecifiedApiVersion,
             UnsupportedApiVersion,
         };
 
-        std::string error_to_string(ModLoadError);
+        std::string error_to_string(CodeModLoadError);
 
         struct ModFileHandle {
             virtual ~ModFileHandle() = default;
@@ -121,6 +129,7 @@ namespace recomp {
             Version version;
             std::vector<std::string> authors;
             std::vector<Dependency> dependencies;
+            bool runtime_toggleable;
         };
 
         struct ModManifest {
@@ -133,6 +142,7 @@ namespace recomp {
             std::unordered_map<std::string, size_t> dependencies_by_id;
             Version minimum_recomp_version;
             Version version;
+            bool runtime_toggleable;
 
             std::vector<NativeLibraryManifest> native_libraries;
             std::unique_ptr<ModFileHandle> file_handle;
@@ -155,10 +165,7 @@ namespace recomp {
             ModLoadErrorDetails(const std::string& mod_id_, ModLoadError error_, const std::string& error_param_) :
                 mod_id(mod_id_), error(error_), error_param(error_param_) {}
         };
-        
-        void scan_mods();
-        void enable_mod(const std::string& mod_id, bool enabled);
-        bool is_mod_enabled(const std::string& mod_id);
+
         std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
 
         // Internal functions, TODO move to an internal header.
@@ -169,7 +176,38 @@ namespace recomp {
 
         using GenericFunction = std::variant<recomp_func_t*>;
 
+        class ModContext;
         class ModHandle;
+        using content_enabled_callback = void(ModContext&, const ModHandle&);
+        using content_disabled_callback = void(ModContext&, const ModHandle&);
+
+        struct ModContentType {
+            // The file that's used to indicate that a mod contains this content type.
+            // If a mod contains this file, then it has this content type.
+            std::string content_filename;
+            // Whether or not this type of content can be toggled at runtime.
+            bool allow_runtime_toggle;
+            // Function to call when an instance of this content type is enabled.
+            content_enabled_callback* on_enabled;
+            // Function to call when an instance of this content type is disabled.
+            content_disabled_callback* on_disabled;
+        };
+
+        // Holds IDs for mod content types, which get assigned as they're registered.
+        // This is just a wrapper around a number for type safety purposes.
+        struct ModContentTypeId {
+            size_t value;
+        };
+
+        struct ModContainerType {
+            // The types of content that this container is allowed to have.
+            // Leaving this empty will allow the container to have any type of content.
+            std::vector<ModContentTypeId> supported_content_types;
+            // Whether or not this container requires a manifest to be treated as a valid mod.
+            // If no manifest is present, a default one will be created.
+            bool requires_manifest;
+        };
+
         class ModContext {
         public:
             ModContext();
@@ -183,22 +221,34 @@ namespace recomp {
             std::vector<ModLoadErrorDetails> load_mods(const std::string& mod_game_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
+            ModContentTypeId register_content_type(const ModContentType& type);
+            bool register_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
+            ModContentTypeId get_code_content_type() const { return code_content_type_id; }
+            bool is_content_runtime_toggleable(ModContentTypeId content_type) const;
         private:
-            ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param);
-            ModLoadError load_mod(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_map, recomp::mods::ModHandle& handle, int32_t load_address, uint32_t& ram_used, std::string& error_param);
+            ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest);
+            ModLoadError load_mod(recomp::mods::ModHandle& mod, std::string& error_param);
             void check_dependencies(recomp::mods::ModHandle& mod, std::vector<std::pair<recomp::mods::ModLoadError, std::string>>& errors);
-            ModLoadError load_mod_code(recomp::mods::ModHandle& mod, std::string& error_param);
-            ModLoadError resolve_dependencies(recomp::mods::ModHandle& mod, std::string& error_param);
-            void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices);
+            CodeModLoadError load_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param);
+            CodeModLoadError resolve_code_dependencies(recomp::mods::ModHandle& mod, std::string& error_param);
+            void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
 
+            static void on_code_mod_enabled(ModContext& context, const ModHandle& mod);
+
+            std::vector<ModContentType> content_types;
+            std::unordered_map<std::string, ModContainerType> container_types;
             // Maps game mod ID to the mod's internal integer ID. 
             std::unordered_map<std::string, size_t> mod_game_ids;
             std::vector<ModHandle> opened_mods;
+            std::unordered_map<std::string, size_t> opened_mods_by_id;
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
+            std::vector<size_t> loaded_code_mods;
             size_t num_events = 0;
+            ModContentTypeId code_content_type_id;
+            size_t active_game = (size_t)-1;
         };
 
         class ModCodeHandle {
@@ -229,8 +279,10 @@ namespace recomp {
             std::unique_ptr<ModCodeHandle> code_handle;
             std::unique_ptr<N64Recomp::Context> recompiler_context;
             std::vector<uint32_t> section_load_addresses;
+            // Content types present in this mod.
+            std::vector<ModContentTypeId> content_types;
 
-            ModHandle(ModManifest&& manifest, std::vector<size_t>&& game_indices);
+            ModHandle(const ModContext& context, ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types);
             ModHandle(const ModHandle& rhs) = delete;
             ModHandle& operator=(const ModHandle& rhs) = delete;
             ModHandle(ModHandle&& rhs);
@@ -240,15 +292,23 @@ namespace recomp {
             size_t num_exports() const;
             size_t num_events() const;
 
-            ModLoadError populate_exports(std::string& error_param);
+            CodeModLoadError populate_exports(std::string& error_param);
             bool get_export_function(const std::string& export_name, GenericFunction& out) const;
-            ModLoadError populate_events(size_t base_event_index, std::string& error_param);
+            CodeModLoadError populate_events(size_t base_event_index, std::string& error_param);
             bool get_global_event_index(const std::string& event_name, size_t& event_index_out) const;
-            ModLoadError load_native_library(const NativeLibraryManifest& lib_manifest, std::string& error_param);
+            CodeModLoadError load_native_library(const NativeLibraryManifest& lib_manifest, std::string& error_param);
 
             bool is_for_game(size_t game_index) const {
                 auto find_it = std::find(game_indices.begin(), game_indices.end(), game_index);
                 return find_it != game_indices.end();
+            }
+
+            bool is_runtime_toggleable() const {
+                return runtime_toggleable;
+            }
+
+            void disable_runtime_toggle() {
+                runtime_toggleable = false;
             }
         private:
             // Mapping of export name to function index.
@@ -261,6 +321,8 @@ namespace recomp {
             std::vector<std::unique_ptr<DynamicLibrary>> native_libraries; // Vector of pointers so that implementation can be elsewhere.
             // Games that this mod supports.
             std::vector<size_t> game_indices;
+            // Whether this mod can be toggled at runtime.
+            bool runtime_toggleable;
         };
 
         class NativeCodeHandle : public ModCodeHandle {
@@ -327,7 +389,14 @@ namespace recomp {
         void setup_events(size_t num_events);
         void register_event_callback(size_t event_index, GenericFunction callback);
         void reset_events();
-        ModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
+        CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
+
+
+        void scan_mods();
+        void enable_mod(const std::string& mod_id, bool enabled);
+        bool is_mod_enabled(const std::string& mod_id);
+        ModContentTypeId register_mod_content_type(const ModContentType& type);
+        bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
     }
 };
 

@@ -368,7 +368,7 @@ recomp::mods::ModOpenError validate_manifest(const recomp::mods::ModManifest& ma
     return ModOpenError::Good;
 }   
 
-recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesystem::path& mod_path, std::string& error_param) {
+recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest) {
     ModManifest manifest{};
     std::error_code ec;
     error_param = "";
@@ -408,12 +408,37 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         bool exists;
         std::vector<char> manifest_data = manifest.file_handle->read_file("manifest.json", exists);
         if (!exists) {
-            return ModOpenError::NoManifest;
-        }
+            // If this container type requires a manifest then return an error.
+            if (requires_manifest) {
+                return ModOpenError::NoManifest;
+            }
+            // Otherwise, create a default manifest.
+            else {
+                // Take the file handle from the manifest before clearing it so that it can be reassigned afterwards.
+                std::unique_ptr<ModFileHandle> file_handle = std::move(manifest.file_handle);
+                manifest = {};
+                manifest.file_handle = std::move(file_handle);
+                
+                for (const auto& [key, val] : mod_game_ids) {
+                    manifest.mod_game_ids.emplace_back(key);
+                }
 
-        ModOpenError parse_error = parse_manifest(manifest, manifest_data, error_param);
-        if (parse_error != ModOpenError::Good) {
-            return parse_error;
+                manifest.mod_id = mod_path.stem().string();
+                manifest.authors = { "Unknown" };
+
+                manifest.minimum_recomp_version.major = 0;
+                manifest.minimum_recomp_version.minor = 0;
+                manifest.minimum_recomp_version.patch = 0;
+                manifest.version.major = 0;
+                manifest.version.minor = 0;
+                manifest.version.patch = 0;
+            }
+        }
+        else {
+            ModOpenError parse_error = parse_manifest(manifest, manifest_data, error_param);
+            if (parse_error != ModOpenError::Good) {
+                return parse_error;
+            }
         }
     }
 
@@ -439,10 +464,33 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         }
         game_indices.emplace_back(find_id_it->second);
     }
+    
+    // Scan for content types present in this mod.
+    std::vector<ModContentTypeId> detected_content_types;
+
+    auto scan_for_content_type = [&detected_content_types, &manifest](ModContentTypeId type_id, std::vector<ModContentType>& content_types) {
+        const ModContentType& content_type = content_types[type_id.value];
+        if (manifest.file_handle->file_exists(content_type.content_filename)) {
+            detected_content_types.emplace_back(type_id);
+        }
+    };
+
+    // If the mod has a list of specific content types, scan for only those.
+    if (!supported_content_types.empty()) {
+        for (ModContentTypeId content_type_id : supported_content_types) {
+            scan_for_content_type(content_type_id, content_types);
+        }
+    }
+    // Otherwise, scan for all content types.
+    else {
+        for (size_t content_type_index = 0; content_type_index < content_types.size(); content_type_index++) {
+            scan_for_content_type(ModContentTypeId{.value = content_type_index}, content_types);
+        }
+    }
 
     // Store the loaded mod manifest in a new mod handle.
     manifest.mod_root_path = mod_path;
-    add_opened_mod(std::move(manifest), std::move(game_indices));
+    add_opened_mod(std::move(manifest), std::move(game_indices), std::move(detected_content_types));
 
     return ModOpenError::Good;
 }
@@ -493,44 +541,55 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
             return "Invalid game";
         case ModLoadError::MinimumRecompVersionNotMet:
             return "Mod requires a newer version of this project";
-        case ModLoadError::HasSymsButNoBinary:
-            return "Mod has a symbol file but no binary file";
-        case ModLoadError::HasBinaryButNoSyms:
-            return "Mod has a binary file but no symbol file";
-        case ModLoadError::FailedToParseSyms:
-            return "Failed to parse mod symbol file";
-        case ModLoadError::FailedToLoadNativeCode:
-            return "Failed to load offline mod library";
-        case ModLoadError::FailedToLoadNativeLibrary:
-            return "Failed to load mod library";
-        case ModLoadError::FailedToFindNativeExport:
-            return "Failed to find native export";
-        case ModLoadError::InvalidReferenceSymbol:
-            return "Reference symbol does not exist";
-        case ModLoadError::InvalidImport:
-            return "Imported function not found";
-        case ModLoadError::InvalidCallbackEvent:
-            return "Event for callback not found";
-        case ModLoadError::InvalidFunctionReplacement:
-            return "Function to be replaced does not exist";
-        case ModLoadError::FailedToFindReplacement:
-            return "Failed to find replacement function";
-        case ModLoadError::ReplacementConflict:
-            return "Attempted to replace a function that cannot be replaced";
-        case ModLoadError::MissingDependencyInManifest:
-            return "Dependency is present in mod symbols but not in the manifest";
         case ModLoadError::MissingDependency:
             return "Missing dependency";
         case ModLoadError::WrongDependencyVersion:
             return "Wrong dependency version";
-        case ModLoadError::ModConflict:
-            return "Conflicts with other mod";
-        case ModLoadError::DuplicateExport:
-            return "Duplicate exports in mod";
-        case ModLoadError::NoSpecifiedApiVersion:
-            return "Mod DLL does not specify an API version";
-        case ModLoadError::UnsupportedApiVersion:
-            return "Mod DLL has an unsupported API version";
+        case ModLoadError::FailedToLoadCode:
+            return "Failed to load mod code";
     }
     return "Unknown mod loading error " + std::to_string((int)error);
+}
+
+std::string recomp::mods::error_to_string(CodeModLoadError error) {
+    switch (error) {
+        case CodeModLoadError::Good:
+            return "Good";
+        case CodeModLoadError::InternalError:
+            return "Code mod loading internal error";
+        case CodeModLoadError::HasSymsButNoBinary:
+            return "Mod has a symbol file but no binary file";
+        case CodeModLoadError::HasBinaryButNoSyms:
+            return "Mod has a binary file but no symbol file";
+        case CodeModLoadError::FailedToParseSyms:
+            return "Failed to parse mod symbol file";
+        case CodeModLoadError::MissingDependencyInManifest:
+            return "Dependency is present in mod symbols but not in the manifest";
+        case CodeModLoadError::FailedToLoadNativeCode:
+            return "Failed to load offline mod library";
+        case CodeModLoadError::FailedToLoadNativeLibrary:
+            return "Failed to load mod library";
+        case CodeModLoadError::FailedToFindNativeExport:
+            return "Failed to find native export";
+        case CodeModLoadError::InvalidReferenceSymbol:
+            return "Reference symbol does not exist";
+        case CodeModLoadError::InvalidImport:
+            return "Imported function not found";
+        case CodeModLoadError::InvalidCallbackEvent:
+            return "Event for callback not found";
+        case CodeModLoadError::InvalidFunctionReplacement:
+            return "Function to be replaced does not exist";
+        case CodeModLoadError::FailedToFindReplacement:
+            return "Failed to find replacement function";
+        case CodeModLoadError::ReplacementConflict:
+            return "Attempted to replace a function that cannot be replaced";
+        case CodeModLoadError::ModConflict:
+            return "Conflicts with other mod";
+        case CodeModLoadError::DuplicateExport:
+            return "Duplicate exports in mod";
+        case CodeModLoadError::NoSpecifiedApiVersion:
+            return "Mod DLL does not specify an API version";
+        case CodeModLoadError::UnsupportedApiVersion:
+            return "Mod DLL has an unsupported API version";
+    }
 }

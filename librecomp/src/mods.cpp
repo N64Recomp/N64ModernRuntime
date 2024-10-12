@@ -822,7 +822,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
     
     const std::vector<N64Recomp::Section>& mod_sections = mod.recompiler_context->sections;
     mod.section_load_addresses.resize(mod_sections.size());
-    
+
     // Copy each section's binary into rdram, leaving room for the section's bss before the next one.
     int32_t cur_section_addr = load_address;
     for (size_t section_index = 0; section_index < mod_sections.size(); section_index++) {
@@ -831,8 +831,10 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
             MEM_B(i, (gpr)cur_section_addr) = binary_data[section.rom_addr + i];
         }
         mod.section_load_addresses[section_index] = cur_section_addr;
+        // Calculate the next section's address based on the size of this section and its bss.
         cur_section_addr += section.size + section.bss_size;
-
+        // Align the next section's address to 16 bytes.
+        cur_section_addr = (cur_section_addr + 15) & ~15;
     }
 
     // Iterate over each section again after loading them to perform R_MIPS_32 relocations.

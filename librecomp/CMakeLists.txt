@@ -14,6 +14,7 @@ add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/euc-jp.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/files.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/flash.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/heap.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/math_routines.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mods.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mod_events.cpp"
@@ -27,13 +28,16 @@ add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/sp.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ultra_stubs.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ultra_translation.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/vi.cpp")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/vi.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/o1heap/o1heap/o1heap.c"
+)
 
 target_include_directories(librecomp PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
     "${PROJECT_SOURCE_DIR}/../ultramodern/include"
     "${PROJECT_SOURCE_DIR}/../thirdparty"
     "${PROJECT_SOURCE_DIR}/../thirdparty/concurrentqueue"
+    "${PROJECT_SOURCE_DIR}/../thirdparty/o1heap"
 )
 target_include_directories(librecomp PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include/librecomp"

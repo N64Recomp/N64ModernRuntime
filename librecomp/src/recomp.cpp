@@ -24,6 +24,13 @@
 #include "librecomp/addresses.hpp"
 #include "librecomp/mods.hpp"
 
+#ifdef _WIN32
+#    define WIN32_LEAN_AND_MEAN
+#    include <Windows.h>
+#else
+#    include <sys/mman.h>
+#endif
+
 #if defined(_WIN32)
 #define PATHFMT "%ls"
 #else
@@ -514,8 +521,8 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
 
                 init(rdram, context, game_entry.entrypoint_address);
 
+                uint32_t mod_ram_used = 0;
                 if (!game_entry.mod_game_id.empty()) {
-                    uint32_t mod_ram_used = 0;
                     std::vector<recomp::mods::ModLoadErrorDetails> mod_load_errors;
                     {
                         std::lock_guard lock { mod_context_mutex };
@@ -537,7 +544,9 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                         return false;
                     }
                 }
-                
+
+                recomp::init_heap(rdram, recomp::mod_rdram_start + mod_ram_used);
+
                 ultramodern::init_saving(rdram);
                 ultramodern::load_shader_cache(game_entry.cache_data);
 
@@ -599,9 +608,24 @@ void recomp::start(
         }
     }
 
-    // Allocate rdram_buffer
-    std::unique_ptr<uint8_t[]> rdram_buffer = std::make_unique<uint8_t[]>(rdram_size);
-    std::memset(rdram_buffer.get(), 0, rdram_size);
+    // Allocate rdram without comitting it. Use a platform-specific virtual allocation function
+    // that initializes to zero.
+    uint8_t* rdram;
+    bool alloc_failed;
+#ifdef _WIN32
+    rdram = reinterpret_cast<uint8_t*>(VirtualAlloc(nullptr, mem_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
+    alloc_failed = (rdram == nullptr);
+#else
+    rdram = (uint8_t*)mmap(NULL, mem_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    alloc_failed = rdram == reinterpret_cast<uint8_t*>(MAP_FAILED);
+#endif
+
+    if (alloc_failed) {
+        ultramodern::error_handling::message_box("Failed to allocate memory!");
+        return;
+    }
+
+    recomp::register_heap_exports();
 
     std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");
@@ -614,7 +638,7 @@ void recomp::start(
 
         // Loop until the game starts.
         while (!wait_for_game_started(rdram, &context)) {}
-    }, window_handle, rdram_buffer.get()};
+    }, window_handle, rdram};
 
     while (!exited) {
         ultramodern::sleep_milliseconds(1);
@@ -627,4 +651,18 @@ void recomp::start(
     ultramodern::join_event_threads();
     ultramodern::join_thread_cleaner_thread();
     ultramodern::join_saving_thread();
+    
+    // Free rdram.
+    bool free_failed;
+#ifdef _WIN32
+    // VirtualFree returns zero on failure.
+    free_failed = (VirtualFree(rdram, 0, MEM_RELEASE) == 0);
+#else
+    // munmap returns -1 on failure.
+    free_failed = (munmap(rdram, mem_size) == -1);
+#endif
+
+    if (free_failed) {
+        printf("Failed to free rdram\n");
+    }
 }

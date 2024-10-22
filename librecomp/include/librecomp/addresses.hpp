@@ -3,8 +3,11 @@
 
 #include <cstdint>
 #include "ultramodern/ultra64.h"
+#include "librecomp/recomp.h"
 
 namespace recomp {
+    // 2GB (Addressable upper half of rdram)
+    constexpr size_t mem_size = 2U * 1024U * 1024U * 1024U;
     // We need a place in rdram to hold the PI handles, so pick an address in extended rdram
     constexpr int32_t cart_handle = 0x80800000;
     constexpr int32_t drive_handle = (int32_t)(cart_handle + sizeof(OSPiHandle));
@@ -20,6 +23,14 @@ namespace recomp {
     constexpr uint32_t sram_base = 0x08000000;
     constexpr uint32_t rom_base = 0x10000000;
     constexpr uint32_t drive_base = 0x06000000;
+
+    void register_heap_exports();
+    void init_heap(uint8_t* rdram, uint32_t address);
+    void* alloc(uint8_t* rdram, size_t size);
+    void free(uint8_t* rdram, void* mem);
 }
+
+extern "C" void recomp_alloc(uint8_t* rdram, recomp_context* ctx);
+extern "C" void recomp_free(uint8_t* rdram, recomp_context* ctx);
 
 #endif

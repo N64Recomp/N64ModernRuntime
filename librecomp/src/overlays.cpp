@@ -55,6 +55,10 @@ void recomp::overlays::register_patches(const char* patch, std::size_t size, Sec
     std::memcpy(patch_data.data(), patch, size);
 }
 
+void recomp::overlays::register_base_export(const std::string& name, recomp_func_t* func) {
+    base_exports.emplace(name, func);
+}
+
 void recomp::overlays::register_base_exports(const FunctionExport* export_list) {
     std::unordered_map<uint32_t, recomp_func_t*> patch_func_vram_map{};
 

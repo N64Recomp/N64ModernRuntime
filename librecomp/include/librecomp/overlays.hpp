@@ -23,6 +23,7 @@ namespace recomp {
         void register_overlays(const overlay_section_table_data_t& sections, const overlays_by_index_t& overlays);
 
         void register_patches(const char* patch_data, size_t patch_size, SectionTableEntry* code_sections, size_t num_sections);
+        void register_base_export(const std::string& name, recomp_func_t* func);
         void register_base_exports(const FunctionExport* exports);
         void register_base_events(char const* const* event_names);
         void read_patch_data(uint8_t* rdram, gpr patch_data_address);

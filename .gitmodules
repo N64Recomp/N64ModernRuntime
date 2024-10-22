@@ -7,3 +7,6 @@
 [submodule "N64Recomp"]
 	path = N64Recomp
 	url = https://github.com/N64Recomp/N64Recomp
+[submodule "thirdparty/o1heap"]
+	path = thirdparty/o1heap
+	url = https://github.com/N64Recomp/o1heap

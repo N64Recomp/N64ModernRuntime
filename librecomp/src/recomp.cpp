@@ -24,6 +24,13 @@
 #include "librecomp/addresses.hpp"
 #include "librecomp/mods.hpp"
 
+#ifdef _WIN32
+#    define WIN32_LEAN_AND_MEAN
+#    include <Windows.h>
+#else
+#    include <sys/mman.h>
+#endif
+
 #if defined(_WIN32)
 #define PATHFMT "%ls"
 #else
@@ -609,7 +616,7 @@ void recomp::start(
     rdram = reinterpret_cast<uint8_t*>(VirtualAlloc(nullptr, mem_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
     alloc_failed = (rdram == nullptr);
 #else
-    uint8_t* rdram = (uint8_t*)mmap(NULL, mem_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    rdram = (uint8_t*)mmap(NULL, mem_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     alloc_failed = rdram == reinterpret_cast<uint8_t*>(MAP_FAILED);
 #endif
 

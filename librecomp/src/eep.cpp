@@ -1,4 +1,5 @@
 #include "librecomp/recomp.h"
+#include "librecomp/game.hpp"
 
 #include "ultramodern/ultra64.h"
 
@@ -12,10 +13,23 @@ constexpr int eep16_size = 16384;
 constexpr int eep16_block_count = eep16_size / eeprom_block_size;
 
 extern "C" void osEepromProbe_recomp(uint8_t* rdram, recomp_context* ctx) {
-    ctx->r2 = 0x02; // EEP16K
+    switch (recomp::get_save_type()) {
+        case recomp::SaveType::AllowAll:
+        case recomp::SaveType::Eep16k:
+            ctx->r2 = 0x02; // EEPROM_TYPE_16K
+        case recomp::SaveType::Eep4k:
+            ctx->r2 = 0x01; // EEPROM_TYPE_4K
+        default:
+            ctx->r2 = 0x00;
+    }
 }
 
 extern "C" void osEepromWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
+    if (!recomp::eeprom_allowed()) {
+        ultramodern::error_handling::message_box("Attempted to use EEPROM saving with other save type");
+        ULTRAMODERN_QUICK_EXIT();
+    }
+
     uint8_t eep_address = ctx->r5;
     gpr buffer = ctx->r6;
     int32_t nbytes = eeprom_block_size;
@@ -29,6 +43,11 @@ extern "C" void osEepromWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
+    if (!recomp::eeprom_allowed()) {
+        ultramodern::error_handling::message_box("Attempted to use EEPROM saving with other save type");
+        ULTRAMODERN_QUICK_EXIT();
+    }
+
     uint8_t eep_address = ctx->r5;
     gpr buffer = ctx->r6;
     int32_t nbytes = ctx->r7;
@@ -42,6 +61,11 @@ extern "C" void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osEepromRead_recomp(uint8_t* rdram, recomp_context* ctx) {
+    if (!recomp::eeprom_allowed()) {
+        ultramodern::error_handling::message_box("Attempted to use EEPROM saving with other save type");
+        ULTRAMODERN_QUICK_EXIT();
+    }
+
     uint8_t eep_address = ctx->r5;
     gpr buffer = ctx->r6;
     int32_t nbytes = eeprom_block_size;
@@ -55,6 +79,11 @@ extern "C" void osEepromRead_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osEepromLongRead_recomp(uint8_t* rdram, recomp_context* ctx) {
+    if (!recomp::eeprom_allowed()) {
+        ultramodern::error_handling::message_box("Attempted to use EEPROM saving with other save type");
+        ULTRAMODERN_QUICK_EXIT();
+    }
+
     uint8_t eep_address = ctx->r5;
     gpr buffer = ctx->r6;
     int32_t nbytes = ctx->r7;

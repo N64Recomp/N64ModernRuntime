@@ -566,8 +566,33 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
     }
 }
 
+static recomp::SaveType _save_type = recomp::SaveType::None;
+
+recomp::SaveType recomp::get_save_type() {
+    return _save_type;
+}
+
+bool recomp::eeprom_allowed() {
+    return
+        _save_type == SaveType::Eep4k || 
+        _save_type == SaveType::Eep16k ||
+        _save_type == SaveType::AllowAll;
+}
+
+bool recomp::sram_allowed() {
+    return
+        _save_type == SaveType::Sram || 
+        _save_type == SaveType::AllowAll;
+}
+
+bool recomp::flashram_allowed() {
+    return
+        _save_type == SaveType::Flashram || 
+        _save_type == SaveType::AllowAll;
+}
+
 void recomp::start(
-    uint32_t rdram_size,
+    SaveType save_type,
     const recomp::Version& version,
     ultramodern::renderer::WindowHandle window_handle,
     const recomp::rsp::callbacks_t& rsp_callbacks,
@@ -579,6 +604,7 @@ void recomp::start(
     const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
     const ultramodern::threads::callbacks_t& threads_callbacks
 ) {
+    _save_type = save_type;
     project_version = version;
     recomp::check_all_stored_roms();
 

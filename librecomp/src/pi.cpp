@@ -82,7 +82,7 @@ void recomp::do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr)
 }
 
 struct {
-    std::array<char, 0x20000> save_buffer;
+    std::vector<char> save_buffer;
     std::thread saving_thread;
     moodycamel::LightweightSemaphore write_sempahore;
     std::mutex save_buffer_mutex;
@@ -143,6 +143,8 @@ void saving_thread_func(RDRAM_ARG1) {
 }
 
 void save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
+    assert(offset + count <= save_context.save_buffer.size());
+
     {
         std::lock_guard lock { save_context.save_buffer_mutex };
         memcpy(&save_context.save_buffer[offset], in, count);
@@ -152,6 +154,8 @@ void save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
 }
 
 void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
+    assert(offset + count <= save_context.save_buffer.size());
+
     {
         std::lock_guard lock { save_context.save_buffer_mutex };
         for (gpr i = 0; i < count; i++) {
@@ -163,6 +167,8 @@ void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t cou
 }
 
 void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
+    assert(offset + count <= save_context.save_buffer.size());
+
     std::lock_guard lock { save_context.save_buffer_mutex };
     for (gpr i = 0; i < count; i++) {
         MEM_B(i, rdram_address) = save_context.save_buffer[offset + i];
@@ -170,6 +176,8 @@ void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t coun
 }
 
 void save_clear(uint32_t start, uint32_t size, char value) {
+    assert(start + size < save_context.save_buffer.size());
+
     {
         std::lock_guard lock { save_context.save_buffer_mutex };
         std::fill_n(save_context.save_buffer.begin() + start, size, value);
@@ -178,11 +186,30 @@ void save_clear(uint32_t start, uint32_t size, char value) {
     save_context.write_sempahore.signal();
 }
 
+size_t get_save_size(recomp::SaveType save_type) {
+    switch (save_type) {
+        case recomp::SaveType::AllowAll:
+        case recomp::SaveType::Flashram:
+            return 0x20000;
+        case recomp::SaveType::Sram:
+            return 0x8000;
+        case recomp::SaveType::Eep16k:
+            return 0x800;
+        case recomp::SaveType::Eep4k:
+            return 0x200;
+        case recomp::SaveType::None:
+            return 0;
+    }
+    return 0;
+}
+
 void ultramodern::init_saving(RDRAM_ARG1) {
     std::filesystem::path save_file_path = get_save_file_path();
 
     // Ensure the save file directory exists.
     std::filesystem::create_directories(save_file_path.parent_path());
+
+    save_context.save_buffer.resize(get_save_size(recomp::get_save_type()));
 
     // Read the save file if it exists.
     std::ifstream save_file = recomp::open_input_file_with_backup(save_file_path, std::ios_base::binary);
@@ -191,7 +218,7 @@ void ultramodern::init_saving(RDRAM_ARG1) {
     }
     else {
         // Otherwise clear the save file to all zeroes.
-        save_context.save_buffer.fill(0);
+        std::fill(save_context.save_buffer.begin(), save_context.save_buffer.end(), 0);
     }
 
     save_context.saving_thread = std::thread{saving_thread_func, PASS_RDRAM};
@@ -214,6 +241,10 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             // Send a message to the mq to indicate that the transfer completed
             osSendMesg(rdram, mq, 0, OS_MESG_NOBLOCK);
         } else if (physical_addr >= recomp::sram_base) {
+            if (!recomp::sram_allowed()) {
+                ultramodern::error_handling::message_box("Attempted to use SRAM saving with other save type");
+                ULTRAMODERN_QUICK_EXIT();
+            }
             // read sram
             save_read(rdram, rdram_address, physical_addr - recomp::sram_base, size);
 
@@ -227,6 +258,10 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             // write cart rom
             throw std::runtime_error("ROM DMA write unimplemented");
         } else if (physical_addr >= recomp::sram_base) {
+            if (!recomp::sram_allowed()) {
+                ultramodern::error_handling::message_box("Attempted to use SRAM saving with other save type");
+                ULTRAMODERN_QUICK_EXIT();
+            }
             // write sram
             save_write(rdram, rdram_address, physical_addr - recomp::sram_base, size);
 

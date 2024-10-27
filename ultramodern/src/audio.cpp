@@ -30,7 +30,7 @@ void ultramodern::queue_audio_buffer(RDRAM_ARG PTR(int16_t) audio_data_, uint32_
     uint32_t sample_count = byte_count / sizeof(int16_t);
 
     // Queue the swapped audio data.
-    if (audio_callbacks.queue_samples) {
+    if (sample_count > 0 && audio_callbacks.queue_samples) {
         audio_callbacks.queue_samples(TO_PTR(int16_t, audio_data_), sample_count);
     }
 }
@@ -52,16 +52,16 @@ uint32_t ultramodern::get_remaining_audio_bytes() {
     else {
         buffered_byte_count = 100;
     }
-     // Adjust the reported count to be some number of refreshes in the future, which helps ensure that
-     // there are enough samples even if the audio thread experiences a small amount of lag. This prevents
-     // audio popping on games that use the buffered audio byte count to determine how many samples
-     // to generate.
-     uint32_t samples_per_vi = (sample_rate / 60);
-     if (buffered_byte_count > static_cast<uint32_t>(buffer_offset_frames * sizeof(int16_t) * samples_per_vi)) {
-         buffered_byte_count -= static_cast<uint32_t>(buffer_offset_frames * sizeof(int16_t) * samples_per_vi);
-     }
-     else {
-         buffered_byte_count = 0;
-     }
-     return buffered_byte_count;
+    // Adjust the reported count to be some number of refreshes in the future, which helps ensure that
+    // there are enough samples even if the audio thread experiences a small amount of lag. This prevents
+    // audio popping on games that use the buffered audio byte count to determine how many samples
+    // to generate.
+    uint32_t samples_per_vi = (sample_rate / 60);
+    if (buffered_byte_count > static_cast<uint32_t>(buffer_offset_frames * sizeof(int16_t) * samples_per_vi)) {
+        buffered_byte_count -= static_cast<uint32_t>(buffer_offset_frames * sizeof(int16_t) * samples_per_vi);
+    }
+    else {
+        buffered_byte_count = 0;
+    }
+    return buffered_byte_count;
 }

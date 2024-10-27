@@ -9,12 +9,22 @@
 #include <ultramodern/ultramodern.hpp>
 
 namespace recomp {
+    enum class SaveType {
+        None,
+        Eep4k,
+        Eep16k,
+        Sram,
+        Flashram,
+        AllowAll, // Allows all save types to work and reports eeprom size as 16kbit.
+    };
+
     struct GameEntry {
         uint64_t rom_hash;
         std::string internal_name;
         std::u8string game_id;
         std::string mod_game_id;
         std::span<const char> cache_data;
+        SaveType save_type = SaveType::None;
         bool is_enabled;
 
         gpr entrypoint_address;
@@ -73,7 +83,6 @@ namespace recomp {
      * It must be called only once and it must be called before `ultramodern::preinit`.
      */
     void start(
-        uint32_t rdram_size,
         const Version& project_version,
         ultramodern::renderer::WindowHandle window_handle,
         const recomp::rsp::callbacks_t& rsp_callbacks,
@@ -85,6 +94,11 @@ namespace recomp {
         const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
         const ultramodern::threads::callbacks_t& threads_callbacks
     );
+
+    SaveType get_save_type();
+    bool eeprom_allowed();
+    bool sram_allowed();
+    bool flashram_allowed();
 
     void start_game(const std::u8string& game_id);
     std::u8string current_game_id();

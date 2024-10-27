@@ -147,7 +147,7 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {}
 #endif
 
 void wait_for_resumed(RDRAM_ARG UltraThreadContext* thread_context) {
-    TO_PTR(OSThread, ultramodern::this_thread())->context->running.wait();
+    thread_context->running.wait();
     // If this thread's context was replaced by another thread or deleted, destroy it again from its own context.
     // This will trigger thread cleanup instead.
     if (TO_PTR(OSThread, ultramodern::this_thread())->context != thread_context) {
@@ -198,7 +198,10 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
     debug_printf("[Thread] Thread waiting to be started: %d\n", self->id);
 
     // Wait until the thread is marked as running.
-    wait_for_resumed(PASS_RDRAM thread_context);
+    try {
+        wait_for_resumed(PASS_RDRAM thread_context);
+    } catch (ultramodern::thread_terminated& terminated) {
+    }
 
     // Make sure the thread wasn't replaced or destroyed before it was started.
     if (self->context == thread_context) {
@@ -228,11 +231,6 @@ extern "C" void osStartThread(RDRAM_ARG PTR(OSThread) t_) {
     OSThread* t = TO_PTR(OSThread, t_);
     debug_printf("[os] Start Thread %d\n", t->id);
 
-    // Wait until the thread is initialized to indicate that it's ready to be started.
-    t->context->initialized.wait();
-
-    debug_printf("[os] Thread %d is ready to be started\n", t->id);
-
     // If this is a game thread, insert the new thread into the running queue and then check the running queue.
     if (thread_self) {
         ultramodern::schedule_running_thread(PASS_RDRAM t_);
@@ -259,12 +257,26 @@ extern "C" void osCreateThread(RDRAM_ARG PTR(OSThread) t_, OSId id, PTR(thread_f
 
     // Spawn a new thread, which will immediately pause itself and wait until it's been started.
     // Pass the context as an argument to the thread function to ensure that it can't get cleared before the thread captures its value.
-    t->context = new UltraThreadContext{};
-    t->context->host_thread = std::thread{_thread_func, PASS_RDRAM t_, entrypoint, arg, t->context};
+    UltraThreadContext* context = new UltraThreadContext{};
+    t->context = context;
+    context->host_thread = std::thread{_thread_func, PASS_RDRAM t_, entrypoint, arg, t->context};
+
+    // Wait until the thread is initialized to indicate that it's ready to be started.
+    context->initialized.wait();
+    debug_printf("[os] Thread %d is ready to be started\n", t->id);
 }
 
 extern "C" void osStopThread(RDRAM_ARG PTR(OSThread) t_) {
-    assert(false);
+    if (t_ == NULLPTR) {
+        t_ = thread_self;
+    }
+    // Check if the thread is stopping itself (arg is null or thread_self).
+    if (t_ == thread_self) {
+        ultramodern::run_next_thread_and_wait(PASS_RDRAM1);
+    }
+    else {
+        assert(false);
+    }
 }
 
 extern "C" void osDestroyThread(RDRAM_ARG PTR(OSThread) t_) {

@@ -609,15 +609,30 @@ void recomp::start(
     }
 
     // Allocate rdram without comitting it. Use a platform-specific virtual allocation function
-    // that initializes to zero.
+    // that initializes to zero. Protect the region above the memory size to catch accesses to invalid addresses.
     uint8_t* rdram;
     bool alloc_failed;
 #ifdef _WIN32
-    rdram = reinterpret_cast<uint8_t*>(VirtualAlloc(nullptr, mem_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE));
+    rdram = reinterpret_cast<uint8_t*>(VirtualAlloc(nullptr, allocation_size, MEM_COMMIT | MEM_RESERVE, PAGE_NOACCESS));
+    DWORD old_protect = 0;
     alloc_failed = (rdram == nullptr);
+    if (!alloc_failed) {
+        // VirtualProtect returns 0 on failure.
+        alloc_failed = (VirtualProtect(rdram, mem_size, PAGE_READWRITE, &old_protect) == 0);
+        if (alloc_failed) {
+            VirtualFree(rdram, 0, MEM_RELEASE);
+        }
+    }
 #else
-    rdram = (uint8_t*)mmap(NULL, mem_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    rdram = (uint8_t*)mmap(NULL, allocation_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     alloc_failed = rdram == reinterpret_cast<uint8_t*>(MAP_FAILED);
+    if (!alloc_failed) {
+        // mprotect returns -1 on failure.
+        alloc_failed = (mprotect(rdram, mem_size, PROT_READ | PROT_WRITE) == -1);
+        if (alloc_failed) {
+            munmap(rdram, allocation_size);
+        }
+    }
 #endif
 
     if (alloc_failed) {
@@ -659,7 +674,7 @@ void recomp::start(
     free_failed = (VirtualFree(rdram, 0, MEM_RELEASE) == 0);
 #else
     // munmap returns -1 on failure.
-    free_failed = (munmap(rdram, mem_size) == -1);
+    free_failed = (munmap(rdram, allocation_size) == -1);
 #endif
 
     if (free_failed) {

@@ -6,8 +6,10 @@
 #include "librecomp/recomp.h"
 
 namespace recomp {
-    // 2GB (Addressable upper half of rdram)
-    constexpr size_t mem_size = 2U * 1024U * 1024U * 1024U;
+    // 512GB (kseg0 size)
+    constexpr size_t mem_size = 512U * 1024U * 1024U;
+    // 2GB (Addressable upper half of the address space)
+    constexpr size_t allocation_size = 2048U * 1024U * 1024U;
     // We need a place in rdram to hold the PI handles, so pick an address in extended rdram
     constexpr int32_t cart_handle = 0x80800000;
     constexpr int32_t drive_handle = (int32_t)(cart_handle + sizeof(OSPiHandle));

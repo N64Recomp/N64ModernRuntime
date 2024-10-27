@@ -260,7 +260,6 @@ extern "C" void osCreateThread(RDRAM_ARG PTR(OSThread) t_, OSId id, PTR(thread_f
     UltraThreadContext* context = new UltraThreadContext{};
     t->context = context;
     context->host_thread = std::thread{_thread_func, PASS_RDRAM t_, entrypoint, arg, t->context};
-    //context->host_thread.detach();
 
     // Wait until the thread is initialized to indicate that it's ready to be started.
     context->initialized.wait();

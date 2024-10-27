@@ -16,7 +16,16 @@ extern "C" void osEepromProbe_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osEepromWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
-    assert(false);// ctx->r2 = 8; // CONT_NO_RESPONSE_ERROR
+    uint8_t eep_address = ctx->r5;
+    gpr buffer = ctx->r6;
+    int32_t nbytes = eeprom_block_size;
+
+    assert(!(nbytes & 7));
+    assert(eep_address * eeprom_block_size + nbytes <= eep16_size);
+
+    save_write(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+
+    ctx->r2 = 0;
 }
 
 extern "C" void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
@@ -33,7 +42,16 @@ extern "C" void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osEepromRead_recomp(uint8_t* rdram, recomp_context* ctx) {
-    assert(false);// ctx->r2 = 8; // CONT_NO_RESPONSE_ERROR
+    uint8_t eep_address = ctx->r5;
+    gpr buffer = ctx->r6;
+    int32_t nbytes = eeprom_block_size;
+
+    assert(!(nbytes & 7));
+    assert(eep_address * eeprom_block_size + nbytes <= eep16_size);
+
+    save_read(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+
+    ctx->r2 = 0;
 }
 
 extern "C" void osEepromLongRead_recomp(uint8_t* rdram, recomp_context* ctx) {

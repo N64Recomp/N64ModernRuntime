@@ -30,6 +30,8 @@ namespace recomp {
         gpr entrypoint_address;
         void (*entrypoint)(uint8_t* rdram, recomp_context* context);
 
+        void (*thread_create_callback)(uint8_t* rdram, recomp_context* context);
+
         std::u8string stored_filename() const;
     };
     struct Version {

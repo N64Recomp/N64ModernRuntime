@@ -297,7 +297,7 @@ u32 osVirtualToPhysical(PTR(void) addr);
 
 /* Controller interface */
 
-s32 osContInit(RDRAM_ARG PTR(OSMesgQueue), PTR(u8), PTR(OSContStatus));
+s32 osContInit(RDRAM_ARG PTR(OSMesgQueue), u8*, PTR(OSContStatus));
 s32 osContReset(RDRAM_ARG PTR(OSMesgQueue), PTR(OSContStatus));
 s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue));
 s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue));

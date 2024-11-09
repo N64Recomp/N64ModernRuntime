@@ -72,7 +72,6 @@ namespace ultramodern {
                 virtual void shutdown() = 0;
                 virtual uint32_t get_display_framerate() const = 0;
                 virtual float get_resolution_scale() const = 0;
-                virtual void load_shader_cache(std::span<const char> cache_binary) = 0;
 
             protected:
                 SetupResult setup_result;

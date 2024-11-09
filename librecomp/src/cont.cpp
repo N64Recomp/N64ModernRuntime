@@ -16,8 +16,11 @@ extern "C" void osContInit_recomp(uint8_t* rdram, recomp_context* ctx) {
     PTR(OSMesgQueue) mq = _arg<0, PTR(OSMesgQueue)>(rdram, ctx);
     PTR(u8) bitpattern = _arg<1, PTR(u8)>(rdram, ctx);
     PTR(OSContStatus) data = _arg<2, PTR(OSContStatus)>(rdram, ctx);
+    u8 bitpattern_local = 0;
 
-    s32 ret = osContInit(PASS_RDRAM mq, bitpattern, data);
+    s32 ret = osContInit(PASS_RDRAM mq, &bitpattern_local, data);
+
+    MEM_B(0, bitpattern) = bitpattern_local;
 
     _return<s32>(ctx, ret);
 }

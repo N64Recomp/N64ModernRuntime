@@ -82,8 +82,7 @@ static void __osContGetInitData(u8* pattern, OSContStatus *data) {
     }
 }
 
-extern "C" s32 osContInit(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(u8) bitpattern_, PTR(OSContStatus) data_) {
-    u8 *bitpattern = TO_PTR(u8, bitpattern_);
+extern "C" s32 osContInit(RDRAM_ARG PTR(OSMesgQueue) mq, u8* bitpattern, PTR(OSContStatus) data_) {
     OSContStatus *data = TO_PTR(OSContStatus, data_);
 
     max_controllers = MAXCONTROLLERS;

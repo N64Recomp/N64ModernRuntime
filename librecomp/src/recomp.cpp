@@ -551,7 +551,6 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
 
                 save_type = game_entry.save_type;
                 ultramodern::init_saving(rdram);
-                ultramodern::load_shader_cache(game_entry.cache_data);
 
                 try {
                     game_entry.entrypoint(rdram, context);

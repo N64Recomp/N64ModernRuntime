@@ -460,9 +460,18 @@ void recomp::mods::ModContext::register_game(const std::string& mod_game_id) {
     mod_game_ids.emplace(mod_game_id, mod_game_ids.size());
 }
 
+void recomp::mods::ModContext::close_mods() {
+    opened_mods_by_id.clear();
+    opened_mods.clear();
+    mod_ids.clear();
+    enabled_mods.clear();
+}
+
 std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mod_folder(const std::filesystem::path& mod_folder) {
     std::vector<recomp::mods::ModOpenErrorDetails> ret{};
     std::error_code ec;
+    close_mods();
+
     for (const auto& mod_path : std::filesystem::directory_iterator{mod_folder, std::filesystem::directory_options::skip_permission_denied, ec}) {
         bool is_mod = false;
         bool requires_manifest = true;

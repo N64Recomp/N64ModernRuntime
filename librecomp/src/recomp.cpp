@@ -648,7 +648,7 @@ void recomp::start(
         }
     }
 #else
-    rdram = (uint8_t*)mmap(NULL, allocation_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    rdram = (uint8_t*)mmap(NULL, allocation_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0);
     alloc_failed = rdram == reinterpret_cast<uint8_t*>(MAP_FAILED);
     if (!alloc_failed) {
         // mprotect returns -1 on failure.

@@ -232,6 +232,7 @@ namespace recomp {
             CodeModLoadError load_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param);
             CodeModLoadError resolve_code_dependencies(recomp::mods::ModHandle& mod, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
+            void close_mods();
 
             static void on_code_mod_enabled(ModContext& context, const ModHandle& mod);
 

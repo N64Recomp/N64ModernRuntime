@@ -51,8 +51,7 @@ std::string ultramodern::renderer::GraphicsConfig::get_graphics_api_name() const
 #elif defined(__gnu_linux__)
         api = ultramodern::renderer::GraphicsApi::Vulkan;
 #elif defined(__APPLE__)
-        // TODO: Add MoltenVK option for Mac?
-        api = ultramodern::renderer::GraphicsApi::Vulkan;
+        api = ultramodern::renderer::GraphicsApi::Metal;
 #else
         static_assert(false && "Unimplemented")
 #endif
@@ -63,6 +62,8 @@ std::string ultramodern::renderer::GraphicsConfig::get_graphics_api_name() const
             return "D3D12";
         case ultramodern::renderer::GraphicsApi::Vulkan:
             return "Vulkan";
+        case ultramodern::renderer::GraphicsApi::Metal:
+            return "Metal";
         default:
             return "[Unknown graphics API]";
     }

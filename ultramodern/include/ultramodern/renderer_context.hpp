@@ -23,6 +23,8 @@
 #include "ultra64.h"
 #include "config.hpp"
 
+struct SDL_Window;
+
 namespace ultramodern {
     namespace renderer {
 
@@ -33,14 +35,9 @@ namespace ultramodern {
             DWORD thread_id = (DWORD)-1;
             auto operator<=>(const WindowHandle&) const = default;
         };
-#elif defined(__ANDROID__)
-        using WindowHandle = ANativeWindow*;
-#elif defined(__linux__)
-        struct WindowHandle {
-            Display* display;
-            Window window;
-            auto operator<=>(const WindowHandle&) const = default;
-        };
+// TODO add a native window handle option here (Display/Window for x11 and ANativeWindow for Android) as a compile-time option.
+#elif defined(__linux__) || defined(__ANDROID__)
+        using WindowHandle = SDL_Window*;
 #elif defined(__APPLE__)
         struct WindowHandle {
             void* window;

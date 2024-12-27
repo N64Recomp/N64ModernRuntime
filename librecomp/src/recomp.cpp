@@ -550,7 +550,7 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                 recomp::init_heap(rdram, recomp::mod_rdram_start + mod_ram_used);
 
                 save_type = game_entry.save_type;
-                ultramodern::init_saving(rdram);
+                ultramodern::init_saving(rdram, game_entry.custom_save_size);
 
                 try {
                     game_entry.entrypoint(rdram, context);
@@ -588,6 +588,12 @@ bool recomp::sram_allowed() {
 bool recomp::flashram_allowed() {
     return
         save_type == SaveType::Flashram || 
+        save_type == SaveType::AllowAll;
+}
+
+bool recomp::custom_saving_allowed() {
+    return
+        save_type == SaveType::Custom || 
         save_type == SaveType::AllowAll;
 }
 

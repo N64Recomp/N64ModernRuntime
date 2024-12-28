@@ -6,7 +6,7 @@
 #include "librecomp/mods.hpp"
 #include "librecomp/overlays.hpp"
 #include "librecomp/game.hpp"
-#include "n64recomp.h"
+#include "recompiler/context.h"
 
 // Architecture detection.
 
@@ -387,6 +387,28 @@ void recomp::mods::NativeCodeHandle::set_imported_function(size_t import_index, 
             imported_funcs[import_index] = native_func;
         }
     }, func);
+}
+
+recomp::mods::CodeModLoadError recomp::mods::NativeCodeHandle::populate_reference_symbols(const N64Recomp::Context& context, std::string& error_param) {
+    size_t reference_symbol_index = 0;
+    for (const auto& section : context.sections) {
+        for (const auto& reloc : section.relocs) {
+            if (reloc.type == N64Recomp::RelocType::R_MIPS_26 && reloc.reference_symbol && context.is_regular_reference_section(reloc.target_section)) {
+                recomp_func_t* cur_func = recomp::overlays::get_func_by_section_index_function_offset(reloc.target_section, reloc.target_section_offset);
+                if (cur_func == nullptr) {
+                    std::stringstream error_param_stream{};
+                    error_param_stream << std::hex <<
+                        "section: " << reloc.target_section <<
+                        " func offset: 0x" << reloc.target_section_offset;
+                    error_param = error_param_stream.str();
+                    return CodeModLoadError::InvalidReferenceSymbol;
+                }
+                reference_symbol_funcs[reference_symbol_index] = cur_func;
+                reference_symbol_index++;
+            }
+        }
+    }
+    return CodeModLoadError::Good;
 }
 
 void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replacement_func) {
@@ -953,25 +975,13 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
 }
 
 recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependencies(recomp::mods::ModHandle& mod, std::string& error_param) {
-    // Reference symbols from the base recomp.1:1 with relocs for offline mods.
-    // TODO this won't be needed for LuaJIT recompilation, so move this logic into the code handle.
-    size_t reference_symbol_index = 0;
-    for (const auto& section : mod.recompiler_context->sections) {
-        for (const auto& reloc : section.relocs) {
-            if (reloc.type == N64Recomp::RelocType::R_MIPS_26 && reloc.reference_symbol && mod.recompiler_context->is_regular_reference_section(reloc.target_section)) {
-                recomp_func_t* cur_func = recomp::overlays::get_func_by_section_index_function_offset(reloc.target_section, reloc.target_section_offset);
-                if (cur_func == nullptr) {
-                    std::stringstream error_param_stream{};
-                    error_param_stream << std::hex <<
-                        "section: " << reloc.target_section <<
-                        " func offset: 0x" << reloc.target_section_offset;
-                    error_param = error_param_stream.str();
-                    return CodeModLoadError::InvalidReferenceSymbol;
-                }
-                mod.code_handle->set_reference_symbol_pointer(reference_symbol_index, cur_func);
-                reference_symbol_index++;
-            }
-        }
+    // Reference symbols.
+    std::string reference_syms_error_param{};
+    CodeModLoadError reference_syms_error = mod.code_handle->populate_reference_symbols(*mod.recompiler_context, reference_syms_error_param);
+
+    if (reference_syms_error != CodeModLoadError::Good) {
+        error_param = std::move(reference_syms_error_param);
+        return reference_syms_error;
     }
 
     // Create a list of dependencies ordered by their index in the recompiler context.

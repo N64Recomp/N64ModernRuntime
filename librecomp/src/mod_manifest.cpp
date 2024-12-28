@@ -2,7 +2,7 @@
 
 #include "json/json.hpp"
 
-#include "n64recomp.h"
+#include "recompiler/context.h"
 #include "librecomp/mods.hpp"
 
 recomp::mods::ZipModFileHandle::~ZipModFileHandle() {

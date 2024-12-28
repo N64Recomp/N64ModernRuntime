@@ -258,7 +258,7 @@ namespace recomp {
             virtual bool good() = 0;
             virtual uint32_t get_api_version() = 0;
             virtual void set_imported_function(size_t import_index, GenericFunction func) = 0;
-            virtual void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) = 0;
+            virtual CodeModLoadError populate_reference_symbols(const N64Recomp::Context& recompiler_context, std::string& error_param) = 0;
             virtual void set_base_event_index(uint32_t global_event_index) = 0;
             virtual uint32_t get_base_event_index() = 0;
             virtual void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) = 0;
@@ -333,9 +333,7 @@ namespace recomp {
             bool good() final;
             uint32_t get_api_version() final;
             void set_imported_function(size_t import_index, GenericFunction func) final;
-            void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) final {
-                reference_symbol_funcs[symbol_index] = ptr;
-            };
+            CodeModLoadError populate_reference_symbols(const N64Recomp::Context& context, std::string& error_param) final;
             void set_base_event_index(uint32_t global_event_index) final {
                 *base_event_index = global_event_index;
             };

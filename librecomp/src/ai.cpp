@@ -25,5 +25,5 @@ extern "C" void osAiGetLength_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osAiGetStatus_recomp(uint8_t* rdram, recomp_context* ctx) {
-    ctx->r2 = 0x00000000; // Pretend the audio DMAs finish instantly
+    ctx->r2 = osAiGetStatus();
 }

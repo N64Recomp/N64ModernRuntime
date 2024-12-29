@@ -6,6 +6,8 @@ static uint32_t sample_rate = 48000;
 
 static ultramodern::audio_callbacks_t audio_callbacks;
 
+std::atomic<uint32_t> recent_frames_queued = 0;
+
 void ultramodern::set_audio_callbacks(const ultramodern::audio_callbacks_t& callbacks) {
     audio_callbacks = callbacks;
 }
@@ -64,4 +66,26 @@ uint32_t ultramodern::get_remaining_audio_bytes() {
         buffered_byte_count = 0;
     }
     return buffered_byte_count;
+}
+
+extern "C" u32 osAiGetStatus() {
+    uint32_t cur_frame_count = 0;
+    if (audio_callbacks.get_frames_remaining != nullptr) {
+        cur_frame_count = audio_callbacks.get_frames_remaining();
+    }
+
+    uint32_t samples_per_vi = (sample_rate / 60);
+    if (cur_frame_count >  static_cast<uint32_t>(buffer_offset_frames * samples_per_vi)) {
+        cur_frame_count -= static_cast<uint32_t>(buffer_offset_frames * samples_per_vi);
+    }
+    else {
+        cur_frame_count = 0;
+    }
+
+    // Check if the most recently queued samples are playing, if not then consider the DMA as incomplete.
+    if (cur_frame_count > recent_frames_queued.load()) {
+        return 0x80000000;
+    }
+
+    return 0x0;
 }

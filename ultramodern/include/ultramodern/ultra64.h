@@ -295,6 +295,8 @@ int osSetTimer(RDRAM_ARG PTR(OSTimer) timer, OSTime countdown, OSTime interval, 
 int osStopTimer(RDRAM_ARG PTR(OSTimer) timer);
 u32 osVirtualToPhysical(PTR(void) addr);
 
+u32 osAiGetStatus();
+
 /* Controller interface */
 
 s32 osContInit(RDRAM_ARG PTR(OSMesgQueue), u8*, PTR(OSContStatus));

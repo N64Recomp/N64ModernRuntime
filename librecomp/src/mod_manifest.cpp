@@ -571,6 +571,8 @@ std::string recomp::mods::error_to_string(CodeModLoadError error) {
             return "Failed to load mod library";
         case CodeModLoadError::FailedToFindNativeExport:
             return "Failed to find native export";
+        case CodeModLoadError::FailedToRecompile:
+            return "Failed to recompile mod";
         case CodeModLoadError::InvalidReferenceSymbol:
             return "Reference symbol does not exist";
         case CodeModLoadError::InvalidImport:

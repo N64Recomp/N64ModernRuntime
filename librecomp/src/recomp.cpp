@@ -15,7 +15,7 @@
 #include <cuchar>
 #include <charconv>
 
-#include "librecomp/recomp.h"
+#include "recomp.h"
 #include "librecomp/overlays.hpp"
 #include "librecomp/game.hpp"
 #include "xxHash/xxh3.h"
@@ -631,6 +631,8 @@ void recomp::start(
             assert(false && "No create_window callback provided");
         }
     }
+
+    recomp::mods::initialize_mod_recompiler();
 
     // Allocate rdram without comitting it. Use a platform-specific virtual allocation function
     // that initializes to zero. Protect the region above the memory size to catch accesses to invalid addresses.

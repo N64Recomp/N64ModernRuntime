@@ -1007,6 +1007,9 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
         .do_break = do_break,
         .reference_section_addresses = section_addresses,
     };
+    
+    // Allocate the event indices used by the mod.
+    num_events += mod.num_events();
 
     // Copy the mod's binary into the recompiler context so it can be analyzed during code loading.
     // TODO move it instead, right now the move can't be done because of a signedness difference in the types.

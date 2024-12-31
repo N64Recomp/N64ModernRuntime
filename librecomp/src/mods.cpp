@@ -998,7 +998,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
     std::string cur_error_param;
     CodeModLoadError cur_error;
     ModCodeHandleInputs handle_inputs{
-        .base_event_index = num_events,
+        .base_event_index = static_cast<uint32_t>(num_events),
         .recomp_trigger_event = recomp_trigger_event,
         .get_function = get_function,
         .cop0_status_write = cop0_status_write,
@@ -1007,7 +1007,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
         .do_break = do_break,
         .reference_section_addresses = section_addresses,
     };
-    
+
     // Allocate the event indices used by the mod.
     num_events += mod.num_events();
 

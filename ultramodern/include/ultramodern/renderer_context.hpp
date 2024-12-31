@@ -18,6 +18,8 @@
 #   undef LockMask
 #   undef Always
 #   undef Success
+#   undef False
+#   undef True
 #endif
 
 #include "ultra64.h"

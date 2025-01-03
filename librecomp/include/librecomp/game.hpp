@@ -16,6 +16,7 @@ namespace recomp {
         Sram,
         Flashram,
         AllowAll, // Allows all save types to work and reports eeprom size as 16kbit.
+        Custom, // Custom save type for recomp with a configurable size.
     };
 
     struct GameEntry {
@@ -25,6 +26,7 @@ namespace recomp {
         std::string mod_game_id;
         std::span<const char> cache_data;
         SaveType save_type = SaveType::None;
+        uint32_t custom_save_size = 0;
         bool is_enabled;
 
         gpr entrypoint_address;
@@ -99,6 +101,7 @@ namespace recomp {
     bool eeprom_allowed();
     bool sram_allowed();
     bool flashram_allowed();
+    bool custom_saving_allowed();
 
     void start_game(const std::u8string& game_id);
     std::u8string current_game_id();

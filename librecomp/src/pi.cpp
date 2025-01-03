@@ -186,9 +186,12 @@ void save_clear(uint32_t start, uint32_t size, char value) {
     save_context.write_sempahore.signal();
 }
 
-size_t get_save_size(recomp::SaveType save_type) {
+size_t get_save_size(recomp::SaveType save_type, uint32_t custom_save_size) {
     switch (save_type) {
         case recomp::SaveType::AllowAll:
+            return std::max(custom_save_size, 0x20000U);
+        case recomp::SaveType::Custom:
+            return custom_save_size;
         case recomp::SaveType::Flashram:
             return 0x20000;
         case recomp::SaveType::Sram:
@@ -203,13 +206,38 @@ size_t get_save_size(recomp::SaveType save_type) {
     return 0;
 }
 
-void ultramodern::init_saving(RDRAM_ARG1) {
+void ultramodern::init_saving(RDRAM_ARG uint32_t custom_save_size) {
     std::filesystem::path save_file_path = get_save_file_path();
 
     // Ensure the save file directory exists.
     std::filesystem::create_directories(save_file_path.parent_path());
 
-    save_context.save_buffer.resize(get_save_size(recomp::get_save_type()));
+    recomp::SaveType save_type = recomp::get_save_type();
+    if (save_type == recomp::SaveType::Custom) {
+        if (custom_save_size == 0) {
+            ultramodern::error_handling::message_box(
+                "The current game's GameEntry uses the \"Custom\" save type, but\n"
+                "the custom save size has not been specified.\n"
+                "\n"
+                "This can be done by setting \"custom_save_size\" in the\n"
+                "GameEntry passed to \"recomp::register_game\"."
+            );
+            ULTRAMODERN_QUICK_EXIT();
+        }
+    }
+    else if (save_type != recomp::SaveType::AllowAll) {
+        if (custom_save_size != 0) {
+            ultramodern::error_handling::message_box(
+                "The current game's GameEntry \"custom_save_size\" has been set, but\n"
+                "the current game does not use the \"Custom\" save type.\n"
+                "\n"
+                "Only the \"Custom\" save type has a configurable saving size.\n"
+            );
+            ULTRAMODERN_QUICK_EXIT();
+        }
+    }
+
+    save_context.save_buffer.resize(get_save_size(save_type, custom_save_size));
 
     // Read the save file if it exists.
     std::ifstream save_file = recomp::open_input_file_with_backup(save_file_path, std::ios_base::binary);
@@ -360,4 +388,32 @@ extern "C" void osEPiRawStartDma_recomp(RDRAM_ARG recomp_context * ctx) {
         "The application will close now, bye and good luck!"
     );
     ULTRAMODERN_QUICK_EXIT();
+}
+
+// Custom recomp saving mechanism.
+
+// Called from the recompiled code as `void recomp_save_write(void* rdram_address, u32 offset, u32 count);`
+extern "C" void recomp_save_write(uint8_t* rdram, recomp_context* ctx) {
+    if (!recomp::custom_saving_allowed()) {
+        ultramodern::error_handling::message_box("Attempted to use custom saving with other save type");
+        ULTRAMODERN_QUICK_EXIT();
+    }
+    int32_t rdram_address = ctx->r4;
+    uint32_t offset = ctx->r5;
+    uint32_t count = ctx->r6;
+
+    save_write(rdram, rdram_address, offset, count);
+}
+
+// Called from the recompiled code as `void recomp_save_read(void* rdram_address, u32 offset, u32 count);`
+extern "C" void recomp_save_read(uint8_t* rdram, recomp_context* ctx) {
+    if (!recomp::custom_saving_allowed()) {
+        ultramodern::error_handling::message_box("Attempted to use custom saving with other save type");
+        ULTRAMODERN_QUICK_EXIT();
+    }
+    int32_t rdram_address = ctx->r4;
+    uint32_t offset = ctx->r5;
+    uint32_t count = ctx->r6;
+
+    save_read(rdram, rdram_address, offset, count);
 }

@@ -6,7 +6,8 @@
 #include "librecomp/mods.hpp"
 #include "librecomp/overlays.hpp"
 #include "librecomp/game.hpp"
-#include "n64recomp.h"
+#include "recompiler/context.h"
+#include "recompiler/live_recompiler.h"
 
 // Architecture detection.
 
@@ -240,13 +241,11 @@ size_t recomp::mods::ModHandle::num_events() const {
     return recompiler_context->event_symbols.size();
 }
 
-recomp::mods::CodeModLoadError recomp::mods::ModHandle::populate_exports(std::string& error_param) {
+void recomp::mods::ModHandle::populate_exports() {
     for (size_t func_index : recompiler_context->exported_funcs) {
         const auto& func_handle = recompiler_context->functions[func_index];
         exports_by_name.emplace(func_handle.name, func_index);
     }
-
-    return CodeModLoadError::Good;
 }
 
 recomp::mods::CodeModLoadError recomp::mods::ModHandle::load_native_library(const recomp::mods::NativeLibraryManifest& lib_manifest, std::string& error_param) {
@@ -309,14 +308,11 @@ bool recomp::mods::ModHandle::get_export_function(const std::string& export_name
     return false;
 }
 
-recomp::mods::CodeModLoadError recomp::mods::ModHandle::populate_events(size_t base_event_index, std::string& error_param) {
+void recomp::mods::ModHandle::populate_events() {
     for (size_t event_index = 0; event_index < recompiler_context->event_symbols.size(); event_index++) {
         const N64Recomp::EventSymbol& event = recompiler_context->event_symbols[event_index];
         events_by_name.emplace(event.base.name, event_index);
     }
-
-    code_handle->set_base_event_index(base_event_index);
-    return CodeModLoadError::Good;
 }
 
 bool recomp::mods::ModHandle::get_global_event_index(const std::string& event_name, size_t& event_index_out) const {
@@ -329,7 +325,7 @@ bool recomp::mods::ModHandle::get_global_event_index(const std::string& event_na
     return true;
 }
 
-recomp::mods::NativeCodeHandle::NativeCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context) {
+recomp::mods::DynamicLibraryCodeHandle::DynamicLibraryCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context, const ModCodeHandleInputs& inputs) {
     is_good = true;
     // Load the DLL.
     dynamic_lib = std::make_unique<DynamicLibrary>(dll_path);
@@ -366,27 +362,127 @@ recomp::mods::NativeCodeHandle::NativeCodeHandle(const std::filesystem::path& dl
     is_good &= dynamic_lib->get_dll_symbol(do_break, "do_break");
     is_good &= dynamic_lib->get_dll_symbol(reference_section_addresses, "reference_section_addresses");
     is_good &= dynamic_lib->get_dll_symbol(section_addresses, "section_addresses");
+
+    if (is_good) {
+        *base_event_index = inputs.base_event_index;
+        *recomp_trigger_event = inputs.recomp_trigger_event;
+        *get_function = inputs.get_function;
+        *cop0_status_write = inputs.cop0_status_write;
+        *cop0_status_read = inputs.cop0_status_read;
+        *switch_error = inputs.switch_error;
+        *do_break = inputs.do_break;
+        *reference_section_addresses = inputs.reference_section_addresses;
+    }
 }
 
-bool recomp::mods::NativeCodeHandle::good()  {
+bool recomp::mods::DynamicLibraryCodeHandle::good()  {
     return dynamic_lib->good() && is_good;
 }
 
-uint32_t recomp::mods::NativeCodeHandle::get_api_version() {
+uint32_t recomp::mods::DynamicLibraryCodeHandle::get_api_version() {
     return dynamic_lib->get_api_version();
 }
 
-void recomp::mods::NativeCodeHandle::set_bad() {
+void recomp::mods::DynamicLibraryCodeHandle::set_bad() {
     dynamic_lib.reset();
     is_good = false;
 }
 
-void recomp::mods::NativeCodeHandle::set_imported_function(size_t import_index, GenericFunction func) {
+void recomp::mods::DynamicLibraryCodeHandle::set_imported_function(size_t import_index, GenericFunction func) {
     std::visit(overloaded {
         [this, import_index](recomp_func_t* native_func) {
             imported_funcs[import_index] = native_func;
         }
     }, func);
+}
+
+recomp::mods::CodeModLoadError recomp::mods::DynamicLibraryCodeHandle::populate_reference_symbols(const N64Recomp::Context& context, std::string& error_param) {
+    size_t reference_symbol_index = 0;
+    for (const auto& section : context.sections) {
+        for (const auto& reloc : section.relocs) {
+            if (reloc.type == N64Recomp::RelocType::R_MIPS_26 && reloc.reference_symbol && context.is_regular_reference_section(reloc.target_section)) {
+                recomp_func_t* cur_func = recomp::overlays::get_func_by_section_index_function_offset(reloc.target_section, reloc.target_section_offset);
+                if (cur_func == nullptr) {
+                    std::stringstream error_param_stream{};
+                    error_param_stream << std::hex <<
+                        "section: " << reloc.target_section <<
+                        " func offset: 0x" << reloc.target_section_offset;
+                    error_param = error_param_stream.str();
+                    return CodeModLoadError::InvalidReferenceSymbol;
+                }
+                reference_symbol_funcs[reference_symbol_index] = cur_func;
+                reference_symbol_index++;
+            }
+        }
+    }
+    return CodeModLoadError::Good;
+}
+
+recomp::mods::LiveRecompilerCodeHandle::LiveRecompilerCodeHandle(const N64Recomp::Context& context, const ModCodeHandleInputs& inputs) {
+    section_addresses = std::make_unique<int32_t[]>(context.sections.size());
+    base_event_index = inputs.base_event_index;
+
+    N64Recomp::LiveGeneratorInputs recompiler_inputs{
+        .base_event_index = inputs.base_event_index,
+        .cop0_status_write = inputs.cop0_status_write,
+        .cop0_status_read = inputs.cop0_status_read,
+        .switch_error = inputs.switch_error,
+        .do_break = inputs.do_break,
+        .get_function = inputs.get_function,
+        .syscall_handler = nullptr, // TODO hook this up
+        .pause_self = pause_self,
+        .trigger_event = inputs.recomp_trigger_event,
+        .reference_section_addresses = inputs.reference_section_addresses,
+        .local_section_addresses = section_addresses.get(),
+    };
+
+    N64Recomp::LiveGenerator generator{ context.functions.size(), recompiler_inputs };
+    std::vector<std::vector<uint32_t>> dummy_static_funcs{};
+
+    for (size_t func_index = 0; func_index < context.functions.size(); func_index++) {
+        std::ostringstream dummy_ostream{};
+
+        if (!N64Recomp::recompile_function_live(generator, context, func_index, dummy_ostream, dummy_static_funcs, true)) {
+            is_good = false;
+            break;
+        }
+    }
+
+    // Generate the code.
+    recompiler_output = std::make_unique<N64Recomp::LiveGeneratorOutput>(generator.finish());
+    is_good = recompiler_output->good;
+}
+
+void recomp::mods::LiveRecompilerCodeHandle::set_imported_function(size_t import_index, GenericFunction func) {
+    std::visit(overloaded {
+        [this, import_index](recomp_func_t* native_func) {
+            recompiler_output->populate_import_symbol_jumps(import_index, native_func);
+        }
+    }, func);
+}
+
+recomp::mods::CodeModLoadError recomp::mods::LiveRecompilerCodeHandle::populate_reference_symbols(const N64Recomp::Context& context, std::string& error_param) {
+    size_t num_reference_jumps = recompiler_output->num_reference_symbol_jumps();
+    for (size_t jump_index = 0; jump_index < num_reference_jumps; jump_index++) {
+        N64Recomp::ReferenceJumpDetails jump_details = recompiler_output->get_reference_symbol_jump_details(jump_index);
+
+        recomp_func_t* cur_func = recomp::overlays::get_func_by_section_index_function_offset(jump_details.section, jump_details.section_offset);
+        if (cur_func == nullptr) {
+            std::stringstream error_param_stream{};
+            error_param_stream << std::hex <<
+                "section: " << jump_details.section <<
+                " func offset: 0x" << jump_details.section_offset;
+            error_param = error_param_stream.str();
+            return CodeModLoadError::InvalidReferenceSymbol;
+        }
+
+        recompiler_output->set_reference_symbol_jump(jump_index, cur_func);
+    }
+    return CodeModLoadError::Good;
+}
+
+recomp::mods::GenericFunction recomp::mods::LiveRecompilerCodeHandle::get_function_handle(size_t func_index) {
+    return GenericFunction{ recompiler_output->functions[func_index] };
 }
 
 void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replacement_func) {
@@ -655,6 +751,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;
     num_events = recomp::overlays::num_base_events();
+    loaded_code_mods.clear();
 
     auto find_index_it = mod_game_ids.find(mod_game_id);
     if (find_index_it == mod_game_ids.end()) {
@@ -722,7 +819,12 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         std::string cur_error_param;
         CodeModLoadError cur_error = load_mod_code(rdram, section_vrom_map, mod, load_address, cur_ram_used, cur_error_param);
         if (cur_error != CodeModLoadError::Good) {
-            ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error) + ":" + cur_error_param);
+            if (cur_error_param.empty()) {
+                ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error));
+            }
+            else {
+                ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error) + ":" + cur_error_param);
+            }
         }
         else {
             load_address += cur_ram_used;
@@ -745,7 +847,12 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         std::string cur_error_param;
         CodeModLoadError cur_error = resolve_code_dependencies(mod, cur_error_param);
         if (cur_error != CodeModLoadError::Good) {
-            ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error) + ":" + cur_error_param);
+            if (cur_error_param.empty()) {
+                ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error));
+            }
+            else {
+                ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error) + ":" + cur_error_param);
+            }
         }
     }
 
@@ -814,6 +921,19 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
         return CodeModLoadError::FailedToParseSyms;
     }
 
+    // Set all reference sections as relocatable, since the only relocations present in a mod's context
+    // are ones that target relocatable sections.
+    mod.recompiler_context->set_all_reference_sections_relocatable();
+    // Disable validation of reference symbols (so we can skip populating them). Validation will still happen
+    // later on in the live recompilation process.
+    mod.recompiler_context->skip_validating_reference_symbols = true;
+
+    // Populate the mod's export map.
+    mod.populate_exports();
+
+    // Populate the mod's event map and set its base event index.
+    mod.populate_events();
+
     // Validate that the dependencies present in the symbol file are all present in the mod's manifest as well.
     for (const auto& [cur_dep_id, cur_dep_index] : mod.recompiler_context->dependencies_by_name) {
         // Handle special dependency names.
@@ -875,14 +995,33 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
 
     ram_used = cur_section_addr - load_address;
 
-    // TODO implement LuaJIT recompilation and allow it instead of native code loading via a mod manifest flag.
-    
     std::string cur_error_param;
     CodeModLoadError cur_error;
-    if (1) {
+    ModCodeHandleInputs handle_inputs{
+        .base_event_index = static_cast<uint32_t>(num_events),
+        .recomp_trigger_event = recomp_trigger_event,
+        .get_function = get_function,
+        .cop0_status_write = cop0_status_write,
+        .cop0_status_read = cop0_status_read,
+        .switch_error = switch_error,
+        .do_break = do_break,
+        .reference_section_addresses = section_addresses,
+    };
+
+    // Allocate the event indices used by the mod.
+    num_events += mod.num_events();
+
+    // Copy the mod's binary into the recompiler context so it can be analyzed during code loading.
+    // TODO move it instead, right now the move can't be done because of a signedness difference in the types.
+    mod.recompiler_context->rom.assign(binary_span.begin(), binary_span.end());
+
+    // Use a dynamic library code handle. This feature isn't meant to be used by end users, but provides a more debuggable
+    // experience than the live recompiler for mod developers.
+    // Enabled if the mod's filename ends with ".offline.dll".
+    if (mod.manifest.mod_root_path.filename().string().ends_with(".offline.nrm")) {
         std::filesystem::path dll_path = mod.manifest.mod_root_path;
         dll_path.replace_extension(DynamicLibrary::PlatformExtension);
-        mod.code_handle = std::make_unique<NativeCodeHandle>(dll_path, *mod.recompiler_context);
+        mod.code_handle = std::make_unique<DynamicLibraryCodeHandle>(dll_path, *mod.recompiler_context, handle_inputs);
         if (!mod.code_handle->good()) {
             mod.code_handle.reset();
             error_param = dll_path.string();
@@ -901,13 +1040,15 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
             return cur_error;
         }
     }
-
-    // Populate the mod's export map.
-    cur_error = mod.populate_exports(cur_error_param);
-
-    if (cur_error != CodeModLoadError::Good) {
-        error_param = std::move(cur_error_param);
-        return cur_error;
+    // Live recompiler code handle.
+    else {
+        mod.code_handle = std::make_unique<LiveRecompilerCodeHandle>(*mod.recompiler_context, handle_inputs);
+        
+        if (!mod.code_handle->good()) {
+            mod.code_handle.reset();
+            error_param = {};
+            return CodeModLoadError::FailedToRecompile;
+        }
     }
 
     // Load any native libraries specified by the mod and validate/register the expors.
@@ -919,17 +1060,6 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
             return cur_error;
         }
     }
-
-    // Populate the mod's event map and set its base event index.
-    cur_error = mod.populate_events(num_events, cur_error_param);
-
-    if (cur_error != CodeModLoadError::Good) {
-        error_param = std::move(cur_error_param);
-        return cur_error;
-    }
-
-    // Allocate the event indices used by the mod.
-    num_events += mod.num_events();
 
     // Add each function from the mod into the function lookup table.
     for (size_t func_index = 0; func_index < mod.recompiler_context->functions.size(); func_index++) {
@@ -953,25 +1083,13 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
 }
 
 recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependencies(recomp::mods::ModHandle& mod, std::string& error_param) {
-    // Reference symbols from the base recomp.1:1 with relocs for offline mods.
-    // TODO this won't be needed for LuaJIT recompilation, so move this logic into the code handle.
-    size_t reference_symbol_index = 0;
-    for (const auto& section : mod.recompiler_context->sections) {
-        for (const auto& reloc : section.relocs) {
-            if (reloc.type == N64Recomp::RelocType::R_MIPS_26 && reloc.reference_symbol && mod.recompiler_context->is_regular_reference_section(reloc.target_section)) {
-                recomp_func_t* cur_func = recomp::overlays::get_func_by_section_index_function_offset(reloc.target_section, reloc.target_section_offset);
-                if (cur_func == nullptr) {
-                    std::stringstream error_param_stream{};
-                    error_param_stream << std::hex <<
-                        "section: " << reloc.target_section <<
-                        " func offset: 0x" << reloc.target_section_offset;
-                    error_param = error_param_stream.str();
-                    return CodeModLoadError::InvalidReferenceSymbol;
-                }
-                mod.code_handle->set_reference_symbol_pointer(reference_symbol_index, cur_func);
-                reference_symbol_index++;
-            }
-        }
+    // Reference symbols.
+    std::string reference_syms_error_param{};
+    CodeModLoadError reference_syms_error = mod.code_handle->populate_reference_symbols(*mod.recompiler_context, reference_syms_error_param);
+
+    if (reference_syms_error != CodeModLoadError::Good) {
+        error_param = std::move(reference_syms_error_param);
+        return reference_syms_error;
     }
 
     // Create a list of dependencies ordered by their index in the recompiler context.
@@ -1055,14 +1173,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
         recomp::mods::register_event_callback(event_index, func);
     }
 
-    // Populate the mod's state fields.
-    mod.code_handle->set_recomp_trigger_event_pointer(recomp_trigger_event);
-    mod.code_handle->set_get_function_pointer(get_function);
-    mod.code_handle->set_cop0_status_write_pointer(cop0_status_write);
-    mod.code_handle->set_cop0_status_read_pointer(cop0_status_read);
-    mod.code_handle->set_switch_error_pointer(switch_error);
-    mod.code_handle->set_do_break_pointer(do_break);
-    mod.code_handle->set_reference_section_addresses_pointer(section_addresses);
+    // Populate the relocated section addresses for the mod.
     for (size_t section_index = 0; section_index < mod.section_load_addresses.size(); section_index++) {
         mod.code_handle->set_local_section_address(section_index, mod.section_load_addresses[section_index]);
     }
@@ -1108,4 +1219,8 @@ void recomp::mods::ModContext::unload_mods() {
     recomp::mods::reset_events();
     num_events = recomp::overlays::num_base_events();
     active_game = (size_t)-1;
+}
+
+void recomp::mods::initialize_mod_recompiler() {
+    N64Recomp::live_recompiler_init();
 }

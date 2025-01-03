@@ -1,4 +1,4 @@
-#include "librecomp/recomp.h"
+#include "recomp.h"
 #include "librecomp/game.hpp"
 
 #include "ultramodern/ultra64.h"

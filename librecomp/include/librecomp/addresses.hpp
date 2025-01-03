@@ -3,7 +3,7 @@
 
 #include <cstdint>
 #include "ultramodern/ultra64.h"
-#include "librecomp/recomp.h"
+#include "recomp.h"
 
 namespace recomp {
     // 512GB (kseg0 size)

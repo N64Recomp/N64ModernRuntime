@@ -4,7 +4,7 @@
 #include <cstring>
 #include <string>
 #include <mutex>
-#include "librecomp/recomp.h"
+#include "recomp.h"
 #include "librecomp/addresses.hpp"
 #include "librecomp/game.hpp"
 #include "librecomp/files.hpp"

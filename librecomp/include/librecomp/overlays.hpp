@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include "sections.h"
 
 namespace recomp {
@@ -37,6 +38,8 @@ namespace recomp {
         size_t num_base_events();
 
         void add_loaded_function(int32_t ram_addr, recomp_func_t* func);
+
+        std::unordered_set<recomp_func_t*> get_base_patched_funcs();
     }
 };
 

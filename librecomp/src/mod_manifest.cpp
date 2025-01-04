@@ -583,8 +583,8 @@ std::string recomp::mods::error_to_string(CodeModLoadError error) {
             return "Function to be replaced does not exist";
         case CodeModLoadError::FailedToFindReplacement:
             return "Failed to find replacement function";
-        case CodeModLoadError::ReplacementConflict:
-            return "Attempted to replace a function that cannot be replaced";
+        case CodeModLoadError::BaseRecompConflict:
+            return "Attempted to replace a function that's been patched by the base recomp";
         case CodeModLoadError::ModConflict:
             return "Conflicts with other mod";
         case CodeModLoadError::DuplicateExport:

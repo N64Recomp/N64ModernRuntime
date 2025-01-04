@@ -747,15 +747,18 @@ std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_mod_details(
     return ret;
 }
 
-std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const std::string& mod_game_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
+std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;
     num_events = recomp::overlays::num_base_events();
     loaded_code_mods.clear();
 
-    auto find_index_it = mod_game_ids.find(mod_game_id);
+    // Collect the set of functions patched by the base recomp.
+    std::unordered_set<recomp_func_t*> base_patched_funcs = recomp::overlays::get_base_patched_funcs();
+
+    auto find_index_it = mod_game_ids.find(game_entry.mod_game_id);
     if (find_index_it == mod_game_ids.end()) {
-        ret.emplace_back(mod_game_id, ModLoadError::InvalidGame, std::string{});
+        ret.emplace_back(game_entry.mod_game_id, ModLoadError::InvalidGame, std::string{});
         return ret;
     }
 
@@ -845,7 +848,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     for (size_t mod_index : loaded_code_mods) {
         auto& mod = opened_mods[mod_index];
         std::string cur_error_param;
-        CodeModLoadError cur_error = resolve_code_dependencies(mod, cur_error_param);
+        CodeModLoadError cur_error = resolve_code_dependencies(mod, base_patched_funcs, cur_error_param);
         if (cur_error != CodeModLoadError::Good) {
             if (cur_error_param.empty()) {
                 ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error));
@@ -1082,7 +1085,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
     return CodeModLoadError::Good;
 }
 
-recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependencies(recomp::mods::ModHandle& mod, std::string& error_param) {
+recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependencies(recomp::mods::ModHandle& mod, const std::unordered_set<recomp_func_t*> base_patched_funcs, std::string& error_param) {
     // Reference symbols.
     std::string reference_syms_error_param{};
     CodeModLoadError reference_syms_error = mod.code_handle->populate_reference_symbols(*mod.recompiler_context, reference_syms_error_param);
@@ -1189,6 +1192,19 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
                 " func: 0x" << std::setfill('0') << std::setw(8) << replacement.original_vram;
             error_param = error_param_stream.str();
             return CodeModLoadError::InvalidFunctionReplacement;
+        }
+
+        // Check if this function has already been patched by the base recomp, but allow it if this is a force patch.
+        if ((replacement.flags & N64Recomp::ReplacementFlags::Force) == N64Recomp::ReplacementFlags(0)) {
+            auto find_it = base_patched_funcs.find(to_replace);
+            if (find_it != base_patched_funcs.end()) {
+                std::stringstream error_param_stream{};
+                error_param_stream << std::hex <<
+                    "section: 0x" << replacement.original_section_vrom <<
+                    " func: 0x" << std::setfill('0') << std::setw(8) << replacement.original_vram;
+                error_param = error_param_stream.str();
+                return CodeModLoadError::BaseRecompConflict;
+            }
         }
 
         // Check if this function has already been replaced.

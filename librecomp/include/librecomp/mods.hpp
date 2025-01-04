@@ -78,7 +78,7 @@ namespace recomp {
             InvalidCallbackEvent,
             InvalidFunctionReplacement,
             FailedToFindReplacement,
-            ReplacementConflict,
+            BaseRecompConflict,
             ModConflict,
             DuplicateExport,
             NoSpecifiedApiVersion,
@@ -220,7 +220,7 @@ namespace recomp {
             void enable_mod(const std::string& mod_id, bool enabled);
             bool is_mod_enabled(const std::string& mod_id);
             size_t num_opened_mods();
-            std::vector<ModLoadErrorDetails> load_mods(const std::string& mod_game_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
+            std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
             ModContentTypeId register_content_type(const ModContentType& type);
@@ -232,7 +232,7 @@ namespace recomp {
             ModLoadError load_mod(recomp::mods::ModHandle& mod, std::string& error_param);
             void check_dependencies(recomp::mods::ModHandle& mod, std::vector<std::pair<recomp::mods::ModLoadError, std::string>>& errors);
             CodeModLoadError load_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param);
-            CodeModLoadError resolve_code_dependencies(recomp::mods::ModHandle& mod, std::string& error_param);
+            CodeModLoadError resolve_code_dependencies(recomp::mods::ModHandle& mod, const std::unordered_set<recomp_func_t*> base_patched_funcs, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
             void close_mods();
 

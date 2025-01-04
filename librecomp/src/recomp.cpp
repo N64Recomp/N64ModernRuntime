@@ -536,7 +536,7 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                     std::vector<recomp::mods::ModLoadErrorDetails> mod_load_errors;
                     {
                         std::lock_guard lock { mod_context_mutex };
-                        mod_load_errors = mod_context->load_mods(game_entry.mod_game_id, rdram, recomp::mod_rdram_start, mod_ram_used);
+                        mod_load_errors = mod_context->load_mods(game_entry, rdram, recomp::mod_rdram_start, mod_ram_used);
                     }
 
                     if (!mod_load_errors.empty()) {

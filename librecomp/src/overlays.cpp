@@ -301,3 +301,31 @@ extern "C" recomp_func_t * get_function(int32_t addr) {
     return func_find->second;
 }
 
+std::unordered_set<recomp_func_t*> recomp::overlays::get_base_patched_funcs() {
+    std::unordered_set<recomp_func_t*> ret{};
+
+    // Collect the set of all functions in the patches.
+    std::unordered_set<recomp_func_t*> all_patch_funcs{};
+    for (size_t patch_section_index = 0; patch_section_index < num_patch_code_sections; patch_section_index++) {
+        const auto& patch_section = patch_code_sections[patch_section_index];
+        for (size_t func_index = 0; func_index < patch_section.num_funcs; func_index++) {
+            all_patch_funcs.insert(patch_section.funcs[func_index].func);
+        }
+    }
+
+    // Check every vanilla function against the full patch function set.
+    // Any functions in both are patched.
+    for (size_t code_section_index = 0; code_section_index < sections_info.num_code_sections; code_section_index++) {
+        const auto& code_section = sections_info.code_sections[code_section_index];
+        for (size_t func_index = 0; func_index < code_section.num_funcs; func_index++) {
+            recomp_func_t* cur_func = code_section.funcs[func_index].func;
+            // If this function also exists in the patches function set then it's a vanilla function that was patched.
+            auto find_it = all_patch_funcs.find(cur_func);
+            if (find_it != all_patch_funcs.end()) {
+                ret.insert(cur_func);
+            }
+        }
+    }
+
+    return ret;
+}

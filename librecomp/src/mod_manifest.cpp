@@ -589,6 +589,8 @@ std::string recomp::mods::error_to_string(CodeModLoadError error) {
             return "Conflicts with other mod";
         case CodeModLoadError::DuplicateExport:
             return "Duplicate exports in mod";
+        case CodeModLoadError::OfflineModHooked:
+            return "Offline recompiled mod has a function hooked by another mod";
         case CodeModLoadError::NoSpecifiedApiVersion:
             return "Mod DLL does not specify an API version";
         case CodeModLoadError::UnsupportedApiVersion:

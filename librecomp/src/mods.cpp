@@ -418,7 +418,10 @@ recomp::mods::CodeModLoadError recomp::mods::DynamicLibraryCodeHandle::populate_
     return CodeModLoadError::Good;
 }
 
-recomp::mods::LiveRecompilerCodeHandle::LiveRecompilerCodeHandle(const N64Recomp::Context& context, const ModCodeHandleInputs& inputs) {
+recomp::mods::LiveRecompilerCodeHandle::LiveRecompilerCodeHandle(
+    const N64Recomp::Context& context, const ModCodeHandleInputs& inputs,
+    std::unordered_map<size_t, size_t>&& entry_func_hooks, std::unordered_map<size_t, size_t>&& return_func_hooks)
+{
     section_addresses = std::make_unique<int32_t[]>(context.sections.size());
     base_event_index = inputs.base_event_index;
 
@@ -434,6 +437,9 @@ recomp::mods::LiveRecompilerCodeHandle::LiveRecompilerCodeHandle(const N64Recomp
         .trigger_event = inputs.recomp_trigger_event,
         .reference_section_addresses = inputs.reference_section_addresses,
         .local_section_addresses = section_addresses.get(),
+        .run_hook = run_hook,
+        .entry_func_hooks = std::move(entry_func_hooks),
+        .return_func_hooks = std::move(return_func_hooks)
     };
 
     N64Recomp::LiveGenerator generator{ context.functions.size(), recompiler_inputs };
@@ -815,12 +821,15 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         return ret;
     }
 
-    // Load the code and exports from all mods.
+    std::vector<uint32_t> base_event_indices;
+    base_event_indices.resize(opened_mods.size());
+
+    // Parse the code mods and load their binary data.
     for (size_t mod_index : loaded_code_mods) {
         uint32_t cur_ram_used = 0;
         auto& mod = opened_mods[mod_index];
         std::string cur_error_param;
-        CodeModLoadError cur_error = load_mod_code(rdram, section_vrom_map, mod, load_address, cur_ram_used, cur_error_param);
+        CodeModLoadError cur_error = init_mod_code(rdram, section_vrom_map, mod, load_address, cur_ram_used, cur_error_param);
         if (cur_error != CodeModLoadError::Good) {
             if (cur_error_param.empty()) {
                 ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error));
@@ -832,6 +841,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         else {
             load_address += cur_ram_used;
             ram_used += cur_ram_used;
+            base_event_indices[mod_index] = static_cast<uint32_t>(num_events);
         }
     }
 
@@ -843,6 +853,34 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
 
     // Set up the event callbacks based on the number of events allocated.
     recomp::mods::setup_events(num_events);
+
+    // Set up the hook slots based on the number of unique hooks.
+    recomp::mods::setup_hooks(hook_slots.size());
+
+    // Allocate room for tracking the processed hook slots.
+    processed_hook_slots.clear();
+    processed_hook_slots.resize(hook_slots.size());
+
+    // Load the code and exports from all mods.
+    for (size_t mod_index : loaded_code_mods) {
+        auto& mod = opened_mods[mod_index];
+        std::string cur_error_param;
+        CodeModLoadError cur_error = load_mod_code(rdram, mod, base_event_indices[mod_index], cur_error_param);
+        if (cur_error != CodeModLoadError::Good) {
+            if (cur_error_param.empty()) {
+                ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error));
+            }
+            else {
+                ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error) + ":" + cur_error_param);
+            }
+        }
+    }
+
+    // Exit early if errors were found.
+    if (!ret.empty()) {
+        unload_mods();
+        return ret;
+    }
     
     // Resolve code dependencies for all mods.
     for (size_t mod_index : loaded_code_mods) {
@@ -864,6 +902,9 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         unload_mods();
         return ret;
     }
+
+    // Regenerate any remaining hook slots that weren't handled during mod recompilation.
+    // TODO
 
     active_game = mod_game_index;
     return ret;
@@ -899,7 +940,7 @@ void recomp::mods::ModContext::check_dependencies(recomp::mods::ModHandle& mod, 
     }
 }
 
-recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param) {
+recomp::mods::CodeModLoadError recomp::mods::ModContext::init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param) {
     // Load the mod symbol data from the file provided in the manifest.
     bool binary_syms_exists = false;
     std::vector<char> syms_data = mod.manifest.file_handle->read_file(std::string{ modpaths::binary_syms_path }, binary_syms_exists);
@@ -998,10 +1039,69 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
 
     ram_used = cur_section_addr - load_address;
 
+    // Allocate the event indices used by the mod.
+    num_events += mod.num_events();
+
+    // Read the mod's hooks and allocate hook slots as needed.
+    for (const N64Recomp::FunctionHook& hook : mod.recompiler_context->hooks) {
+        // Get the definition of this hook.
+        HookDefinition def {
+            .section_rom = hook.original_section_vrom,
+            .function_vram = hook.original_vram,
+            .at_return = (hook.flags & N64Recomp::HookFlags::AtReturn) == N64Recomp::HookFlags::AtReturn
+        };
+        // Check if the hook definition already exists in the hook slots.
+        auto find_it = hook_slots.find(def);
+        if (find_it == hook_slots.end()) {
+            // The hook definition is new, so assign a hook slot index and add it to the slots.
+            hook_slots.emplace(def, hook_slots.size());
+        }
+    }
+
+    // Copy the mod's binary into the recompiler context so it can be analyzed during code loading.
+    // TODO move it instead, right now the move can't be done because of a signedness difference in the types.
+    mod.recompiler_context->rom.assign(binary_span.begin(), binary_span.end());
+
+    return CodeModLoadError::Good;
+}
+
+recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* rdram, recomp::mods::ModHandle& mod, uint32_t base_event_index, std::string& error_param) {
+    // Build the hook list for this mod. Maps function index within mod to hook slot index.
+    std::unordered_map<size_t, size_t> entry_func_hooks{};
+    std::unordered_map<size_t, size_t> return_func_hooks{};
+
+    // Scan the replacements and check for any 
+    for (const auto& replacement : mod.recompiler_context->replacements) {
+        // Check if there's a hook slot for the entry of this function.
+        HookDefinition entry_def {
+            .section_rom = replacement.original_section_vrom,
+            .function_vram = replacement.original_vram,
+            .at_return = false
+        };
+        auto find_entry_it = hook_slots.find(entry_def);
+        if (find_entry_it != hook_slots.end()) {
+            entry_func_hooks.emplace(replacement.func_index, find_entry_it->second);
+            processed_hook_slots[find_entry_it->second] = true;
+        }
+        
+        // Check if there's a hook slot for the return of this function.
+        HookDefinition return_def {
+            .section_rom = replacement.original_section_vrom,
+            .function_vram = replacement.original_vram,
+            .at_return = true
+        };
+        auto find_return_it = hook_slots.find(return_def);
+        if (find_return_it != hook_slots.end()) {
+            return_func_hooks.emplace(replacement.func_index, find_return_it->second);
+            processed_hook_slots[find_return_it->second] = true;
+        }
+    }
+
+    // Build the inputs for the mod code handle.
     std::string cur_error_param;
     CodeModLoadError cur_error;
     ModCodeHandleInputs handle_inputs{
-        .base_event_index = static_cast<uint32_t>(num_events),
+        .base_event_index = base_event_index,
         .recomp_trigger_event = recomp_trigger_event,
         .get_function = get_function,
         .cop0_status_write = cop0_status_write,
@@ -1011,17 +1111,15 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
         .reference_section_addresses = section_addresses,
     };
 
-    // Allocate the event indices used by the mod.
-    num_events += mod.num_events();
-
-    // Copy the mod's binary into the recompiler context so it can be analyzed during code loading.
-    // TODO move it instead, right now the move can't be done because of a signedness difference in the types.
-    mod.recompiler_context->rom.assign(binary_span.begin(), binary_span.end());
-
     // Use a dynamic library code handle. This feature isn't meant to be used by end users, but provides a more debuggable
     // experience than the live recompiler for mod developers.
     // Enabled if the mod's filename ends with ".offline.dll".
     if (mod.manifest.mod_root_path.filename().string().ends_with(".offline.nrm")) {
+        // Hooks can't be generated for native mods, so return an error if any of the functions this mod replaces are also hooked by another mod.
+        if (!entry_func_hooks.empty() || !return_func_hooks.empty()) {
+            return CodeModLoadError::OfflineModHooked;
+        }
+
         std::filesystem::path dll_path = mod.manifest.mod_root_path;
         dll_path.replace_extension(DynamicLibrary::PlatformExtension);
         mod.code_handle = std::make_unique<DynamicLibraryCodeHandle>(dll_path, *mod.recompiler_context, handle_inputs);
@@ -1045,7 +1143,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
     }
     // Live recompiler code handle.
     else {
-        mod.code_handle = std::make_unique<LiveRecompilerCodeHandle>(*mod.recompiler_context, handle_inputs);
+        mod.code_handle = std::make_unique<LiveRecompilerCodeHandle>(*mod.recompiler_context, handle_inputs, std::move(entry_func_hooks), std::move(return_func_hooks));
         
         if (!mod.code_handle->good()) {
             mod.code_handle.reset();
@@ -1063,6 +1161,8 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
             return cur_error;
         }
     }
+
+    const std::vector<N64Recomp::Section>& mod_sections = mod.recompiler_context->sections;
 
     // Add each function from the mod into the function lookup table.
     for (size_t func_index = 0; func_index < mod.recompiler_context->functions.size(); func_index++) {
@@ -1176,6 +1276,28 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
         recomp::mods::register_event_callback(event_index, func);
     }
 
+    // Register hooks.
+    for (const auto& cur_hook : mod.recompiler_context->hooks) {
+        // Get the definition of this hook.
+        HookDefinition def {
+            .section_rom = cur_hook.original_section_vrom,
+            .function_vram = cur_hook.original_vram,
+            .at_return = (cur_hook.flags & N64Recomp::HookFlags::AtReturn) == N64Recomp::HookFlags::AtReturn
+        };
+
+        // Find the hook's slot from the definition.
+        auto find_it = hook_slots.find(def);
+        if (find_it == hook_slots.end()) {
+            error_param = "Failed to register hook";
+            // This should never happen, as hooks are scanned earlier to generate hook_slots.
+            return CodeModLoadError::InternalError;
+        }
+
+        // Register the function handle for this hook slot.
+        GenericFunction func = mod.code_handle->get_function_handle(cur_hook.func_index);
+        recomp::mods::register_hook(find_it->second, func);
+    }
+
     // Populate the relocated section addresses for the mod.
     for (size_t section_index = 0; section_index < mod.section_load_addresses.size(); section_index++) {
         mod.code_handle->set_local_section_address(section_index, mod.section_load_addresses[section_index]);
@@ -1232,7 +1354,10 @@ void recomp::mods::ModContext::unload_mods() {
     }
     patched_funcs.clear();
     loaded_mods_by_id.clear();
+    hook_slots.clear();
+    processed_hook_slots.clear();
     recomp::mods::reset_events();
+    recomp::mods::reset_hooks();
     num_events = recomp::overlays::num_base_events();
     active_game = (size_t)-1;
 }

@@ -581,6 +581,14 @@ std::string recomp::mods::error_to_string(CodeModLoadError error) {
             return "Event for callback not found";
         case CodeModLoadError::InvalidFunctionReplacement:
             return "Function to be replaced does not exist";
+        case CodeModLoadError::HooksUnavailable:
+            // This error will occur if the ROM's GameEntry is set as having compressed code, but no
+            // ROM decompression routine has been provided. 
+            return "Function hooks are currently unavailable in this project";
+        case CodeModLoadError::InvalidHook:
+            return "Function to be hooked does not exist";
+        case CodeModLoadError::CannotBeHooked:
+            return "Function is not hookable";
         case CodeModLoadError::FailedToFindReplacement:
             return "Failed to find replacement function";
         case CodeModLoadError::BaseRecompConflict:

@@ -9,6 +9,7 @@
 typedef struct {
     recomp_func_t* func;
     uint32_t offset;
+    uint32_t rom_size;
 } FuncEntry;
 
 typedef struct {

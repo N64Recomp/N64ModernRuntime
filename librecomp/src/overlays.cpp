@@ -112,6 +112,10 @@ const std::unordered_map<uint32_t, uint16_t>& recomp::overlays::get_vrom_to_sect
     return code_sections_by_rom;
 }
 
+uint32_t recomp::overlays::get_section_ram_addr(uint16_t code_section_index) {
+    return sections_info.code_sections[code_section_index].ram_addr;
+}
+
 void recomp::overlays::add_loaded_function(int32_t ram, recomp_func_t* func) {
     func_map[ram] = func;
 }
@@ -259,23 +263,34 @@ void recomp::overlays::init_overlays() {
 }
 
 // Finds a function given a section's index and the function's offset into the section.
-recomp_func_t* recomp::overlays::get_func_by_section_index_function_offset(uint16_t code_section_index, uint32_t function_offset) {
+bool recomp::overlays::get_func_entry_by_section_index_function_offset(uint16_t code_section_index, uint32_t function_offset, FuncEntry& func_out) {
     if (code_section_index >= sections_info.num_code_sections) {
-        return nullptr;
+        return false;
     }
 
     SectionTableEntry* section = &sections_info.code_sections[code_section_index];
     if (function_offset >= section->size) {
-        return nullptr;
+        return false;
     }
     
     for (size_t func_index = 0; func_index < section->num_funcs; func_index++) {
         if (section->funcs[func_index].offset == function_offset) {
-            return section->funcs[func_index].func;
+            func_out = section->funcs[func_index];
+            return true;
         }
     }
 
-    return nullptr;
+    return false;
+}
+
+// Finds a function given a section's index and the function's offset into the section and returns its native pointer.
+recomp_func_t* recomp::overlays::get_func_by_section_index_function_offset(uint16_t code_section_index, uint32_t function_offset) {
+    FuncEntry entry;
+    if (!get_func_entry_by_section_index_function_offset(code_section_index, function_offset, entry)) {
+        return nullptr;
+    }
+
+    return entry.func;
 }
 
 // Finds a function given a section's rom address and the function's vram address.

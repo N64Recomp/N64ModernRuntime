@@ -21,6 +21,10 @@ void recomp::set_rom_contents(std::vector<uint8_t>&& new_rom) {
     rom = std::move(new_rom);
 }
 
+std::span<const uint8_t> recomp::get_rom() {
+    return rom;
+}
+
 constexpr uint32_t k1_to_phys(uint32_t addr) {
     return addr & 0x1FFFFFFF;
 }

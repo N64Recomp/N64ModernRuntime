@@ -101,6 +101,9 @@ namespace recomp {
             InvalidImport,
             InvalidCallbackEvent,
             InvalidFunctionReplacement,
+            HooksUnavailable,
+            InvalidHook,
+            CannotBeHooked,
             FailedToFindReplacement,
             BaseRecompConflict,
             ModConflict,
@@ -235,6 +238,7 @@ namespace recomp {
             bool requires_manifest;
         };
 
+        class LiveRecompilerCodeHandle;
         class ModContext {
         public:
             ModContext();
@@ -254,11 +258,11 @@ namespace recomp {
             bool is_content_runtime_toggleable(ModContentTypeId content_type) const;
         private:
             ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest);
-            ModLoadError load_mod(recomp::mods::ModHandle& mod, std::string& error_param);
-            void check_dependencies(recomp::mods::ModHandle& mod, std::vector<std::pair<recomp::mods::ModLoadError, std::string>>& errors);
-            CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param);
-            CodeModLoadError load_mod_code(uint8_t* rdram, recomp::mods::ModHandle& mod, uint32_t base_event_index, std::string& error_param);
-            CodeModLoadError resolve_code_dependencies(recomp::mods::ModHandle& mod, const std::unordered_set<recomp_func_t*> base_patched_funcs, std::string& error_param);
+            ModLoadError load_mod(ModHandle& mod, std::string& error_param);
+            void check_dependencies(ModHandle& mod, std::vector<std::pair<ModLoadError, std::string>>& errors);
+            CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
+            CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
+            CodeModLoadError resolve_code_dependencies(ModHandle& mod, const std::unordered_set<recomp_func_t*> base_patched_funcs, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
             void close_mods();
 
@@ -275,6 +279,8 @@ namespace recomp {
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
             std::vector<size_t> loaded_code_mods;
+            // Code handle for vanilla code that was regenerated to add hooks.
+            std::unique_ptr<LiveRecompilerCodeHandle> regenerated_code_handle;
             // Map of hook definition to the entry hook slot's index.
             std::unordered_map<HookDefinition, size_t> hook_slots;
             // Tracks which hook slots have already been processed. Used to regenerate vanilla functions as needed

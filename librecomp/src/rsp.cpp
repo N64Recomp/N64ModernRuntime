@@ -49,7 +49,7 @@ bool recomp::rsp::run_task(uint8_t* rdram, const OSTask* task) {
     dma_rdram_to_dmem(rdram, 0x0000, task->t.ucode_data, 0xF80 - 1);
 
     // Run the ucode
-    RspExitReason exit_reason = ucode_func(rdram);
+    RspExitReason exit_reason = ucode_func(rdram, task->t.ucode);
 
     // Ensure that the ucode exited correctly
     if (exit_reason != RspExitReason::Broke) {

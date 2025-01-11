@@ -19,12 +19,13 @@
 #include "miniz.h"
 #include "miniz_zip.h"
 
+#include "recomp.h"
 #include "librecomp/game.hpp"
-#include "librecomp/recomp.h"
 #include "librecomp/sections.h"
 
 namespace N64Recomp {
     class Context;
+    struct LiveGeneratorOutput;
 };
 
 namespace recomp {
@@ -71,6 +72,7 @@ namespace recomp {
             FailedToLoadNativeCode,
             FailedToLoadNativeLibrary,
             FailedToFindNativeExport,
+            FailedToRecompile,
             InvalidReferenceSymbol,
             InvalidImport,
             InvalidCallbackEvent,
@@ -232,6 +234,7 @@ namespace recomp {
             CodeModLoadError load_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param);
             CodeModLoadError resolve_code_dependencies(recomp::mods::ModHandle& mod, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
+            void close_mods();
 
             static void on_code_mod_enabled(ModContext& context, const ModHandle& mod);
 
@@ -257,16 +260,8 @@ namespace recomp {
             virtual bool good() = 0;
             virtual uint32_t get_api_version() = 0;
             virtual void set_imported_function(size_t import_index, GenericFunction func) = 0;
-            virtual void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) = 0;
-            virtual void set_base_event_index(uint32_t global_event_index) = 0;
+            virtual CodeModLoadError populate_reference_symbols(const N64Recomp::Context& recompiler_context, std::string& error_param) = 0;
             virtual uint32_t get_base_event_index() = 0;
-            virtual void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) = 0;
-            virtual void set_get_function_pointer(recomp_func_t* (*ptr)(int32_t)) = 0;
-            virtual void set_cop0_status_write_pointer(void (*ptr)(recomp_context* ctx, gpr value)) = 0;
-            virtual void set_cop0_status_read_pointer(gpr (*ptr)(recomp_context* ctx)) = 0;
-            virtual void set_switch_error_pointer(void (*ptr)(const char* func, uint32_t vram, uint32_t jtbl)) = 0;
-            virtual void set_do_break_pointer(void (*ptr)(uint32_t vram)) = 0;
-            virtual void set_reference_section_addresses_pointer(int32_t* ptr) = 0;
             virtual void set_local_section_address(size_t section_index, int32_t address) = 0;
             virtual GenericFunction get_function_handle(size_t func_index) = 0;
         };
@@ -292,9 +287,9 @@ namespace recomp {
             size_t num_exports() const;
             size_t num_events() const;
 
-            CodeModLoadError populate_exports(std::string& error_param);
+            void populate_exports();
             bool get_export_function(const std::string& export_name, GenericFunction& out) const;
-            CodeModLoadError populate_events(size_t base_event_index, std::string& error_param);
+            void populate_events();
             bool get_global_event_index(const std::string& event_name, size_t& event_index_out) const;
             CodeModLoadError load_native_library(const NativeLibraryManifest& lib_manifest, std::string& error_param);
 
@@ -324,44 +319,29 @@ namespace recomp {
             // Whether this mod can be toggled at runtime.
             bool runtime_toggleable;
         };
+        
+        struct ModCodeHandleInputs {
+            uint32_t base_event_index;
+            void (*recomp_trigger_event)(uint8_t* rdram, recomp_context* ctx, uint32_t index);
+            recomp_func_t* (*get_function)(int32_t vram);
+            void (*cop0_status_write)(recomp_context* ctx, gpr value);
+            gpr (*cop0_status_read)(recomp_context* ctx);
+            void (*switch_error)(const char* func, uint32_t vram, uint32_t jtbl);
+            void (*do_break)(uint32_t vram);
+            int32_t* reference_section_addresses;
+        };
 
-        class NativeCodeHandle : public ModCodeHandle {
+        class DynamicLibraryCodeHandle : public ModCodeHandle {
         public:
-            NativeCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context);
-            ~NativeCodeHandle() = default;
+            DynamicLibraryCodeHandle(const std::filesystem::path& dll_path, const N64Recomp::Context& context, const ModCodeHandleInputs& inputs);
+            ~DynamicLibraryCodeHandle() = default;
             bool good() final;
             uint32_t get_api_version() final;
             void set_imported_function(size_t import_index, GenericFunction func) final;
-            void set_reference_symbol_pointer(size_t symbol_index, recomp_func_t* ptr) final {
-                reference_symbol_funcs[symbol_index] = ptr;
-            };
-            void set_base_event_index(uint32_t global_event_index) final {
-                *base_event_index = global_event_index;
-            };
+            CodeModLoadError populate_reference_symbols(const N64Recomp::Context& context, std::string& error_param) final;
             uint32_t get_base_event_index() final {
                 return *base_event_index;
             }
-            void set_recomp_trigger_event_pointer(void (*ptr)(uint8_t* rdram, recomp_context* ctx, uint32_t index)) final {
-                *recomp_trigger_event = ptr;
-            };
-            void set_get_function_pointer(recomp_func_t* (*ptr)(int32_t)) final {
-                *get_function = ptr;
-            };
-            void set_cop0_status_write_pointer(void (*ptr)(recomp_context* ctx, gpr value)) final {
-                *cop0_status_write = ptr;
-            }
-            void set_cop0_status_read_pointer(gpr (*ptr)(recomp_context* ctx)) final {
-                *cop0_status_read = ptr;
-            }
-            void set_switch_error_pointer(void (*ptr)(const char* func, uint32_t vram, uint32_t jtbl)) final {
-                *switch_error = ptr;
-            }
-            void set_do_break_pointer(void (*ptr)(uint32_t vram)) final {
-                *do_break = ptr;
-            }
-            void set_reference_section_addresses_pointer(int32_t* ptr) final {
-                *reference_section_addresses = ptr;
-            };
             void set_local_section_address(size_t section_index, int32_t address) final {
                 section_addresses[section_index] = address;
             };
@@ -386,12 +366,41 @@ namespace recomp {
             int32_t* section_addresses;
         };
 
+        class LiveRecompilerCodeHandle : public ModCodeHandle {
+        public:
+            LiveRecompilerCodeHandle(const N64Recomp::Context& context, const ModCodeHandleInputs& inputs);
+
+            ~LiveRecompilerCodeHandle() = default;
+            
+            // Disable copying.
+            LiveRecompilerCodeHandle(const LiveRecompilerCodeHandle& rhs) = delete;
+            LiveRecompilerCodeHandle& operator=(const LiveRecompilerCodeHandle& rhs) = delete;
+
+            bool good() final { return is_good; }
+            uint32_t get_api_version() final { return 1; }
+            void set_imported_function(size_t import_index, GenericFunction func) final;
+            CodeModLoadError populate_reference_symbols(const N64Recomp::Context& context, std::string& error_param) final;
+            uint32_t get_base_event_index() final { 
+                return base_event_index;
+            }
+            void set_local_section_address(size_t section_index, int32_t address) final {
+                section_addresses[section_index] = address;
+            }
+            GenericFunction get_function_handle(size_t func_index) final;
+        private:
+            uint32_t base_event_index;
+            std::unique_ptr<N64Recomp::LiveGeneratorOutput> recompiler_output;
+            void set_bad();
+            bool is_good = false;
+            std::unique_ptr<int32_t[]> section_addresses;
+        };
+
         void setup_events(size_t num_events);
         void register_event_callback(size_t event_index, GenericFunction callback);
         void reset_events();
         CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
 
-
+        void initialize_mod_recompiler();
         void scan_mods();
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);

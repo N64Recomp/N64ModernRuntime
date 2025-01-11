@@ -2,7 +2,7 @@
 #include <cassert>
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
-#include "librecomp/recomp.h"
+#include "recomp.h"
 #include "librecomp/addresses.hpp"
 #include "librecomp/game.hpp"
 

@@ -15,7 +15,7 @@
 #include <cuchar>
 #include <charconv>
 
-#include "librecomp/recomp.h"
+#include "recomp.h"
 #include "librecomp/overlays.hpp"
 #include "librecomp/game.hpp"
 #include "xxHash/xxh3.h"
@@ -551,7 +551,6 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
 
                 save_type = game_entry.save_type;
                 ultramodern::init_saving(rdram);
-                ultramodern::load_shader_cache(game_entry.cache_data);
 
                 try {
                     game_entry.entrypoint(rdram, context);
@@ -633,6 +632,8 @@ void recomp::start(
         }
     }
 
+    recomp::mods::initialize_mod_recompiler();
+
     // Allocate rdram without comitting it. Use a platform-specific virtual allocation function
     // that initializes to zero. Protect the region above the memory size to catch accesses to invalid addresses.
     uint8_t* rdram;
@@ -649,7 +650,7 @@ void recomp::start(
         }
     }
 #else
-    rdram = (uint8_t*)mmap(NULL, allocation_size, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    rdram = (uint8_t*)mmap(NULL, allocation_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0);
     alloc_failed = rdram == reinterpret_cast<uint8_t*>(MAP_FAILED);
     if (!alloc_failed) {
         // mprotect returns -1 on failure.

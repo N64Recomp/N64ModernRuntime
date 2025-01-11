@@ -34,11 +34,7 @@ struct SwapBuffersAction {
 struct UpdateConfigAction {
 };
 
-struct LoadShaderCacheAction {
-    std::span<const char> data;
-};
-
-using Action = std::variant<SpTaskAction, SwapBuffersAction, UpdateConfigAction, LoadShaderCacheAction>;
+using Action = std::variant<SpTaskAction, SwapBuffersAction, UpdateConfigAction>;
 
 static struct {
     struct {
@@ -248,10 +244,6 @@ float ultramodern::get_resolution_scale() {
     return resolution_scale.load();
 }
 
-void ultramodern::load_shader_cache(std::span<const char> cache_data) {
-    events_context.action_queue.enqueue(LoadShaderCacheAction{cache_data});
-}
-
 void ultramodern::trigger_config_action() {
     events_context.action_queue.enqueue(UpdateConfigAction{});
 }
@@ -320,9 +312,6 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
                 if (renderer_context->update_config(old_config, new_config)) {
                     old_config = new_config;
                 }
-            }
-            else if (const auto* load_shader_cache_action = std::get_if<LoadShaderCacheAction>(&action)) {
-                renderer_context->load_shader_cache(load_shader_cache_action->data);
             }
         }
     }

@@ -1014,153 +1014,156 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         }
     }
 
-    // Sort the unprocessed hooks by section and vram.
-    std::sort(unprocessed_hooks.begin(), unprocessed_hooks.end(),
-        [](const std::pair<recomp::mods::HookDefinition, size_t>& lhs, const std::pair<recomp::mods::HookDefinition, size_t>& rhs) {
-            if (lhs.first.section_rom == rhs.first.section_rom) {
-                return lhs.first.function_vram < rhs.first.function_vram;
+    if (!unprocessed_hooks.empty()) {
+
+        // Sort the unprocessed hooks by section and vram.
+        std::sort(unprocessed_hooks.begin(), unprocessed_hooks.end(),
+            [](const std::pair<recomp::mods::HookDefinition, size_t>& lhs, const std::pair<recomp::mods::HookDefinition, size_t>& rhs) {
+                if (lhs.first.section_rom == rhs.first.section_rom) {
+                    return lhs.first.function_vram < rhs.first.function_vram;
+                }
+                else {
+                    return lhs.first.section_rom < rhs.first.section_rom;
+                }
+            }
+        );
+
+        // Collect the unprocessed hooks into a patch list.
+        // Hooks have been sorted by their section address and function address at this point so they
+        // can be gathered by section into the patch list.
+        PatchedList patchlist{};
+        uint32_t cur_section_rom = 0xFFFFFFFF;
+        uint32_t cur_section_vram = 0xFFFFFFFF;
+        uint16_t cur_section_index = 0xFFFF;
+        uint32_t cur_function_vram = 0xFFFFFFFF;
+
+        // While scanning, also track the hook slot indices for recompilation and the native functions so they can be patched.
+        std::vector<recomp_func_t*> func_ptrs{};
+        // Maps function index within context to hook slot index.
+        std::unordered_map<size_t, size_t> entry_func_hooks{};
+        std::unordered_map<size_t, size_t> return_func_hooks{};
+
+        for (size_t hook_index = 0; hook_index < unprocessed_hooks.size(); hook_index++) {
+            const auto& cur_hook = unprocessed_hooks[hook_index];
+            const auto& cur_hook_def = cur_hook.first;
+            size_t cur_hook_slot_index = cur_hook.second;
+        
+            if (cur_hook_def.section_rom != cur_section_rom) {
+                // Get the index of the section.
+                auto find_section_it = section_vrom_map.find(cur_hook_def.section_rom);
+                if (find_section_it == section_vrom_map.end()) {
+                    std::stringstream error_param_stream{};
+                    error_param_stream << std::hex <<
+                        "section: 0x" << cur_hook_def.section_rom <<
+                        " func: 0x" << std::setfill('0') << std::setw(8) << cur_hook_def.function_vram;
+                    ret.emplace_back(ModLoadErrorDetails{
+                        "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::InvalidHook) + ":" + error_param_stream.str()
+                    });
+                    unload_mods();
+                    return ret;
+                }
+
+                uint16_t section_index = find_section_it->second;
+
+                // Allocate a new section.
+                auto& section_out = patchlist.sections.emplace_back(PatchedSection{
+                    .rom_addr = cur_hook_def.section_rom,
+                    .ram_addr = recomp::overlays::get_section_ram_addr(section_index),
+                    .first_func_index = patchlist.functions.size()
+                });
+
+                // Update the tracked section fields.
+                cur_section_rom = section_out.rom_addr;
+                cur_section_vram = section_out.ram_addr;
+                cur_section_index = section_index;
+            
+                // Reset the tracked function vram to prevent issues when two functions have the same vram in different sections.
+                cur_function_vram = 0xFFFFFFFF;
+            }
+
+            if (cur_hook_def.function_vram != cur_function_vram) {
+                uint32_t function_section_offset = cur_hook_def.function_vram - cur_section_vram;
+                FuncEntry func_entry{};
+                bool found_func = recomp::overlays::get_func_entry_by_section_index_function_offset(cur_section_index, function_section_offset, func_entry);
+
+                if (!found_func) {
+                    std::stringstream error_param_stream{};
+                    error_param_stream << std::hex <<
+                        "section: 0x" << cur_hook_def.section_rom <<
+                        " func: 0x" << std::setfill('0') << std::setw(8) << cur_hook_def.function_vram;
+                    ret.emplace_back(ModLoadErrorDetails{
+                        "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::InvalidHook) + ":" + error_param_stream.str()
+                    });
+                    unload_mods();
+                    return ret;
+                }
+            
+                uint32_t function_rom_size = func_entry.rom_size;
+
+                // A size of 0 means the function can't be hooked (e.g. it's a native reimplemented function).
+                if (function_rom_size == 0) {
+                    std::stringstream error_param_stream{};
+                    error_param_stream << std::hex <<
+                        "section: 0x" << cur_hook_def.section_rom <<
+                        " func: 0x" << std::setfill('0') << std::setw(8) << cur_hook_def.function_vram;
+                    ret.emplace_back(ModLoadErrorDetails{
+                        "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::CannotBeHooked) + ":" + error_param_stream.str()
+                    });
+                    unload_mods();
+                    return ret;
+                }
+
+                // Allocate a new function.
+                patchlist.functions.emplace_back(PatchedFunction{
+                    .section_offset = function_section_offset,
+                    .size = function_rom_size
+                });
+                func_ptrs.push_back(func_entry.func);
+
+                // Update the tracked function address.
+                cur_function_vram = cur_hook_def.function_vram;
+            }
+
+            // Record the hooks in the function to hook mapping.
+            size_t func_index = patchlist.functions.size() - 1;
+            if (cur_hook_def.at_return) {
+                return_func_hooks[func_index] = cur_hook_slot_index;
             }
             else {
-                return lhs.first.section_rom < rhs.first.section_rom;
+                entry_func_hooks[func_index] = cur_hook_slot_index;
             }
         }
-    );
 
-    // Collect the unprocessed hooks into a patch list.
-    // Hooks have been sorted by their section address and function address at this point so they
-    // can be gathered by section into the patch list.
-    PatchedList patchlist{};
-    uint32_t cur_section_rom = 0xFFFFFFFF;
-    uint32_t cur_section_vram = 0xFFFFFFFF;
-    uint16_t cur_section_index = 0xFFFF;
-    uint32_t cur_function_vram = 0xFFFFFFFF;
+        // Generate the recompiler context.
+        N64Recomp::Context hook_context = context_from_patched_function_list(patchlist, decompressed_rom);
+        hook_context.use_lookup_for_all_function_calls = true;
 
-    // While scanning, also track the hook slot indices for recompilation and the native functions so they can be patched.
-    std::vector<recomp_func_t*> func_ptrs{};
-    // Maps function index within context to hook slot index.
-    std::unordered_map<size_t, size_t> entry_func_hooks{};
-    std::unordered_map<size_t, size_t> return_func_hooks{};
-
-    for (size_t hook_index = 0; hook_index < unprocessed_hooks.size(); hook_index++) {
-        const auto& cur_hook = unprocessed_hooks[hook_index];
-        const auto& cur_hook_def = cur_hook.first;
-        size_t cur_hook_slot_index = cur_hook.second;
-        
-        if (cur_hook_def.section_rom != cur_section_rom) {
-            // Get the index of the section.
-            auto find_section_it = section_vrom_map.find(cur_hook_def.section_rom);
-            if (find_section_it == section_vrom_map.end()) {
-                std::stringstream error_param_stream{};
-                error_param_stream << std::hex <<
-                    "section: 0x" << cur_hook_def.section_rom <<
-                    " func: 0x" << std::setfill('0') << std::setw(8) << cur_hook_def.function_vram;
-                ret.emplace_back(ModLoadErrorDetails{
-                    "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::InvalidHook) + ":" + error_param_stream.str()
-                });
-                unload_mods();
-                return ret;
-            }
-
-            uint16_t section_index = find_section_it->second;
-
-            // Allocate a new section.
-            auto& section_out = patchlist.sections.emplace_back(PatchedSection{
-                .rom_addr = cur_hook_def.section_rom,
-                .ram_addr = recomp::overlays::get_section_ram_addr(section_index),
-                .first_func_index = patchlist.functions.size()
-            });
-
-            // Update the tracked section fields.
-            cur_section_rom = section_out.rom_addr;
-            cur_section_vram = section_out.ram_addr;
-            cur_section_index = section_index;
-            
-            // Reset the tracked function vram to prevent issues when two functions have the same vram in different sections.
-            cur_function_vram = 0xFFFFFFFF;
-        }
-
-        if (cur_hook_def.function_vram != cur_function_vram) {
-            uint32_t function_section_offset = cur_hook_def.function_vram - cur_section_vram;
-            FuncEntry func_entry{};
-            bool found_func = recomp::overlays::get_func_entry_by_section_index_function_offset(cur_section_index, function_section_offset, func_entry);
-
-            if (!found_func) {
-                std::stringstream error_param_stream{};
-                error_param_stream << std::hex <<
-                    "section: 0x" << cur_hook_def.section_rom <<
-                    " func: 0x" << std::setfill('0') << std::setw(8) << cur_hook_def.function_vram;
-                ret.emplace_back(ModLoadErrorDetails{
-                    "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::InvalidHook) + ":" + error_param_stream.str()
-                });
-                unload_mods();
-                return ret;
-            }
-            
-            uint32_t function_rom_size = func_entry.rom_size;
-
-            // A size of 0 means the function can't be hooked (e.g. it's a native reimplemented function).
-            if (function_rom_size == 0) {
-                std::stringstream error_param_stream{};
-                error_param_stream << std::hex <<
-                    "section: 0x" << cur_hook_def.section_rom <<
-                    " func: 0x" << std::setfill('0') << std::setw(8) << cur_hook_def.function_vram;
-                ret.emplace_back(ModLoadErrorDetails{
-                    "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::CannotBeHooked) + ":" + error_param_stream.str()
-                });
-                unload_mods();
-                return ret;
-            }
-
-            // Allocate a new function.
-            patchlist.functions.emplace_back(PatchedFunction{
-                .section_offset = function_section_offset,
-                .size = function_rom_size
-            });
-            func_ptrs.push_back(func_entry.func);
-
-            // Update the tracked function address.
-            cur_function_vram = cur_hook_def.function_vram;
-        }
-
-        // Record the hooks in the function to hook mapping.
-        size_t func_index = patchlist.functions.size() - 1;
-        if (cur_hook_def.at_return) {
-            return_func_hooks[func_index] = cur_hook_slot_index;
-        }
-        else {
-            entry_func_hooks[func_index] = cur_hook_slot_index;
-        }
-    }
-
-    // Generate the recompiler context.
-    N64Recomp::Context hook_context = context_from_patched_function_list(patchlist, decompressed_rom);
-    hook_context.use_lookup_for_all_function_calls = true;
-
-    // Regenerate the functions using the live recompiler.
-    ModCodeHandleInputs handle_inputs{
-        .base_event_index = 0, // No events in vanilla functions, so this doesn't matter.
-        .recomp_trigger_event = recomp_trigger_event,
-        .get_function = get_function,
-        .cop0_status_write = cop0_status_write,
-        .cop0_status_read = cop0_status_read,
-        .switch_error = switch_error,
-        .do_break = do_break,
-        .reference_section_addresses = section_addresses,
-    };
-    regenerated_code_handle = std::make_unique<LiveRecompilerCodeHandle>(hook_context, handle_inputs, std::move(entry_func_hooks), std::move(return_func_hooks));
+        // Regenerate the functions using the live recompiler.
+        ModCodeHandleInputs handle_inputs{
+            .base_event_index = 0, // No events in vanilla functions, so this doesn't matter.
+            .recomp_trigger_event = recomp_trigger_event,
+            .get_function = get_function,
+            .cop0_status_write = cop0_status_write,
+            .cop0_status_read = cop0_status_read,
+            .switch_error = switch_error,
+            .do_break = do_break,
+            .reference_section_addresses = section_addresses,
+        };
+        regenerated_code_handle = std::make_unique<LiveRecompilerCodeHandle>(hook_context, handle_inputs, std::move(entry_func_hooks), std::move(return_func_hooks));
     
-    if (!regenerated_code_handle->good()) {
-        regenerated_code_handle.reset();
-        ret.emplace_back(ModLoadErrorDetails{
-            "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::InternalError)
-        });
-        unload_mods();
-        return ret;
-    }
+        if (!regenerated_code_handle->good()) {
+            regenerated_code_handle.reset();
+            ret.emplace_back(ModLoadErrorDetails{
+                "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::InternalError)
+            });
+            unload_mods();
+            return ret;
+        }
 
-    // Patch the functions that were regenerated.
-    for (size_t patched_func_index = 0; patched_func_index < func_ptrs.size(); patched_func_index++) {
-        patch_func(func_ptrs[patched_func_index], regenerated_code_handle->get_function_handle(patched_func_index));
+        // Patch the functions that were regenerated.
+        for (size_t patched_func_index = 0; patched_func_index < func_ptrs.size(); patched_func_index++) {
+            patch_func(func_ptrs[patched_func_index], regenerated_code_handle->get_function_handle(patched_func_index));
+        }
     }
 
     active_game = mod_game_index;

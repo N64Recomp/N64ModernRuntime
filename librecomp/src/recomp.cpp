@@ -420,12 +420,23 @@ extern "C" void do_break(uint32_t vram) {
     exit(EXIT_FAILURE);
 }
 
+std::optional<std::u8string> current_game = std::nullopt;
+std::atomic<GameStatus> game_status = GameStatus::None;
+
 void run_thread_function(uint8_t* rdram, uint64_t addr, uint64_t sp, uint64_t arg) {
+    auto find_it = game_roms.find(current_game.value());
+    const recomp::GameEntry& game_entry = find_it->second;
+    
     recomp_context ctx{};
     ctx.r29 = sp;
     ctx.r4 = arg;
     ctx.mips3_float_mode = 0;
     ctx.f_odd = &ctx.f0.u32h;
+
+    if (game_entry.thread_create_callback != nullptr) {
+        game_entry.thread_create_callback(rdram, &ctx);
+    }
+
     recomp_func_t* func = get_function(addr);
     func(rdram, &ctx);
 }
@@ -461,9 +472,6 @@ void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
     MEM_W(osResetType, 0) = 0; // cold reset
     MEM_W(osMemSize, 0) = 8 * 1024 * 1024; // 8MB
 }
-
-std::optional<std::u8string> current_game = std::nullopt;
-std::atomic<GameStatus> game_status = GameStatus::None;
 
 std::u8string recomp::current_game_id() {
     std::lock_guard<std::mutex> lock(current_game_mutex);

@@ -461,6 +461,7 @@ namespace recomp {
         void scan_mods();
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
+        bool is_mod_auto_enabled(const std::string& mod_id);
         ModContentTypeId register_mod_content_type(const ModContentType& type);
         bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
     }

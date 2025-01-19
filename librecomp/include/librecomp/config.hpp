@@ -8,10 +8,4 @@
 #include <mutex>
 #include "json/json.hpp"
 
-// namespace recomp::config
-
-#include "config/ConfigStore.hpp"
-#include "config/ConfigRegistry.hpp"
-#include "config/ConfigOption.hpp"
-
 #endif

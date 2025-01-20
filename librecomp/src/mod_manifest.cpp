@@ -131,16 +131,6 @@ bool recomp::mods::LooseModFileHandle::file_exists(const std::string& filepath) 
     return true;
 }
 
-enum class ManifestField {
-    GameModId,
-    Id,
-    Version,
-    Authors,
-    MinimumRecompVersion,
-    Dependencies,
-    NativeLibraries,
-};
-
 const std::string game_mod_id_key = "game_id";
 const std::string mod_id_key = "id";
 const std::string display_name_key = "display_name";
@@ -151,16 +141,7 @@ const std::string authors_key = "authors";
 const std::string minimum_recomp_version_key = "minimum_recomp_version";
 const std::string dependencies_key = "dependencies";
 const std::string native_libraries_key = "native_libraries";
-
-std::unordered_map<std::string, ManifestField> field_map {
-    { game_mod_id_key,            ManifestField::GameModId            },
-    { mod_id_key,                 ManifestField::Id                   },
-    { version_key,                ManifestField::Version              },
-    { authors_key,                ManifestField::Authors              },
-    { minimum_recomp_version_key, ManifestField::MinimumRecompVersion },
-    { dependencies_key,           ManifestField::Dependencies         },
-    { native_libraries_key,       ManifestField::NativeLibraries      },
-};
+const std::string config_schema_key = "config_schema";
 
 template <typename T1, typename T2>
 bool get_to(const nlohmann::json& val, T2& out) {
@@ -298,6 +279,200 @@ recomp::mods::ModOpenError try_get_vec(std::vector<T2>& out, const nlohmann::jso
     return recomp::mods::ModOpenError::Good;
 }
 
+constexpr std::string_view config_schema_id_key = "id";
+constexpr std::string_view config_schema_name_key = "name";
+constexpr std::string_view config_schema_description_key = "description";
+constexpr std::string_view config_schema_type_key = "type";
+constexpr std::string_view config_schema_min_key = "min";
+constexpr std::string_view config_schema_max_key = "max";
+constexpr std::string_view config_schema_step_key = "step";
+constexpr std::string_view config_schema_precision_key = "precision";
+constexpr std::string_view config_schema_percent_key = "percent";
+constexpr std::string_view config_schema_options_key = "options";
+constexpr std::string_view config_schema_default_key = "min";
+
+std::unordered_map<std::string, recomp::mods::ConfigOptionType> config_option_map{
+    { "Enum",   recomp::mods::ConfigOptionType::Enum},
+    { "Number", recomp::mods::ConfigOptionType::Number},
+    { "String", recomp::mods::ConfigOptionType::String},
+};
+
+recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::json &config_schema_json, recomp::mods::ModManifest &ret, std::string &error_param) {
+    using json = nlohmann::json;
+    recomp::mods::ConfigOption option;
+    auto id = config_schema_json.find(config_schema_id_key);
+    if (id != config_schema_json.end()) {
+        if (!get_to<json::string_t>(*id, option.id)) {
+            error_param = config_schema_id_key;
+            return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+        }
+    }
+    else {
+        error_param = config_schema_id_key;
+        return recomp::mods::ModOpenError::MissingConfigSchemaField;
+    }
+
+    auto name = config_schema_json.find(config_schema_name_key);
+    if (name != config_schema_json.end()) {
+        if (!get_to<json::string_t>(*name, option.name)) {
+            error_param = config_schema_name_key;
+            return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+        }
+    }
+    else {
+        error_param = config_schema_name_key;
+        return recomp::mods::ModOpenError::MissingConfigSchemaField;
+    }
+
+    auto description = config_schema_json.find(config_schema_description_key);
+    if (description != config_schema_json.end()) {
+        if (!get_to<json::string_t>(*description, option.description)) {
+            error_param = config_schema_description_key;
+            return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+        }
+    }
+
+    auto type = config_schema_json.find(config_schema_type_key);
+    if (type != config_schema_json.end()) {
+        std::string type_string;
+        if (!get_to<json::string_t>(*type, type_string)) {
+            error_param = config_schema_type_key;
+            return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+        }
+        else {
+            auto it = config_option_map.find(type_string);
+            if (it != config_option_map.end()) {
+                option.type = it->second;
+            }
+            else {
+                error_param = config_schema_type_key;
+                return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+            }
+        }
+    }
+    else {
+        error_param = config_schema_type_key;
+        return recomp::mods::ModOpenError::MissingConfigSchemaField;
+    }
+
+    switch (option.type) {
+    case recomp::mods::ConfigOptionType::Enum:
+        {
+            recomp::mods::ConfigOptionEnum option_enum;
+
+            auto options = config_schema_json.find(config_schema_options_key);
+            if (options != config_schema_json.end()) {
+                if (!get_to_vec<std::string>(*options, option_enum.options)) {
+                    error_param = config_schema_options_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            auto default_value = config_schema_json.find(config_schema_default_key);
+            if (default_value != config_schema_json.end()) {
+                std::string default_value_string;
+                if (get_to<json::string_t>(*default_value, default_value_string)) {
+                    auto it = std::find(option_enum.options.begin(), option_enum.options.end(), default_value_string);
+                    if (it != option_enum.options.end()) {
+                        option_enum.default_value = uint32_t(it - option_enum.options.begin());
+                    }
+                    else {
+                        error_param = config_schema_default_key;
+                        return recomp::mods::ModOpenError::InvalidConfigSchemaDefault;
+                    }
+                }
+                else {
+                    error_param = config_schema_default_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            option.variant = option_enum;
+
+        }
+        break;
+    case recomp::mods::ConfigOptionType::Number:
+        {
+            recomp::mods::ConfigOptionNumber option_number;
+
+            auto min = config_schema_json.find(config_schema_min_key);
+            if (min != config_schema_json.end()) {
+                if (!get_to<double>(*min, option_number.min)) {
+                    error_param = config_schema_min_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            auto max = config_schema_json.find(config_schema_max_key);
+            if (max != config_schema_json.end()) {
+                if (!get_to<double>(*max, option_number.max)) {
+                    error_param = config_schema_max_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+            
+            auto step = config_schema_json.find(config_schema_step_key);
+            if (step != config_schema_json.end()) {
+                if (!get_to<double>(*step, option_number.step)) {
+                    error_param = config_schema_step_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            auto precision = config_schema_json.find(config_schema_precision_key);
+            if (precision != config_schema_json.end()) {
+                int64_t precision_int64;
+                if (get_to<int64_t>(*precision, precision_int64)) {
+                    option_number.precision = precision_int64;
+                }
+                else {
+                    error_param = config_schema_precision_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            auto percent = config_schema_json.find(config_schema_percent_key);
+            if (percent != config_schema_json.end()) {
+                if (!get_to<bool>(*percent, option_number.percent)) {
+                    error_param = config_schema_percent_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            auto default_value = config_schema_json.find(config_schema_default_key);
+            if (default_value != config_schema_json.end()) {
+                if (!get_to<double>(*default_value, option_number.default_value)) {
+                    error_param = config_schema_default_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            option.variant = option_number;
+        }
+        break;
+    case recomp::mods::ConfigOptionType::String:
+        {
+            recomp::mods::ConfigOptionString option_string;
+
+            auto default_value = config_schema_json.find(config_schema_default_key);
+            if (default_value != config_schema_json.end()) {
+                if (!get_to<json::string_t>(*default_value, option_string.default_value)) {
+                    error_param = config_schema_default_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            option.variant = option_string;
+        }
+        break;
+    default:
+        break;
+    }
+
+    ret.config_schema.options.push_back(option);
+    return recomp::mods::ModOpenError::Good;
+}
+
 recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param) {
     using json = nlohmann::json;
     json manifest_json = json::parse(manifest_data.begin(), manifest_data.end(), nullptr, false);
@@ -396,6 +571,35 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
                 error_param = native_libraries_key;
                 return recomp::mods::ModOpenError::IncorrectManifestFieldType;
             }
+        }
+    }
+
+    // Config schema (optional)
+    auto find_config_schema_it = manifest_json.find(config_schema_key);
+    if (find_config_schema_it != manifest_json.end()) {
+        auto& val = *find_config_schema_it;
+        if (!val.is_object()) {
+            error_param = config_schema_key;
+            return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+        }
+
+        auto options = val.find(config_schema_options_key);
+        if (options != val.end()) {
+            if (!options->is_array()) {
+                error_param = config_schema_options_key;
+                return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+            }
+
+            for (const json &option : *options) {
+                recomp::mods::ModOpenError open_error = parse_manifest_config_schema_option(option, ret, error_param);
+                if (open_error != recomp::mods::ModOpenError::Good) {
+                    return open_error;
+                }
+            }
+        }
+        else {
+            error_param = config_schema_options_key;
+            return recomp::mods::ModOpenError::MissingConfigSchemaField;
         }
     }
 
@@ -547,6 +751,12 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Mod's mod.json has an invalid schema";
         case ModOpenError::IncorrectManifestFieldType:
             return "Incorrect type for field in mod.json";
+        case ModOpenError::MissingConfigSchemaField:
+            return "Missing required field in config schema in mod.json";
+        case ModOpenError::IncorrectConfigSchemaType:
+            return "Incorrect type for field in config schema in mod.json";
+        case ModOpenError::InvalidConfigSchemaDefault:
+            return "Invalid default for option in config schema in mod.json";
         case ModOpenError::InvalidVersionString:
             return "Invalid version string in mod.json";
         case ModOpenError::InvalidMinimumRecompVersionString:

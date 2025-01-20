@@ -515,6 +515,11 @@ bool recomp::mods::is_mod_auto_enabled(const std::string& mod_id) {
     return false; // TODO
 }
 
+const recomp::mods::ConfigSchema &recomp::mods::get_mod_config_schema(const std::string &mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_config_schema(mod_id);
+}
+
 std::vector<recomp::mods::ModDetails> recomp::mods::get_mod_details(const std::string& mod_game_id) {
     std::lock_guard lock { mod_context_mutex };
     return mod_context->get_mod_details(mod_game_id);

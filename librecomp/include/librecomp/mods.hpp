@@ -65,6 +65,9 @@ namespace recomp {
             FailedToParseManifest,
             InvalidManifestSchema,
             IncorrectManifestFieldType,
+            MissingConfigSchemaField,
+            IncorrectConfigSchemaType,
+            InvalidConfigSchemaDefault,
             InvalidVersionString,
             InvalidMinimumRecompVersionString,
             InvalidDependencyString,
@@ -115,6 +118,13 @@ namespace recomp {
 
         std::string error_to_string(CodeModLoadError);
 
+        enum class ConfigOptionType {
+            None,
+            Enum,
+            Number,
+            String
+        };
+
         struct ModFileHandle {
             virtual ~ModFileHandle() = default;
             virtual std::vector<char> read_file(const std::string& filepath, bool& exists) const = 0;
@@ -154,6 +164,38 @@ namespace recomp {
             Version version;
         };
 
+        struct ConfigOptionEnum {
+            std::vector<std::string> options;
+            uint32_t default_value = 0;
+        };
+
+        struct ConfigOptionNumber {
+            double min = 0.0;
+            double max = 0.0;
+            double step = 0.0;
+            int precision = 0;
+            bool percent = false;
+            double default_value = 0.0;
+        };
+
+        struct ConfigOptionString {
+            std::string default_value;
+        };
+
+        typedef std::variant<ConfigOptionEnum, ConfigOptionNumber, ConfigOptionString> ConfigOptionVariant;
+
+        struct ConfigOption {
+            std::string id;
+            std::string name;
+            std::string description;
+            ConfigOptionType type;
+            ConfigOptionVariant variant;
+        };
+
+        struct ConfigSchema {
+            std::vector<ConfigOption> options;
+        };
+
         struct ModDetails {
             std::string mod_id;
             std::string display_name;
@@ -176,6 +218,7 @@ namespace recomp {
             std::vector<std::string> authors;
             std::vector<Dependency> dependencies;
             std::unordered_map<std::string, size_t> dependencies_by_id;
+            ConfigSchema config_schema;
             Version minimum_recomp_version;
             Version version;
             bool runtime_toggleable;
@@ -258,6 +301,7 @@ namespace recomp {
             std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
+            const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
             ModContentTypeId register_content_type(const ModContentType& type);
             bool register_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
             ModContentTypeId get_code_content_type() const { return code_content_type_id; }
@@ -299,6 +343,7 @@ namespace recomp {
             // Tracks which hook slots have already been processed. Used to regenerate vanilla functions as needed
             // to add hooks to any functions that weren't already replaced by a mod.
             std::vector<bool> processed_hook_slots;
+            ConfigSchema empty_schema;
             size_t num_events = 0;
             ModContentTypeId code_content_type_id;
             size_t active_game = (size_t)-1;
@@ -462,6 +507,7 @@ namespace recomp {
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);
+        const ConfigSchema &get_mod_config_schema(const std::string &mod_id);
         ModContentTypeId register_mod_content_type(const ModContentType& type);
         bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
     }

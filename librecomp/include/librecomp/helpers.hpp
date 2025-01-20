@@ -36,6 +36,21 @@ T _arg(uint8_t* rdram, recomp_context* ctx) {
     }
 }
 
+inline float _arg_float_a1(uint8_t* rdram, recomp_context* ctx) {
+    (void)rdram;
+    union {
+        u32 as_u32;
+        float as_float;
+    } ret{};
+    ret.as_u32 = _arg<1, u32>(rdram, ctx);
+    return ret.as_float;
+}
+
+inline float _arg_float_f14(uint8_t* rdram, recomp_context* ctx) {
+    (void)rdram;
+    return ctx->f14.fl;
+}
+
 template <typename T>
 void _return(recomp_context* ctx, T val) {
     static_assert(sizeof(T) <= 4 && "Only 32-bit value returns supported currently");

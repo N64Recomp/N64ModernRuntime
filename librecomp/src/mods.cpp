@@ -881,6 +881,17 @@ N64Recomp::Context context_from_regenerated_list(const RegeneratedList& regenlis
     return ret;
 }
 
+const recomp::mods::ConfigSchema &recomp::mods::ModContext::get_mod_config_schema(const std::string &mod_id) const {
+    // Check that the mod exists.
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return empty_schema;
+    }
+
+    const ModHandle &mod = opened_mods[find_it->second];
+    return mod.manifest.config_schema;
+}
+
 std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;

@@ -23,6 +23,7 @@
 #include "ultramodern/error_handling.hpp"
 #include "librecomp/addresses.hpp"
 #include "librecomp/mods.hpp"
+#include "recompiler/live_recompiler.h"
 
 #ifdef _WIN32
 #    define WIN32_LEAN_AND_MEAN
@@ -35,16 +36,6 @@
 #define PATHFMT "%ls"
 #else
 #define PATHFMT "%s"
-#endif
-
-#ifdef _MSC_VER
-inline uint32_t byteswap(uint32_t val) {
-    return _byteswap_ulong(val);
-}
-#else
-constexpr uint32_t byteswap(uint32_t val) {
-    return __builtin_bswap32(val);
-}
 #endif
 
 enum GameStatus {
@@ -91,11 +82,18 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
     return true;
 }
 
+void recomp::mods::initialize_mods() {
+    N64Recomp::live_recompiler_init();
+    std::filesystem::create_directories(config_path / mods_directory);
+    std::filesystem::create_directories(config_path / mod_config_directory);
+    mod_context->set_mod_config_path(config_path / mod_config_directory);
+}
+
 void recomp::mods::scan_mods() {
     std::vector<recomp::mods::ModOpenErrorDetails> mod_open_errors;
     {
         std::lock_guard mod_lock{ mod_context_mutex };
-        mod_open_errors = mod_context->scan_mod_folder(config_path / "mods");
+        mod_open_errors = mod_context->scan_mod_folder(config_path / mods_directory);
     }
     for (const auto& cur_error : mod_open_errors) {
         printf("Error opening mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
@@ -520,6 +518,16 @@ const recomp::mods::ConfigSchema &recomp::mods::get_mod_config_schema(const std:
     return mod_context->get_mod_config_schema(mod_id);
 }
 
+void recomp::mods::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->set_mod_config_value(mod_id, option_id, value);
+}
+
+recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_config_value(mod_id, option_id);
+}
+
 std::vector<recomp::mods::ModDetails> recomp::mods::get_mod_details(const std::string& mod_game_id) {
     std::lock_guard lock { mod_context_mutex };
     return mod_context->get_mod_details(mod_game_id);
@@ -650,7 +658,8 @@ void recomp::start(
         }
     }
 
-    recomp::mods::initialize_mod_recompiler();
+    recomp::mods::initialize_mods();
+    recomp::mods::scan_mods();
 
     // Allocate rdram without comitting it. Use a platform-specific virtual allocation function
     // that initializes to zero. Protect the region above the memory size to catch accesses to invalid addresses.

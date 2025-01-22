@@ -3,6 +3,7 @@
 #include <sstream>
 #include <functional>
 
+#include "librecomp/files.hpp"
 #include "librecomp/mods.hpp"
 #include "librecomp/overlays.hpp"
 #include "librecomp/game.hpp"
@@ -213,8 +214,9 @@ recomp::mods::CodeModLoadError recomp::mods::validate_api_version(uint32_t api_v
     }
 }
 
-recomp::mods::ModHandle::ModHandle(const ModContext& context, ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types) :
+recomp::mods::ModHandle::ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types) :
     manifest(std::move(manifest)),
+    config_storage(std::move(config_storage)),
     code_handle(),
     recompiler_context{std::make_unique<N64Recomp::Context>()},
     content_types{std::move(content_types)},
@@ -539,10 +541,11 @@ void unpatch_func(void* target_func, const recomp::mods::PatchData& data) {
     protect(target_func, old_flags);
 }
 
-void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types) {
+void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types) {
+    std::unique_lock lock(opened_mods_mutex);
     size_t mod_index = opened_mods.size();
     opened_mods_by_id.emplace(manifest.mod_id, mod_index);
-    opened_mods.emplace_back(*this, std::move(manifest), std::move(game_indices), std::move(detected_content_types));
+    opened_mods.emplace_back(*this, std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types));
 }
 
 recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(recomp::mods::ModHandle& mod, std::string& error_param) {
@@ -567,10 +570,105 @@ void recomp::mods::ModContext::register_game(const std::string& mod_game_id) {
 }
 
 void recomp::mods::ModContext::close_mods() {
+    std::unique_lock lock(opened_mods_mutex);
     opened_mods_by_id.clear();
     opened_mods.clear();
     mod_ids.clear();
     enabled_mods.clear();
+}
+
+bool save_mod_config_storage(const std::filesystem::path &path, const std::string &mod_id, const recomp::Version &mod_version, const recomp::mods::ConfigStorage &config_storage, const recomp::mods::ConfigSchema &config_schema) {
+    nlohmann::json config_json;
+    config_json["mod_id"] = mod_id;
+    config_json["mod_version"] = mod_version.to_string();
+    config_json["recomp_version"] = recomp::get_project_version().to_string();
+
+    nlohmann::json &storage_json = config_json["storage"];
+    for (auto it : config_storage.value_map) {
+        auto id_it = config_schema.options_by_id.find(it.first);
+        if (id_it == config_schema.options_by_id.end()) {
+            continue;
+        }
+
+        const recomp::mods::ConfigOption &config_option = config_schema.options[id_it->second];
+        switch (config_option.type) {
+        case recomp::mods::ConfigOptionType::Enum:
+            storage_json[it.first] = std::get<recomp::mods::ConfigOptionEnum>(config_option.variant).options[std::get<uint32_t>(it.second)];
+            break;
+        case recomp::mods::ConfigOptionType::Number:
+            storage_json[it.first] = std::get<double>(it.second);
+            break;
+        case recomp::mods::ConfigOptionType::String:
+            storage_json[it.first] = std::get<std::string>(it.second);
+            break;
+        default:
+            assert(false && "Unknown config type.");
+            break;
+        }
+    }
+
+    std::ofstream output_file = recomp::open_output_file_with_backup(path);
+    if (!output_file.good()) {
+        return false;
+    }
+
+    output_file << std::setw(4) << config_json;
+    output_file.close();
+
+    return recomp::finalize_output_file_with_backup(path);
+}
+
+void recomp::mods::ModContext::dirty_mod_configuration_thread_process() {
+    using namespace std::chrono_literals;
+    std::string mod_id;
+    std::unordered_set<std::string> pending_mods;
+    std::unordered_map<std::string, ConfigStorage> pending_mod_storage;
+    std::unordered_map<std::string, ConfigSchema> pending_mod_schema;
+    std::unordered_map<std::string, Version> pending_mod_version;
+    std::filesystem::path config_path;
+    bool active = true;
+    while (active) {
+        // Wait for at least one mod to require writing.
+        dirty_mod_configuration_thread_queue.wait_dequeue(mod_id);
+
+        if (!mod_id.empty()) {
+            pending_mods.emplace(mod_id);
+        }
+        else {
+            active = false;
+        }
+
+        // Clear out the entire queue to coalesce all writes with a timeout.
+        while (active && dirty_mod_configuration_thread_queue.wait_dequeue_timed(mod_id, 1s)) {
+            if (!mod_id.empty()) {
+                pending_mods.emplace(mod_id);
+            }
+            else {
+                active = false;
+            }
+        }
+
+        if (active && !pending_mods.empty()) {
+            {
+                std::unique_lock opened_mods_lock(opened_mods_mutex);
+                for (const std::string &id : pending_mods) {
+                    auto it = opened_mods_by_id.find(id);
+                    if (it != opened_mods_by_id.end()) {
+                        const ModHandle &mod = opened_mods[it->second];
+                        std::unique_lock config_storage_lock(mod_config_storage_mutex);
+                        pending_mod_storage[id] = mod.config_storage;
+                        pending_mod_schema[id] = mod.manifest.config_schema;
+                        pending_mod_version[id] = mod.manifest.version;
+                    }
+                }
+            }
+
+            for (const std::string &id : pending_mods) {
+                config_path = mod_config_path / std::string(id + ".json");
+                save_mod_config_storage(config_path, id, pending_mod_version[id], pending_mod_storage[id], pending_mod_schema[id]);
+            }
+        }
+    }
 }
 
 std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mod_folder(const std::filesystem::path& mod_folder) {
@@ -623,6 +721,8 @@ recomp::mods::ModContext::ModContext() {
     
     // Register the default mod container type (.nrm) and allow it to have any content type by passing an empty vector.
     register_container_type(std::string{ modpaths::default_mod_extension }, {}, true);
+
+    dirty_mod_configuration_thread = std::make_unique<std::thread>(&ModContext::dirty_mod_configuration_thread_process, this);
 }
 
 void recomp::mods::ModContext::on_code_mod_enabled(ModContext& context, const ModHandle& mod) {
@@ -635,8 +735,11 @@ void recomp::mods::ModContext::on_code_mod_enabled(ModContext& context, const Mo
     }
 }
 
-// Nothing needed for this, it just need to be explicitly declared outside the header to allow forward declaration of ModHandle.
-recomp::mods::ModContext::~ModContext() = default;
+recomp::mods::ModContext::~ModContext() {
+    dirty_mod_configuration_thread_queue.enqueue(std::string());
+    dirty_mod_configuration_thread->join();
+    dirty_mod_configuration_thread.reset();
+}
 
 recomp::mods::ModContentTypeId recomp::mods::ModContext::register_content_type(const ModContentType& type) {
     size_t ret = content_types.size();
@@ -890,6 +993,89 @@ const recomp::mods::ConfigSchema &recomp::mods::ModContext::get_mod_config_schem
 
     const ModHandle &mod = opened_mods[find_it->second];
     return mod.manifest.config_schema;
+}
+
+void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
+    // Check that the mod exists.
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return;
+    }
+
+    ModHandle &mod = opened_mods[find_it->second];
+    std::unique_lock lock(mod_config_storage_mutex);
+    auto option_by_id_it = mod.manifest.config_schema.options_by_id.find(option_id);
+    if (option_by_id_it != mod.manifest.config_schema.options_by_id.end()) {
+        // Only accept setting values if the value exists and the variant is the right type.
+        const ConfigOption &option = mod.manifest.config_schema.options[option_by_id_it->second];
+        switch (option.type) {
+        case ConfigOptionType::Enum:
+            if (std::holds_alternative<uint32_t>(value)) {
+                if (std::get<uint32_t>(value) < std::get<ConfigOptionEnum>(option.variant).options.size()) {
+                    mod.config_storage.value_map[option_id] = value;
+                }
+            }
+
+            break;
+        case ConfigOptionType::Number:
+            if (std::holds_alternative<double>(value)) {
+                mod.config_storage.value_map[option_id] = value;
+            }
+
+            break;
+        case ConfigOptionType::String:
+            if (std::holds_alternative<std::string>(value)) {
+                mod.config_storage.value_map[option_id] = value;
+            }
+
+            break;
+        default:
+            assert(false && "Unknown config option type.");
+            return;
+        }
+    }
+
+    // Notify the asynchronous thread it should save the configuration for this mod.
+    dirty_mod_configuration_thread_queue.enqueue(mod_id);
+}
+
+recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
+    // Check that the mod exists.
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return std::monostate();
+    }
+
+    const ModHandle &mod = opened_mods[find_it->second];
+    std::unique_lock lock(mod_config_storage_mutex);
+    auto it = mod.config_storage.value_map.find(option_id);
+    if (it != mod.config_storage.value_map.end()) {
+        return it->second;
+    }
+    else {
+        // Attempt to see if we can find a default value from the schema.
+        auto option_by_id_it = mod.manifest.config_schema.options_by_id.find(option_id);
+        if (option_by_id_it == mod.manifest.config_schema.options_by_id.end()) {
+            return std::monostate();
+        }
+
+        const ConfigOption &option = mod.manifest.config_schema.options[option_by_id_it->second];
+        switch (option.type) {
+        case ConfigOptionType::Enum:
+            return std::get<ConfigOptionEnum>(option.variant).default_value;
+        case ConfigOptionType::Number:
+            return std::get<ConfigOptionNumber>(option.variant).default_value;
+        case ConfigOptionType::String:
+            return std::get<ConfigOptionString>(option.variant).default_value;
+        default:
+            assert(false && "Unknown config option type.");
+            return std::monostate();
+        }
+    }
+}
+
+void recomp::mods::ModContext::set_mod_config_path(const std::filesystem::path &path) {
+    mod_config_path = path;
 }
 
 std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
@@ -1871,8 +2057,4 @@ void recomp::mods::ModContext::unload_mods() {
     recomp::mods::reset_hooks();
     num_events = recomp::overlays::num_base_events();
     active_game = (size_t)-1;
-}
-
-void recomp::mods::initialize_mod_recompiler() {
-    N64Recomp::live_recompiler_init();
 }

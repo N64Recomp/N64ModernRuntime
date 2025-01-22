@@ -688,8 +688,12 @@ bool parse_mod_config_storage(const std::filesystem::path &path, const std::stri
 
         switch (option.type) {
         case recomp::mods::ConfigOptionType::Enum:
-            if (get_to<int64_t>(*option_json, value_int64)) {
-                config_storage.value_map[option.id] = uint32_t(value_int64);
+            if (get_to<json::string_t>(*option_json, value_str)) {
+                const recomp::mods::ConfigOptionEnum &option_enum = std::get<recomp::mods::ConfigOptionEnum>(option.variant);
+                auto option_it = std::find(option_enum.options.begin(), option_enum.options.end(), value_str);
+                if (option_it != option_enum.options.end()) {
+                    config_storage.value_map[option.id] = uint32_t(option_it - option_enum.options.begin());
+                }
             }
 
             break;

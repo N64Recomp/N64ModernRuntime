@@ -3,7 +3,37 @@
 #include "json/json.hpp"
 
 #include "recompiler/context.h"
+#include "librecomp/files.hpp"
 #include "librecomp/mods.hpp"
+
+static bool read_json(std::ifstream input_file, nlohmann::json &json_out) {
+    if (!input_file.good()) {
+        return false;
+    }
+
+    try {
+        input_file >> json_out;
+    }
+    catch (nlohmann::json::parse_error &) {
+        return false;
+    }
+    return true;
+}
+
+static bool read_json_with_backups(const std::filesystem::path &path, nlohmann::json &json_out) {
+    // Try reading and parsing the base file.
+    if (read_json(std::ifstream{ path }, json_out)) {
+        return true;
+    }
+
+    // Try reading and parsing the backup file.
+    if (read_json(recomp::open_input_backup_file(path), json_out)) {
+        return true;
+    }
+
+    // Both reads failed.
+    return false;
+}
 
 recomp::mods::ZipModFileHandle::~ZipModFileHandle() {
     if (file_handle) {
@@ -469,7 +499,9 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
         break;
     }
 
-    ret.config_schema.options.push_back(option);
+    ret.config_schema.options_by_id.emplace(option.id, ret.config_schema.options.size());
+    ret.config_schema.options.emplace_back(option);
+
     return recomp::mods::ModOpenError::Good;
 }
 
@@ -606,6 +638,83 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
     return recomp::mods::ModOpenError::Good;
 }
 
+bool parse_mod_config_storage(const std::filesystem::path &path, const std::string &expected_mod_id, recomp::mods::ConfigStorage &config_storage, const recomp::mods::ConfigSchema &config_schema) {
+    using json = nlohmann::json;
+    json config_json;
+    if (!read_json_with_backups(path, config_json)) {
+        return false;
+    }
+
+    auto mod_id = config_json.find("mod_id");
+    if (mod_id != config_json.end()) {
+        std::string mod_id_str;
+        if (get_to<json::string_t>(*mod_id, mod_id_str)) {
+            if (*mod_id != expected_mod_id) {
+                // The mod's ID doesn't match.
+                return false;
+            }
+        }
+        else {
+            // The mod ID is not a string.
+            return false;
+        }
+    }
+    else {
+        // The configuration file doesn't have a mod ID.
+        return false;
+    }
+
+    auto storage_json = config_json.find("storage");
+    if (storage_json == config_json.end()) {
+        // The configuration file doesn't have a storage object.
+        return false;
+    }
+
+    if (!storage_json->is_object()) {
+        // The storage key does not correspond to an object.
+        return false;
+    }
+
+    // Only parse the object for known option types based on the schema.
+    int64_t value_int64;
+    double value_double;
+    std::string value_str;
+    for (const recomp::mods::ConfigOption &option : config_schema.options) {
+        auto option_json = storage_json->find(option.id);
+        if (option_json == storage_json->end()) {
+            // Option doesn't exist in storage.
+            continue;
+        }
+
+        switch (option.type) {
+        case recomp::mods::ConfigOptionType::Enum:
+            if (get_to<int64_t>(*option_json, value_int64)) {
+                config_storage.value_map[option.id] = uint32_t(value_int64);
+            }
+
+            break;
+        case recomp::mods::ConfigOptionType::Number:
+            if (get_to<double>(*option_json, value_double)) {
+                config_storage.value_map[option.id] = value_double;
+            }
+
+            break;
+        case recomp::mods::ConfigOptionType::String: {
+            if (get_to<json::string_t>(*option_json, value_str)) {
+                config_storage.value_map[option.id] = value_str;
+            }
+
+            break;
+        }
+        default:
+            assert(false && "Unknown option type.");
+            break;
+        }
+    }
+
+    return true;
+}
+
 recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest) {
     ModManifest manifest{};
     std::error_code ec;
@@ -724,9 +833,14 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         }
     }
 
+    // Read the mod config if it exists.
+    ConfigStorage config_storage;
+    std::filesystem::path config_path = mod_config_path / (manifest.mod_id + ".json");
+    parse_mod_config_storage(config_path, manifest.mod_id, config_storage, manifest.config_schema);
+
     // Store the loaded mod manifest in a new mod handle.
     manifest.mod_root_path = mod_path;
-    add_opened_mod(std::move(manifest), std::move(game_indices), std::move(detected_content_types));
+    add_opened_mod(std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types));
 
     return ModOpenError::Good;
 }

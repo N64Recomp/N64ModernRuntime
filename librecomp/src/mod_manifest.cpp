@@ -839,7 +839,7 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
 
     // Read the mod config if it exists.
     ConfigStorage config_storage;
-    std::filesystem::path config_path = mod_config_path / (manifest.mod_id + ".json");
+    std::filesystem::path config_path = mod_config_directory / (manifest.mod_id + ".json");
     parse_mod_config_storage(config_path, manifest.mod_id, config_storage, manifest.config_schema);
 
     // Store the loaded mod manifest in a new mod handle.

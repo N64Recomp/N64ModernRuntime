@@ -344,3 +344,21 @@ std::unordered_set<recomp_func_t*> recomp::overlays::get_base_patched_funcs() {
 
     return ret;
 }
+
+std::span<const RelocEntry> recomp::overlays::get_section_relocs(uint16_t code_section_index) {
+    if (code_section_index < sections_info.num_code_sections) {
+        const auto& section = sections_info.code_sections[code_section_index];
+        return std::span{ section.relocs, section.num_relocs };
+    }
+    assert(false);
+    return {};
+}
+
+std::span<const RelocEntry> recomp::overlays::get_patch_section_relocs(uint16_t patch_code_section_index) {
+    if (patch_code_section_index < num_patch_code_sections) {
+        const auto& section = patch_code_sections[patch_code_section_index];
+        return std::span{ section.relocs, section.num_relocs };
+    }
+    assert(false);
+    return {};
+}

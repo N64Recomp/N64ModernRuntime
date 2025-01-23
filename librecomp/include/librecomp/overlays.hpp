@@ -6,6 +6,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <span>
 #include "sections.h"
 
 namespace recomp {
@@ -42,6 +43,9 @@ namespace recomp {
         void add_loaded_function(int32_t ram_addr, recomp_func_t* func);
 
         std::unordered_set<recomp_func_t*> get_base_patched_funcs();
+
+        std::span<const RelocEntry> get_section_relocs(uint16_t code_section_index);
+        std::span<const RelocEntry> get_patch_section_relocs(uint16_t patch_code_section_index);
     }
 };
 

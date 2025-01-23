@@ -259,6 +259,7 @@ namespace recomp {
         };
 
         std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
+        void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
 
         // Internal functions, TODO move to an internal header.
         struct PatchData {
@@ -300,6 +301,20 @@ namespace recomp {
             bool requires_manifest;
         };
 
+        struct ModConfigQueueSaveMod {
+            std::string mod_id;
+        };
+
+        struct ModConfigQueueSave {
+            uint32_t pad;
+        };
+
+        struct ModConfigQueueEnd {
+            uint32_t pad;
+        };
+
+        typedef std::variant<ModConfigQueueSaveMod, ModConfigQueueSave, ModConfigQueueEnd> ModConfigQueueVariant;
+
         class LiveRecompilerCodeHandle;
         class ModContext {
         public:
@@ -308,16 +323,19 @@ namespace recomp {
 
             void register_game(const std::string& mod_game_id);
             std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
-            void enable_mod(const std::string& mod_id, bool enabled);
+            void load_mods_config();
+            void enable_mod(const std::string& mod_id, bool enabled, bool trigger_save);
             bool is_mod_enabled(const std::string& mod_id);
             size_t num_opened_mods();
             std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
+            void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
             const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
             void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
             ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
-            void set_mod_config_path(const std::filesystem::path &path);
+            void set_mods_config_path(const std::filesystem::path &path);
+            void set_mod_config_directory(const std::filesystem::path &path);
             ModContentTypeId register_content_type(const ModContentType& type);
             bool register_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
             ModContentTypeId get_code_content_type() const { return code_content_type_id; }
@@ -346,14 +364,16 @@ namespace recomp {
             std::unordered_map<std::string, size_t> mod_game_ids;
             std::vector<ModHandle> opened_mods;
             std::unordered_map<std::string, size_t> opened_mods_by_id;
+            std::vector<size_t> opened_mods_order;
             std::mutex opened_mods_mutex;
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
-            std::unique_ptr<std::thread> dirty_mod_configuration_thread;
-            moodycamel::BlockingConcurrentQueue<std::string> dirty_mod_configuration_thread_queue;
-            std::filesystem::path mod_config_path;
+            std::unique_ptr<std::thread> mod_configuration_thread;
+            moodycamel::BlockingConcurrentQueue<ModConfigQueueVariant> mod_configuration_thread_queue;
+            std::filesystem::path mods_config_path;
+            std::filesystem::path mod_config_directory;
             std::mutex mod_config_storage_mutex;
             std::vector<size_t> loaded_code_mods;
             // Code handle for vanilla code that was regenerated to add hooks.

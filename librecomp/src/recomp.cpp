@@ -86,7 +86,8 @@ void recomp::mods::initialize_mods() {
     N64Recomp::live_recompiler_init();
     std::filesystem::create_directories(config_path / mods_directory);
     std::filesystem::create_directories(config_path / mod_config_directory);
-    mod_context->set_mod_config_path(config_path / mod_config_directory);
+    mod_context->set_mods_config_path(config_path / "mods.json");
+    mod_context->set_mod_config_directory(config_path / mod_config_directory);
 }
 
 void recomp::mods::scan_mods() {
@@ -98,6 +99,8 @@ void recomp::mods::scan_mods() {
     for (const auto& cur_error : mod_open_errors) {
         printf("Error opening mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
     }
+
+    mod_context->load_mods_config();
 }
 
 recomp::mods::ModContentTypeId recomp::mods::register_mod_content_type(const ModContentType& type) {
@@ -500,7 +503,7 @@ void ultramodern::quit() {
 
 void recomp::mods::enable_mod(const std::string& mod_id, bool enabled) {
     std::lock_guard lock { mod_context_mutex };
-    return mod_context->enable_mod(mod_id, enabled);
+    return mod_context->enable_mod(mod_id, enabled, true);
 }
 
 bool recomp::mods::is_mod_enabled(const std::string& mod_id) {
@@ -531,6 +534,11 @@ recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(const std::s
 std::vector<recomp::mods::ModDetails> recomp::mods::get_mod_details(const std::string& mod_game_id) {
     std::lock_guard lock { mod_context_mutex };
     return mod_context->get_mod_details(mod_game_id);
+}
+
+void recomp::mods::set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->set_mod_index(mod_game_id, mod_id, index);
 }
 
 bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {

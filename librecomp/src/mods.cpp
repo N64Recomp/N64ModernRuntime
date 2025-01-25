@@ -828,31 +828,33 @@ std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mo
 void recomp::mods::ModContext::load_mods_config() {
     std::unordered_set<std::string> config_enabled_mods;
     std::vector<std::string> config_mod_order;
-    bool parsed = parse_mods_config(mods_config_path, config_enabled_mods, config_mod_order);
-    if (parsed) {
-        for (const std::string &mod_id : config_enabled_mods) {
-            enable_mod(mod_id, true, false);
+    std::vector<bool> opened_mod_is_known;
+    parse_mods_config(mods_config_path, config_enabled_mods, config_mod_order);
+
+    // Fill a vector with the relative order of the mods. Existing mods will get ordered below new mods.
+    std::vector<size_t> sort_order;
+    sort_order.resize(opened_mods.size());
+    opened_mod_is_known.resize(opened_mods.size(), false);
+    std::iota(sort_order.begin(), sort_order.end(), 0);
+    for (size_t i = 0; i < config_mod_order.size(); i++) {
+        auto it = opened_mods_by_id.find(config_mod_order[i]);
+        if (it != opened_mods_by_id.end()) {
+            sort_order[it->second] = opened_mods.size() + i;
+            opened_mod_is_known[it->second] = true;
         }
+    }
 
-        {
-            std::unique_lock lock(opened_mods_mutex);
+    // Run the sort using the relative order computed before.
+    std::iota(opened_mods_order.begin(), opened_mods_order.end(), 0);
+    std::sort(opened_mods_order.begin(), opened_mods_order.end(), [&](size_t i, size_t j) {
+        return sort_order[i] < sort_order[j];
+    });
 
-            // Fill a vector with the relative order of the mods. Existing mods will get ordered below new mods.
-            std::vector<size_t> sort_order;
-            sort_order.resize(opened_mods.size());
-            std::iota(sort_order.begin(), sort_order.end(), 0);
-            for (size_t i = 0; i < config_mod_order.size(); i++) {
-                auto it = opened_mods_by_id.find(config_mod_order[i]);
-                if (it != opened_mods_by_id.end()) {
-                    sort_order[it->second] = opened_mods.size() + i;
-                }
-            }
-
-            // Run the sort using the relative order computed before.
-            std::iota(opened_mods_order.begin(), opened_mods_order.end(), 0);
-            std::sort(opened_mods_order.begin(), opened_mods_order.end(), [&](size_t i, size_t j) {
-                return sort_order[i] < sort_order[j];
-            });
+    // Enable mods that are specified in the configuration or mods that are considered new.
+    for (size_t i = 0; i < opened_mods.size(); i++) {
+        const std::string &mod_id = opened_mods[i].manifest.mod_id;
+        if (!opened_mod_is_known[i] || (config_enabled_mods.find(mod_id) != config_enabled_mods.end())) {
+            enable_mod(mod_id, true, false);
         }
     }
 }

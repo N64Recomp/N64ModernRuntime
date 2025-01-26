@@ -50,4 +50,9 @@ typedef struct {
     uint32_t ram_addr;
 } FunctionExport;
 
+typedef struct {
+    uint32_t ram_addr;
+    recomp_func_t* func;
+} ManualPatchSymbol;
+
 #endif

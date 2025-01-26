@@ -22,6 +22,7 @@
 #include "recomp.h"
 #include "librecomp/game.hpp"
 #include "librecomp/sections.h"
+#include "librecomp/overlays.hpp"
 
 namespace N64Recomp {
     class Context;
@@ -262,9 +263,14 @@ namespace recomp {
             void check_dependencies(ModHandle& mod, std::vector<std::pair<ModLoadError, std::string>>& errors);
             CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
             CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
-            CodeModLoadError resolve_code_dependencies(ModHandle& mod, const std::unordered_set<recomp_func_t*> base_patched_funcs, std::string& error_param);
+            CodeModLoadError resolve_code_dependencies(ModHandle& mod, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
             void close_mods();
+            std::vector<ModLoadErrorDetails> regenerate_with_hooks(
+                const std::vector<std::pair<HookDefinition, size_t>>& sorted_unprocessed_hooks,
+                const std::unordered_map<uint32_t, uint16_t>& section_vrom_map,
+                const std::unordered_map<recomp_func_t*, overlays::BasePatchedFunction>& base_patched_funcs,
+                std::span<const uint8_t> decompressed_rom);
 
             static void on_code_mod_enabled(ModContext& context, const ModHandle& mod);
 
@@ -281,6 +287,8 @@ namespace recomp {
             std::vector<size_t> loaded_code_mods;
             // Code handle for vanilla code that was regenerated to add hooks.
             std::unique_ptr<LiveRecompilerCodeHandle> regenerated_code_handle;
+            // Code handle for base patched code that was regenerated to add hooks.
+            std::unique_ptr<LiveRecompilerCodeHandle> base_patched_code_handle;
             // Map of hook definition to the entry hook slot's index.
             std::unordered_map<HookDefinition, size_t> hook_slots;
             // Tracks which hook slots have already been processed. Used to regenerate vanilla functions as needed

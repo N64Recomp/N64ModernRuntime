@@ -103,6 +103,10 @@ void recomp::mods::scan_mods() {
     mod_context->load_mods_config();
 }
 
+std::filesystem::path recomp::mods::get_mods_directory() {
+    return config_path / mods_directory;
+}
+
 recomp::mods::ModContentTypeId recomp::mods::register_mod_content_type(const ModContentType& type) {
     std::lock_guard mod_lock{ mod_context_mutex };
     return mod_context->register_content_type(type);

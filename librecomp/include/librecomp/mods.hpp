@@ -547,6 +547,7 @@ namespace recomp {
 
         void initialize_mods();
         void scan_mods();
+        std::filesystem::path get_mods_directory();
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);

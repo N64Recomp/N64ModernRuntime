@@ -963,6 +963,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         uint32_t cur_ram_used = 0;
         auto& mod = opened_mods[mod_index];
         std::string cur_error_param;
+        size_t base_event_index = num_events;
         CodeModLoadError cur_error = init_mod_code(rdram, section_vrom_map, mod, load_address, !decompressed_rom.empty(), cur_ram_used, cur_error_param);
         if (cur_error != CodeModLoadError::Good) {
             if (cur_error_param.empty()) {
@@ -975,7 +976,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
         else {
             load_address += cur_ram_used;
             ram_used += cur_ram_used;
-            base_event_indices[mod_index] = static_cast<uint32_t>(num_events);
+            base_event_indices[mod_index] = static_cast<uint32_t>(base_event_index);
         }
     }
 

@@ -458,6 +458,9 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
                 }
 
                 manifest.mod_id = mod_path.stem().string();
+                manifest.display_name = manifest.mod_id;
+                manifest.description.clear();
+                manifest.short_description.clear();
                 manifest.authors = { "Unknown" };
 
                 manifest.minimum_recomp_version.major = 0;

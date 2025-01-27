@@ -537,21 +537,21 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
         case ModOpenError::InvalidZip:
             return "Mod is an invalid zip file";
         case ModOpenError::NoManifest:
-            return "Mod is missing a manifest.json";
+            return "Mod is missing a mod.json";
         case ModOpenError::FailedToParseManifest:
-            return "Failed to parse mod's manifest.json";
+            return "Failed to parse mod's mod.json";
         case ModOpenError::InvalidManifestSchema:
-            return "Mod's manifest.json has an invalid schema";
+            return "Mod's mod.json has an invalid schema";
         case ModOpenError::IncorrectManifestFieldType:
-            return "Incorrect type for field in manifest.json";
+            return "Incorrect type for field in mod.json";
         case ModOpenError::InvalidVersionString:
-            return "Invalid version string in manifest.json";
+            return "Invalid version string in mod.json";
         case ModOpenError::InvalidMinimumRecompVersionString:
-            return "Invalid minimum recomp version string in manifest.json";
+            return "Invalid minimum recomp version string in mod.json";
         case ModOpenError::InvalidDependencyString:
-            return "Invalid dependency string in manifest.json";
+            return "Invalid dependency string in mod.json";
         case ModOpenError::MissingManifestField:
-            return "Missing required field in manifest";
+            return "Missing required field in mod.json";
         case ModOpenError::DuplicateMod:
             return "Duplicate mod found";
         case ModOpenError::WrongGame:

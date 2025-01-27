@@ -460,13 +460,13 @@ void init(uint8_t* rdram, recomp_context* ctx, gpr entrypoint) {
 
     // Initialize variables normally set by IPL3
     constexpr int32_t osTvType = 0x80000300;
-    constexpr int32_t osRomType = 0x80000304;
+    //constexpr int32_t osRomType = 0x80000304;
     constexpr int32_t osRomBase = 0x80000308;
     constexpr int32_t osResetType = 0x8000030c;
-    constexpr int32_t osCicId = 0x80000310;
-    constexpr int32_t osVersion = 0x80000314;
+    //constexpr int32_t osCicId = 0x80000310;
+    //constexpr int32_t osVersion = 0x80000314;
     constexpr int32_t osMemSize = 0x80000318;
-    constexpr int32_t osAppNMIBuffer = 0x8000031c;
+    //constexpr int32_t osAppNMIBuffer = 0x8000031c;
     MEM_W(osTvType, 0) = 1; // NTSC
     MEM_W(osRomBase, 0) = 0xB0000000u; // standard rom base
     MEM_W(osResetType, 0) = 0; // cold reset
@@ -536,7 +536,7 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                     std::vector<recomp::mods::ModLoadErrorDetails> mod_load_errors;
                     {
                         std::lock_guard lock { mod_context_mutex };
-                        mod_load_errors = mod_context->load_mods(game_entry.mod_game_id, rdram, recomp::mod_rdram_start, mod_ram_used);
+                        mod_load_errors = mod_context->load_mods(game_entry, rdram, recomp::mod_rdram_start, mod_ram_used);
                     }
 
                     if (!mod_load_errors.empty()) {

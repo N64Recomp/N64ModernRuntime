@@ -23,9 +23,11 @@ namespace recomp {
         std::string internal_name;
         std::u8string game_id;
         std::string mod_game_id;
-        std::span<const char> cache_data;
         SaveType save_type = SaveType::None;
         bool is_enabled;
+        // Only needed for mod function hooking support, not needed if `has_compressed_code` is false.
+        std::vector<uint8_t> (*decompression_routine)(std::span<const uint8_t> compressed_rom) = nullptr;
+        bool has_compressed_code = false;
 
         gpr entrypoint_address;
         void (*entrypoint)(uint8_t* rdram, recomp_context* context);
@@ -73,6 +75,7 @@ namespace recomp {
     bool is_rom_valid(std::u8string& game_id);
     bool is_rom_loaded();
     void set_rom_contents(std::vector<uint8_t>&& new_rom);
+    std::span<const uint8_t> get_rom();
     void do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes);
     void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
     const Version& get_project_version();

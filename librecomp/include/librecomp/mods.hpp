@@ -22,10 +22,35 @@
 #include "recomp.h"
 #include "librecomp/game.hpp"
 #include "librecomp/sections.h"
+#include "librecomp/overlays.hpp"
 
 namespace N64Recomp {
     class Context;
     struct LiveGeneratorOutput;
+};
+
+namespace recomp {
+    namespace mods {
+        struct HookDefinition {
+            uint32_t section_rom;
+            uint32_t function_vram;
+            bool at_return;
+            bool operator==(const HookDefinition& rhs) const = default;
+        };
+    }
+}
+
+template <>
+struct std::hash<recomp::mods::HookDefinition>
+{
+    std::size_t operator()(const recomp::mods::HookDefinition& def) const {
+        // This hash packing only works if the resulting value is 64 bits.
+        static_assert(sizeof(std::size_t) == 8);
+        // Combine the three values into a single 64-bit value.
+        // The lower 2 bits of a function address will always be zero, so pack
+        // the value of at_return into the lowest bit.
+        return (size_t(def.section_rom) << 32) | size_t(def.function_vram) | size_t(def.at_return ? 1 : 0);
+    }
 };
 
 namespace recomp {
@@ -77,10 +102,14 @@ namespace recomp {
             InvalidImport,
             InvalidCallbackEvent,
             InvalidFunctionReplacement,
+            HooksUnavailable,
+            InvalidHook,
+            CannotBeHooked,
             FailedToFindReplacement,
-            ReplacementConflict,
+            BaseRecompConflict,
             ModConflict,
             DuplicateExport,
+            OfflineModHooked,
             NoSpecifiedApiVersion,
             UnsupportedApiVersion,
         };
@@ -210,6 +239,7 @@ namespace recomp {
             bool requires_manifest;
         };
 
+        class LiveRecompilerCodeHandle;
         class ModContext {
         public:
             ModContext();
@@ -220,7 +250,7 @@ namespace recomp {
             void enable_mod(const std::string& mod_id, bool enabled);
             bool is_mod_enabled(const std::string& mod_id);
             size_t num_opened_mods();
-            std::vector<ModLoadErrorDetails> load_mods(const std::string& mod_game_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
+            std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
             ModContentTypeId register_content_type(const ModContentType& type);
@@ -229,12 +259,18 @@ namespace recomp {
             bool is_content_runtime_toggleable(ModContentTypeId content_type) const;
         private:
             ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest);
-            ModLoadError load_mod(recomp::mods::ModHandle& mod, std::string& error_param);
-            void check_dependencies(recomp::mods::ModHandle& mod, std::vector<std::pair<recomp::mods::ModLoadError, std::string>>& errors);
-            CodeModLoadError load_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, recomp::mods::ModHandle& mod, int32_t load_address, uint32_t& ram_used, std::string& error_param);
-            CodeModLoadError resolve_code_dependencies(recomp::mods::ModHandle& mod, std::string& error_param);
+            ModLoadError load_mod(ModHandle& mod, std::string& error_param);
+            void check_dependencies(ModHandle& mod, std::vector<std::pair<ModLoadError, std::string>>& errors);
+            CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
+            CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
+            CodeModLoadError resolve_code_dependencies(ModHandle& mod, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
             void close_mods();
+            std::vector<ModLoadErrorDetails> regenerate_with_hooks(
+                const std::vector<std::pair<HookDefinition, size_t>>& sorted_unprocessed_hooks,
+                const std::unordered_map<uint32_t, uint16_t>& section_vrom_map,
+                const std::unordered_map<recomp_func_t*, overlays::BasePatchedFunction>& base_patched_funcs,
+                std::span<const uint8_t> decompressed_rom);
 
             static void on_code_mod_enabled(ModContext& context, const ModHandle& mod);
 
@@ -249,6 +285,15 @@ namespace recomp {
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
             std::vector<size_t> loaded_code_mods;
+            // Code handle for vanilla code that was regenerated to add hooks.
+            std::unique_ptr<LiveRecompilerCodeHandle> regenerated_code_handle;
+            // Code handle for base patched code that was regenerated to add hooks.
+            std::unique_ptr<LiveRecompilerCodeHandle> base_patched_code_handle;
+            // Map of hook definition to the entry hook slot's index.
+            std::unordered_map<HookDefinition, size_t> hook_slots;
+            // Tracks which hook slots have already been processed. Used to regenerate vanilla functions as needed
+            // to add hooks to any functions that weren't already replaced by a mod.
+            std::vector<bool> processed_hook_slots;
             size_t num_events = 0;
             ModContentTypeId code_content_type_id;
             size_t active_game = (size_t)-1;
@@ -368,7 +413,8 @@ namespace recomp {
 
         class LiveRecompilerCodeHandle : public ModCodeHandle {
         public:
-            LiveRecompilerCodeHandle(const N64Recomp::Context& context, const ModCodeHandleInputs& inputs);
+            LiveRecompilerCodeHandle(const N64Recomp::Context& context, const ModCodeHandleInputs& inputs,
+                std::unordered_map<size_t, size_t>&& entry_func_hooks, std::unordered_map<size_t, size_t>&& return_func_hooks);
 
             ~LiveRecompilerCodeHandle() = default;
             
@@ -398,6 +444,12 @@ namespace recomp {
         void setup_events(size_t num_events);
         void register_event_callback(size_t event_index, GenericFunction callback);
         void reset_events();
+        
+        void setup_hooks(size_t num_hook_slots);
+        void register_hook(size_t hook_slot_index, GenericFunction callback);
+        void reset_hooks();
+        void run_hook(uint8_t* rdram, recomp_context* ctx, size_t hook_slot_index);
+
         CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
 
         void initialize_mod_recompiler();

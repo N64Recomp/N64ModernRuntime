@@ -90,7 +90,7 @@ namespace ultramodern {
             /**
              * This callback is optional. If not provided a library default will be used.
              */
-            get_graphics_api_name_t *get_graphics_api_name;
+            get_graphics_api_name_t *get_graphics_api_name = nullptr;
         };
 
         void set_callbacks(const callbacks_t& callbacks);

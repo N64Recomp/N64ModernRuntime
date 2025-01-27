@@ -742,6 +742,9 @@ std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_mod_details(
 
             ret.emplace_back(ModDetails{
                 .mod_id = mod.manifest.mod_id,
+                .display_name = mod.manifest.display_name,
+                .description = mod.manifest.description,
+                .short_description = mod.manifest.short_description,
                 .version = mod.manifest.version,
                 .authors = mod.manifest.authors,
                 .dependencies = mod.manifest.dependencies,

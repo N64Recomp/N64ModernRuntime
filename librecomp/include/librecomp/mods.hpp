@@ -64,7 +64,6 @@ namespace recomp {
             NoManifest,
             FailedToParseManifest,
             InvalidManifestSchema,
-            UnrecognizedManifestField,
             IncorrectManifestFieldType,
             InvalidVersionString,
             InvalidMinimumRecompVersionString,
@@ -157,6 +156,9 @@ namespace recomp {
 
         struct ModDetails {
             std::string mod_id;
+            std::string display_name;
+            std::string description;
+            std::string short_description;
             Version version;
             std::vector<std::string> authors;
             std::vector<Dependency> dependencies;
@@ -168,6 +170,9 @@ namespace recomp {
 
             std::vector<std::string> mod_game_ids;
             std::string mod_id;
+            std::string display_name;
+            std::string description;
+            std::string short_description;
             std::vector<std::string> authors;
             std::vector<Dependency> dependencies;
             std::unordered_map<std::string, size_t> dependencies_by_id;

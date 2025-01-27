@@ -143,6 +143,9 @@ enum class ManifestField {
 
 const std::string game_mod_id_key = "game_id";
 const std::string mod_id_key = "id";
+const std::string display_name_key = "display_name";
+const std::string description_key = "description";
+const std::string short_description_key = "short_description";
 const std::string version_key = "version";
 const std::string authors_key = "authors";
 const std::string minimum_recomp_version_key = "minimum_recomp_version";
@@ -224,6 +227,77 @@ static bool parse_dependency(const std::string& val, recomp::mods::Dependency& o
     return false;
 }
 
+template <typename T1, typename T2>
+recomp::mods::ModOpenError try_get(T2& out, const nlohmann::json& data, const std::string& key, bool required, std::string& error_param) {
+    auto find_it = data.find(key);
+    if (find_it == data.end()) {
+        if (required) {
+            error_param = key;
+            return recomp::mods::ModOpenError::MissingManifestField;
+        }
+        out = {};
+        return recomp::mods::ModOpenError::Good;
+    }
+
+    const T1* ptr = find_it->get_ptr<const T1*>();
+    if (ptr == nullptr) {
+        error_param = key;
+        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+    }
+
+    out = *ptr;
+    return recomp::mods::ModOpenError::Good;
+}
+
+recomp::mods::ModOpenError try_get_version(recomp::Version& out, const nlohmann::json& data, const std::string& key, std::string& error_param, recomp::mods::ModOpenError invalid_version_error) {
+    std::string version_string{};
+
+    recomp::mods::ModOpenError try_get_err = try_get<nlohmann::json::string_t>(version_string, data, key, true, error_param);
+    if (try_get_err != recomp::mods::ModOpenError::Good) {
+        return try_get_err;
+    }
+
+    if (!recomp::Version::from_string(version_string, out)) {
+        error_param = version_string;
+        return invalid_version_error;
+    }
+
+    return recomp::mods::ModOpenError::Good;
+}
+
+template <typename T1, typename T2>
+recomp::mods::ModOpenError try_get_vec(std::vector<T2>& out, const nlohmann::json& data, const std::string& key, bool required, std::string& error_param) {
+    auto find_it = data.find(key);
+    if (find_it == data.end()) {
+        if (required) {
+            error_param = key;
+            return recomp::mods::ModOpenError::MissingManifestField;
+        }
+        return recomp::mods::ModOpenError::Good;
+    }
+
+    const nlohmann::json::array_t* ptr = find_it->get_ptr<const nlohmann::json::array_t*>();
+    if (ptr == nullptr) {
+        error_param = key;
+        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+    }
+
+    out.clear();
+
+    for (const nlohmann::json& cur_val : *ptr) {
+        const T1* temp_ptr = cur_val.get_ptr<const T1*>();
+        if (temp_ptr == nullptr) {
+            out.clear();
+            error_param = key;
+            return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+        }
+
+        out.emplace_back(*temp_ptr);
+    }
+
+    return recomp::mods::ModOpenError::Good;
+}
+
 recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param) {
     using json = nlohmann::json;
     json manifest_json = json::parse(manifest_data.begin(), manifest_data.end(), nullptr, false);
@@ -236,137 +310,97 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
         return recomp::mods::ModOpenError::InvalidManifestSchema;
     }
 
-    for (const auto& [key, val] : manifest_json.items()) {
-        const auto find_key_it = field_map.find(key);
-        if (find_key_it == field_map.end()) {
-            // Unrecognized field
-            error_param = key;
-            return recomp::mods::ModOpenError::UnrecognizedManifestField;
+    recomp::mods::ModOpenError current_error = recomp::mods::ModOpenError::Good;
+
+    // Mod Game ID
+    std::string mod_game_id{};
+    current_error = try_get<json::string_t>(mod_game_id, manifest_json, game_mod_id_key, true, error_param);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+    ret.mod_game_ids.emplace_back(std::move(mod_game_id));
+
+    // Mod ID
+    current_error = try_get<json::string_t>(ret.mod_id, manifest_json, mod_id_key, true, error_param);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Display name
+    current_error = try_get<json::string_t>(ret.display_name, manifest_json, display_name_key, true, error_param);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Description (optional)
+    current_error = try_get<json::string_t>(ret.description, manifest_json, description_key, false, error_param);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Short Description (optional)
+    current_error = try_get<json::string_t>(ret.short_description, manifest_json, short_description_key, false, error_param);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Version
+    current_error = try_get_version(ret.version, manifest_json, version_key, error_param, recomp::mods::ModOpenError::InvalidVersionString);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Authors
+    current_error = try_get_vec<json::string_t>(ret.authors, manifest_json, authors_key, true, error_param);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Minimum recomp version
+    current_error = try_get_version(ret.minimum_recomp_version, manifest_json, minimum_recomp_version_key, error_param, recomp::mods::ModOpenError::InvalidMinimumRecompVersionString);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Dependencies (optional)
+    std::vector<std::string> dep_strings{};
+    current_error = try_get_vec<json::string_t>(dep_strings, manifest_json, dependencies_key, false, error_param);
+    if (current_error != recomp::mods::ModOpenError::Good) {
+        return current_error;
+    }
+    for (const std::string& dep_string : dep_strings) {
+        recomp::mods::Dependency cur_dep;
+        if (!parse_dependency(dep_string, cur_dep)) {
+            error_param = dep_string;
+            return recomp::mods::ModOpenError::InvalidDependencyString;
         }
 
-        ManifestField field = find_key_it->second;
-        switch (field) {
-            case ManifestField::GameModId:
-                {
-                    std::string mod_game_id;
-                    if (!get_to<json::string_t>(val, mod_game_id)) {
-                        error_param = key;
-                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                    }
-                    ret.mod_game_ids.resize(1);
-                    ret.mod_game_ids[0] = std::move(mod_game_id);
-                }
-                break;
-            case ManifestField::Id:
-                if (!get_to<json::string_t>(val, ret.mod_id)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                }
-                break;
-            case ManifestField::Version:
-                {
-                    const std::string* version_str = val.get_ptr<const std::string*>();
-                    if (version_str == nullptr) {
-                        error_param = key;
-                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                    }
-                    if (!recomp::Version::from_string(*version_str, ret.version)) {
-                        error_param = *version_str;
-                        return recomp::mods::ModOpenError::InvalidVersionString;
-                    }
-                }
-                break;
-            case ManifestField::Authors:
-                if (!get_to_vec<std::string>(val, ret.authors)) {
-                    error_param = key;
-                    return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                }
-                break;
-            case ManifestField::MinimumRecompVersion:
-                {
-                    const std::string* version_str = val.get_ptr<const std::string*>();
-                    if (version_str == nullptr) {
-                        error_param = key;
-                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                    }
-                    if (!recomp::Version::from_string(*version_str, ret.minimum_recomp_version)) {
-                        error_param = *version_str;
-                        return recomp::mods::ModOpenError::InvalidMinimumRecompVersionString;
-                    }
-                    ret.minimum_recomp_version.suffix.clear();
-                }
-                break;
-            case ManifestField::Dependencies:
-                {
-                    std::vector<std::string> dep_strings{};
-                    if (!get_to_vec<std::string>(val, dep_strings)) {
-                        error_param = key;
-                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                    }
+        size_t dependency_index = ret.dependencies.size();
+        ret.dependencies_by_id.emplace(cur_dep.mod_id, dependency_index);
+        ret.dependencies.emplace_back(std::move(cur_dep));
+    }
 
-                    for (const std::string& dep_string : dep_strings) {
-                        recomp::mods::Dependency cur_dep;
-                        if (!parse_dependency(dep_string, cur_dep)) {
-                            error_param = dep_string;
-                            return recomp::mods::ModOpenError::InvalidDependencyString;
-                        }
+    // Native libraries (optional)
+    auto find_libs_it = manifest_json.find(native_libraries_key);
+    if (find_libs_it != manifest_json.end()) {
+        auto& val = *find_libs_it;
+        if (!val.is_object()) {
+            error_param = native_libraries_key;
+            return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+        }
+        for (const auto& [lib_name, lib_exports] : val.items()) {
+            recomp::mods::NativeLibraryManifest& cur_lib = ret.native_libraries.emplace_back();
 
-                        size_t dependency_index = ret.dependencies.size();
-                        ret.dependencies_by_id.emplace(cur_dep.mod_id, dependency_index);
-                        ret.dependencies.emplace_back(std::move(cur_dep));
-                    }
-                }
-                break;
-            case ManifestField::NativeLibraries:
-                {
-                    if (!val.is_object()) {
-                        error_param = key;
-                        return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                    }
-                    for (const auto& [lib_name, lib_exports] : val.items()) {
-                        recomp::mods::NativeLibraryManifest& cur_lib = ret.native_libraries.emplace_back();
-
-                        cur_lib.name = lib_name;
-                        if (!get_to_vec<std::string>(lib_exports, cur_lib.exports)) {
-                            error_param = key;
-                            return recomp::mods::ModOpenError::IncorrectManifestFieldType;
-                        }
-                    }
-                }
-                break;
+            cur_lib.name = lib_name;
+            if (!get_to_vec<std::string>(lib_exports, cur_lib.exports)) {
+                error_param = native_libraries_key;
+                return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+            }
         }
     }
 
     return recomp::mods::ModOpenError::Good;
 }
-
-recomp::mods::ModOpenError validate_manifest(const recomp::mods::ModManifest& manifest, std::string& error_param) {
-    using namespace recomp::mods;
-
-    // Check for required fields.
-    if (manifest.mod_game_ids.empty()) {
-        error_param = game_mod_id_key;
-        return ModOpenError::MissingManifestField;
-    }    
-    if (manifest.mod_id.empty()) {
-        error_param = mod_id_key;
-        return ModOpenError::MissingManifestField;
-    }
-    if (manifest.version.major == -1 || manifest.version.major == -1 || manifest.version.major == -1) {
-        error_param = version_key;
-        return ModOpenError::MissingManifestField;
-    }
-    if (manifest.authors.empty()) {
-        error_param = authors_key;
-        return ModOpenError::MissingManifestField;
-    }
-    if (manifest.minimum_recomp_version.major == -1 || manifest.minimum_recomp_version.major == -1 || manifest.minimum_recomp_version.major == -1) {
-        error_param = minimum_recomp_version_key;
-        return ModOpenError::MissingManifestField;
-    }
-
-    return ModOpenError::Good;
-}   
 
 recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest) {
     ModManifest manifest{};
@@ -406,7 +440,7 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
 
     {
         bool exists;
-        std::vector<char> manifest_data = manifest.file_handle->read_file("manifest.json", exists);
+        std::vector<char> manifest_data = manifest.file_handle->read_file("mod.json", exists);
         if (!exists) {
             // If this container type requires a manifest then return an error.
             if (requires_manifest) {
@@ -448,11 +482,6 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         return ModOpenError::DuplicateMod;
     }
     mod_ids.emplace(manifest.mod_id);
-
-    ModOpenError validate_error = validate_manifest(manifest, error_param);
-    if (validate_error != ModOpenError::Good) {
-        return validate_error;
-    }
 
     // Check for this mod's game ids being valid.
     std::vector<size_t> game_indices;
@@ -513,8 +542,6 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Failed to parse mod's manifest.json";
         case ModOpenError::InvalidManifestSchema:
             return "Mod's manifest.json has an invalid schema";
-        case ModOpenError::UnrecognizedManifestField:
-            return "Unrecognized field in manifest.json";
         case ModOpenError::IncorrectManifestFieldType:
             return "Incorrect type for field in manifest.json";
         case ModOpenError::InvalidVersionString:

@@ -266,13 +266,14 @@ recomp::mods::CodeModLoadError recomp::mods::validate_api_version(uint32_t api_v
     }
 }
 
-recomp::mods::ModHandle::ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types) :
+recomp::mods::ModHandle::ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail) :
     manifest(std::move(manifest)),
     config_storage(std::move(config_storage)),
     code_handle(),
     recompiler_context{std::make_unique<N64Recomp::Context>()},
     content_types{std::move(content_types)},
-    game_indices{std::move(game_indices)}
+    game_indices{std::move(game_indices)},
+    thumbnail{std::move(thumbnail)}
 {
     runtime_toggleable = true;
     for (ModContentTypeId type : this->content_types) {
@@ -593,11 +594,11 @@ void unpatch_func(void* target_func, const recomp::mods::PatchData& data) {
     protect(target_func, old_flags);
 }
 
-void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types) {
+void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail) {
     std::unique_lock lock(opened_mods_mutex);
     size_t mod_index = opened_mods.size();
     opened_mods_by_id.emplace(manifest.mod_id, mod_index);
-    opened_mods.emplace_back(*this, std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types));
+    opened_mods.emplace_back(*this, std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail));
     opened_mods_order.emplace_back(mod_index);
 }
 
@@ -1193,6 +1194,17 @@ const recomp::mods::ConfigSchema &recomp::mods::ModContext::get_mod_config_schem
 
     const ModHandle &mod = opened_mods[find_it->second];
     return mod.manifest.config_schema;
+}
+
+const std::vector<char> &recomp::mods::ModContext::get_mod_thumbnail(const std::string &mod_id) const {
+    // Check that the mod exists.
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return empty_bytes;
+    }
+
+    const ModHandle &mod = opened_mods[find_it->second];
+    return mod.thumbnail;
 }
 
 void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {

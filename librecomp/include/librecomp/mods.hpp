@@ -332,6 +332,7 @@ namespace recomp {
             std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
             const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
+            const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
             void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
             ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
             void set_mods_config_path(const std::filesystem::path &path);
@@ -347,7 +348,7 @@ namespace recomp {
             CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
             CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
             CodeModLoadError resolve_code_dependencies(ModHandle& mod, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
-            void add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
+            void add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail);
             void close_mods();
             std::vector<ModLoadErrorDetails> regenerate_with_hooks(
                 const std::vector<std::pair<HookDefinition, size_t>>& sorted_unprocessed_hooks,
@@ -386,6 +387,7 @@ namespace recomp {
             // to add hooks to any functions that weren't already replaced by a mod.
             std::vector<bool> processed_hook_slots;
             ConfigSchema empty_schema;
+            std::vector<char> empty_bytes;
             size_t num_events = 0;
             ModContentTypeId code_content_type_id;
             size_t active_game = (size_t)-1;
@@ -414,8 +416,9 @@ namespace recomp {
             std::vector<uint32_t> section_load_addresses;
             // Content types present in this mod.
             std::vector<ModContentTypeId> content_types;
+            std::vector<char> thumbnail;
 
-            ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types);
+            ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail);
             ModHandle(const ModHandle& rhs) = delete;
             ModHandle& operator=(const ModHandle& rhs) = delete;
             ModHandle(ModHandle&& rhs);
@@ -552,6 +555,7 @@ namespace recomp {
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);
         const ConfigSchema &get_mod_config_schema(const std::string &mod_id);
+        const std::vector<char> &get_mod_thumbnail(const std::string &mod_id);
         void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
         ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
         ModContentTypeId register_mod_content_type(const ModContentType& type);

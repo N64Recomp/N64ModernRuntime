@@ -525,6 +525,11 @@ const recomp::mods::ConfigSchema &recomp::mods::get_mod_config_schema(const std:
     return mod_context->get_mod_config_schema(mod_id);
 }
 
+const std::vector<char> &recomp::mods::get_mod_thumbnail(const std::string &mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_thumbnail(mod_id);
+}
+
 void recomp::mods::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->set_mod_config_value(mod_id, option_id, value);

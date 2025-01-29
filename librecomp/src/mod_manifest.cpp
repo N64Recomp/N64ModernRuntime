@@ -842,9 +842,18 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
     std::filesystem::path config_path = mod_config_directory / (manifest.mod_id + ".json");
     parse_mod_config_storage(config_path, manifest.mod_id, config_storage, manifest.config_schema);
 
+    // Read the mod thumbnail if it exists.
+    static const std::string thumbnail_dds_name = "thumb.dds";
+    static const std::string thumbnail_png_name = "thumb.png";
+    bool exists = false;
+    std::vector<char> thumbnail_data = manifest.file_handle->read_file(thumbnail_dds_name, exists);
+    if (!exists) {
+        thumbnail_data = manifest.file_handle->read_file(thumbnail_png_name, exists);
+    }
+
     // Store the loaded mod manifest in a new mod handle.
     manifest.mod_root_path = mod_path;
-    add_opened_mod(std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types));
+    add_opened_mod(std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail_data));
 
     return ModOpenError::Good;
 }

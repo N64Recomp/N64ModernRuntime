@@ -1320,13 +1320,15 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::regener
     }
 
     // Apply the regenlist.
-    regenerated_code_handle = apply_regenlist(regenlist, decompressed_rom);
-    if (!regenerated_code_handle || !regenerated_code_handle->good()) {
-        regenerated_code_handle.reset();
-        ret.emplace_back(ModLoadErrorDetails{
-            "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::InternalError)
-        });
-        return ret;
+    if (!regenlist.functions.empty()) {
+        regenerated_code_handle = apply_regenlist(regenlist, decompressed_rom);
+        if (!regenerated_code_handle || !regenerated_code_handle->good()) {
+            regenerated_code_handle.reset();
+            ret.emplace_back(ModLoadErrorDetails{
+                "", ModLoadError::FailedToLoadCode, error_to_string(CodeModLoadError::InternalError)
+            });
+            return ret;
+        }
     }
 
     if (!regenlist.patched_hooks.empty()) {
@@ -1484,6 +1486,8 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::init_mod_code(uint8_t* 
         cur_section_addr += section.size + section.bss_size;
         // Align the next section's address to 16 bytes.
         cur_section_addr = (cur_section_addr + 15) & ~15;
+        // Add some empty space between mods to act as a buffer for misbehaving mods that have out of bounds accesses.
+        cur_section_addr += 0x400;
     }
 
     // Iterate over each section again after loading them to perform R_MIPS_32 relocations.

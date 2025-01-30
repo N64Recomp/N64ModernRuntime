@@ -517,7 +517,7 @@ bool recomp::mods::is_mod_enabled(const std::string& mod_id) {
 
 bool recomp::mods::is_mod_auto_enabled(const std::string& mod_id) {
     std::lock_guard lock{ mod_context_mutex };
-    return false; // TODO
+    return mod_context->is_mod_auto_enabled(mod_id);
 }
 
 const recomp::mods::ConfigSchema &recomp::mods::get_mod_config_schema(const std::string &mod_id) {

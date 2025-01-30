@@ -272,8 +272,8 @@ recomp::mods::ModHandle::ModHandle(const ModContext& context, ModManifest&& mani
     code_handle(),
     recompiler_context{std::make_unique<N64Recomp::Context>()},
     content_types{std::move(content_types)},
-    game_indices{std::move(game_indices)},
-    thumbnail{std::move(thumbnail)}
+    thumbnail{ std::move(thumbnail) },
+    game_indices{std::move(game_indices)}
 {
     runtime_toggleable = true;
     for (ModContentTypeId type : this->content_types) {
@@ -630,6 +630,7 @@ void recomp::mods::ModContext::close_mods() {
     opened_mods_order.clear();
     mod_ids.clear();
     enabled_mods.clear();
+    auto_enabled_mods.clear();
 }
 
 bool save_mod_config_storage(const std::filesystem::path &path, const std::string &mod_id, const recomp::Version &mod_version, const recomp::mods::ConfigStorage &config_storage, const recomp::mods::ConfigSchema &config_schema) {
@@ -959,20 +960,89 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
 
     if (enabled) {
         bool was_enabled = enabled_mods.emplace(mod_id).second;
+
         // If mods have been loaded and a mod was successfully enabled by this call, call the on_enabled handlers for its content types.
         if (was_enabled && mods_loaded) {
             for (ModContentTypeId type_id : mod.content_types) {
                 content_types[type_id.value].on_enabled(*this, mod);
             }
         }
+
+        if (was_enabled) {
+            std::vector<std::string> mod_stack;
+            mod_stack.emplace_back(mod_id);
+            while (!mod_stack.empty()) {
+                std::string mod_from_stack = std::move(mod_stack.back());
+                mod_stack.pop_back();
+
+                auto mod_from_stack_it = opened_mods_by_id.find(mod_from_stack);
+                if (mod_from_stack_it != opened_mods_by_id.end()) {
+                    const ModHandle &mod_from_stack_handle = opened_mods[mod_from_stack_it->second];
+                    for (const Dependency &dependency : mod_from_stack_handle.manifest.dependencies) {
+                        if (!auto_enabled_mods.contains(dependency.mod_id)) {
+                            auto_enabled_mods.emplace(dependency.mod_id);
+                            mod_stack.emplace_back(dependency.mod_id);
+
+                            if (mods_loaded) {
+                                for (ModContentTypeId type_id : mod_from_stack_handle.content_types) {
+                                    content_types[type_id.value].on_enabled(*this, mod_from_stack_handle);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     else {
         bool was_disabled = enabled_mods.erase(mod_id) != 0;
+
         // If mods have been loaded and a mod was successfully disabled by this call, call the on_disabled handlers for its content types.
         if (was_disabled && mods_loaded) {
             for (ModContentTypeId type_id : mod.content_types) {
                 content_types[type_id.value].on_disabled(*this, mod);
             }
+        }
+
+        if (was_disabled) {
+            // The algorithm needs to be run again with a new set of auto-enabled mods from scratch for all enabled mods.
+            std::unordered_set<std::string> new_auto_enabled_mods;
+            for (const std::string &enabled_mod_id : enabled_mods) {
+                std::vector<std::string> mod_stack;
+                mod_stack.emplace_back(enabled_mod_id);
+                while (!mod_stack.empty()) {
+                    std::string mod_from_stack = std::move(mod_stack.back());
+                    mod_stack.pop_back();
+
+                    auto mod_from_stack_it = opened_mods_by_id.find(mod_from_stack);
+                    if (mod_from_stack_it != opened_mods_by_id.end()) {
+                        const ModHandle &mod_from_stack_handle = opened_mods[mod_from_stack_it->second];
+                        for (const Dependency &dependency : mod_from_stack_handle.manifest.dependencies) {
+                            if (!new_auto_enabled_mods.contains(dependency.mod_id)) {
+                                new_auto_enabled_mods.emplace(dependency.mod_id);
+                                mod_stack.emplace_back(dependency.mod_id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (mods_loaded) {
+                // Before replacing the old set with the new one, whatever does not exist in the new set anymore should trigger it's on_disabled callback.
+                for (const std::string &enabled_mod_id : auto_enabled_mods) {
+                    if (!new_auto_enabled_mods.contains(enabled_mod_id)) {
+                        auto enabled_mod_it = opened_mods_by_id.find(enabled_mod_id);
+                        if (enabled_mod_it != opened_mods_by_id.end()) {
+                            const ModHandle &enabled_mod_handle = opened_mods[enabled_mod_it->second];
+                            for (ModContentTypeId type_id : enabled_mod_handle.content_types) {
+                                content_types[type_id.value].on_disabled(*this, enabled_mod_handle);
+                            }
+                        }
+                    }
+                }
+            }
+
+            auto_enabled_mods = new_auto_enabled_mods;
         }
     }
 
@@ -983,6 +1053,10 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
 
 bool recomp::mods::ModContext::is_mod_enabled(const std::string& mod_id) {
     return enabled_mods.contains(mod_id);
+}
+
+bool recomp::mods::ModContext::is_mod_auto_enabled(const std::string& mod_id) {
+    return auto_enabled_mods.contains(mod_id);
 }
 
 size_t recomp::mods::ModContext::num_opened_mods() {
@@ -1338,7 +1412,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     // Find and load active mods.
     for (size_t mod_index = 0; mod_index < opened_mods.size(); mod_index++) {
         auto& mod = opened_mods[mod_index];
-        if (mod.is_for_game(mod_game_index) && enabled_mods.contains(mod.manifest.mod_id)) {
+        if (mod.is_for_game(mod_game_index) && (enabled_mods.contains(mod.manifest.mod_id) || auto_enabled_mods.contains(mod.manifest.mod_id))) {
             active_mods.push_back(mod_index);
             loaded_mods_by_id.emplace(mod.manifest.mod_id, mod_index);
 

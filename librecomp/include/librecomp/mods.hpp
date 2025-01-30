@@ -326,6 +326,7 @@ namespace recomp {
             void load_mods_config();
             void enable_mod(const std::string& mod_id, bool enabled, bool trigger_save);
             bool is_mod_enabled(const std::string& mod_id);
+            bool is_mod_auto_enabled(const std::string& mod_id);
             size_t num_opened_mods();
             std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
@@ -369,6 +370,7 @@ namespace recomp {
             std::mutex opened_mods_mutex;
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
+            std::unordered_set<std::string> auto_enabled_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
             std::unique_ptr<std::thread> mod_configuration_thread;

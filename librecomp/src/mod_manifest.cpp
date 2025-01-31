@@ -427,26 +427,29 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
 
             auto min = config_schema_json.find(config_schema_min_key);
             if (min != config_schema_json.end()) {
-                if (!get_to<double>(*min, option_number.min)) {
+                if (!min->is_number()) {
                     error_param = config_schema_min_key;
                     return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
                 }
+                option_number.min = min->template get<double>();
             }
 
             auto max = config_schema_json.find(config_schema_max_key);
             if (max != config_schema_json.end()) {
-                if (!get_to<double>(*max, option_number.max)) {
+                if (!max->is_number()) {
                     error_param = config_schema_max_key;
                     return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
                 }
+                option_number.max = max->template get<double>();
             }
             
             auto step = config_schema_json.find(config_schema_step_key);
             if (step != config_schema_json.end()) {
-                if (!get_to<double>(*step, option_number.step)) {
+                if (!step->is_number()) {
                     error_param = config_schema_step_key;
                     return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
                 }
+                option_number.step = step->template get<double>();
             }
 
             auto precision = config_schema_json.find(config_schema_precision_key);
@@ -471,10 +474,11 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
 
             auto default_value = config_schema_json.find(config_schema_default_key);
             if (default_value != config_schema_json.end()) {
-                if (!get_to<double>(*default_value, option_number.default_value)) {
+                if (!default_value->is_number()) {
                     error_param = config_schema_default_key;
                     return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
                 }
+                option_number.default_value = default_value->template get<double>();
             }
 
             option.variant = option_number;
@@ -676,8 +680,6 @@ bool parse_mod_config_storage(const std::filesystem::path &path, const std::stri
     }
 
     // Only parse the object for known option types based on the schema.
-    int64_t value_int64;
-    double value_double;
     std::string value_str;
     for (const recomp::mods::ConfigOption &option : config_schema.options) {
         auto option_json = storage_json->find(option.id);
@@ -698,8 +700,8 @@ bool parse_mod_config_storage(const std::filesystem::path &path, const std::stri
 
             break;
         case recomp::mods::ConfigOptionType::Number:
-            if (get_to<double>(*option_json, value_double)) {
-                config_storage.value_map[option.id] = value_double;
+            if (option_json->is_number()) {
+                config_storage.value_map[option.id] = option_json->template get<double>();
             }
 
             break;

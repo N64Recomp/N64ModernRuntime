@@ -530,9 +530,19 @@ const std::vector<char> &recomp::mods::get_mod_thumbnail(const std::string &mod_
     return mod_context->get_mod_thumbnail(mod_id);
 }
 
+void recomp::mods::set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->set_mod_config_value(mod_index, option_id, value);
+}
+
 void recomp::mods::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->set_mod_config_value(mod_id, option_id, value);
+}
+
+recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(size_t mod_index, const std::string &option_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_config_value(mod_index, option_id);
 }
 
 recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
@@ -711,6 +721,7 @@ void recomp::start(
     }
 
     recomp::register_heap_exports();
+    recomp::mods::register_config_exports();
 
     std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");

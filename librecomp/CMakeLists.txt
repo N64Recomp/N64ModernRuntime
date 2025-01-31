@@ -20,6 +20,7 @@ add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mod_events.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mod_hooks.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mod_manifest.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/mod_config_api.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/overlays.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/pak.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/pi.cpp"

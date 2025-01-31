@@ -335,7 +335,9 @@ namespace recomp {
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
             const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
             const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
+            void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
             void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
+            ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
             ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
             void set_mods_config_path(const std::filesystem::path &path);
             void set_mod_config_directory(const std::filesystem::path &path);
@@ -561,10 +563,15 @@ namespace recomp {
         bool is_mod_auto_enabled(const std::string& mod_id);
         const ConfigSchema &get_mod_config_schema(const std::string &mod_id);
         const std::vector<char> &get_mod_thumbnail(const std::string &mod_id);
+        void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
         void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
+        ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
         ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
         ModContentTypeId register_mod_content_type(const ModContentType& type);
         bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
+
+
+        void register_config_exports();
     }
 };
 

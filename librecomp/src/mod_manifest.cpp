@@ -319,7 +319,7 @@ constexpr std::string_view config_schema_step_key = "step";
 constexpr std::string_view config_schema_precision_key = "precision";
 constexpr std::string_view config_schema_percent_key = "percent";
 constexpr std::string_view config_schema_options_key = "options";
-constexpr std::string_view config_schema_default_key = "min";
+constexpr std::string_view config_schema_default_key = "default";
 
 std::unordered_map<std::string, recomp::mods::ConfigOptionType> config_option_map{
     { "Enum",   recomp::mods::ConfigOptionType::Enum},

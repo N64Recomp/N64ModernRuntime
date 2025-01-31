@@ -736,6 +736,9 @@ void recomp::mods::ModContext::dirty_mod_configuration_thread_process() {
         else if (std::get_if<ModConfigQueueSave>(&variant) != nullptr) {
             pending_config_save = true;
         }
+        else if (const ModConfigQueueSaveMod* queue_save_mod = std::get_if<ModConfigQueueSaveMod>(&variant)) {
+            pending_mods.emplace(queue_save_mod->mod_id);
+        }
     };
 
     while (active) {
@@ -1281,14 +1284,13 @@ const std::vector<char> &recomp::mods::ModContext::get_mod_thumbnail(const std::
     return mod.thumbnail;
 }
 
-void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
+void recomp::mods::ModContext::set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value) {
     // Check that the mod exists.
-    auto find_it = opened_mods_by_id.find(mod_id);
-    if (find_it == opened_mods_by_id.end()) {
+    if (mod_index >= opened_mods.size()) {
         return;
     }
 
-    ModHandle &mod = opened_mods[find_it->second];
+    ModHandle &mod = opened_mods[mod_index];
     std::unique_lock lock(mod_config_storage_mutex);
     auto option_by_id_it = mod.manifest.config_schema.options_by_id.find(option_id);
     if (option_by_id_it != mod.manifest.config_schema.options_by_id.end()) {
@@ -1322,17 +1324,26 @@ void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, c
     }
 
     // Notify the asynchronous thread it should save the configuration for this mod.
-    mod_configuration_thread_queue.enqueue(ModConfigQueueSaveMod(mod_id));
+    mod_configuration_thread_queue.enqueue(ModConfigQueueSaveMod(mod.manifest.mod_id));
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
+void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
     // Check that the mod exists.
     auto find_it = opened_mods_by_id.find(mod_id);
     if (find_it == opened_mods_by_id.end()) {
+        return;
+    }
+
+    set_mod_config_value(find_it->second, option_id, value);
+}
+
+recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(size_t mod_index, const std::string &option_id) {
+    // Check that the mod exists.
+    if (mod_index >= opened_mods.size()) {
         return std::monostate();
     }
 
-    const ModHandle &mod = opened_mods[find_it->second];
+    const ModHandle &mod = opened_mods[mod_index];
     std::unique_lock lock(mod_config_storage_mutex);
     auto it = mod.config_storage.value_map.find(option_id);
     if (it != mod.config_storage.value_map.end()) {
@@ -1358,6 +1369,16 @@ recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(
             return std::monostate();
         }
     }
+}
+
+recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
+    // Check that the mod exists.
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return std::monostate();
+    }
+
+    return get_mod_config_value(find_it->second, option_id);
 }
 
 void recomp::mods::ModContext::set_mods_config_path(const std::filesystem::path &path) {

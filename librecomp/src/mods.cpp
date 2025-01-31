@@ -1520,7 +1520,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     for (size_t mod_index : loaded_code_mods) {
         auto& mod = opened_mods[mod_index];
         std::string cur_error_param;
-        CodeModLoadError cur_error = resolve_code_dependencies(mod, base_patched_funcs, cur_error_param);
+        CodeModLoadError cur_error = resolve_code_dependencies(mod, mod_index, base_patched_funcs, cur_error_param);
         if (cur_error != CodeModLoadError::Good) {
             if (cur_error_param.empty()) {
                 ret.emplace_back(mod.manifest.mod_id, ModLoadError::FailedToLoadCode, error_to_string(cur_error));
@@ -2172,7 +2172,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
     return CodeModLoadError::Good;
 }
 
-recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependencies(recomp::mods::ModHandle& mod, const std::unordered_map<recomp_func_t*, overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param) {
+recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependencies(recomp::mods::ModHandle& mod, size_t mod_index, const std::unordered_map<recomp_func_t*, overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param) {
     // Reference symbols.
     std::string reference_syms_error_param{};
     CodeModLoadError reference_syms_error = mod.code_handle->populate_reference_symbols(*mod.recompiler_context, reference_syms_error_param);
@@ -2201,6 +2201,13 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
         if (dependency_id == N64Recomp::DependencyBaseRecomp) {
             recomp_func_t* func_ptr = recomp::overlays::get_base_export(imported_func.base.name);
             did_find_func = func_ptr != nullptr;
+            if (!did_find_func) {
+                recomp_func_ext_t* func_ext_ptr = recomp::overlays::get_ext_base_export(imported_func.base.name);
+                did_find_func = func_ext_ptr != nullptr;
+                if (did_find_func) {
+                    func_ptr = shim_functions.emplace_back(std::make_unique<N64Recomp::ShimFunction>(func_ext_ptr, mod_index)).get()->get_func();
+                }
+            }
             func_handle = func_ptr;
         }
         else if (dependency_id == N64Recomp::DependencySelf) {
@@ -2343,6 +2350,7 @@ void recomp::mods::ModContext::unload_mods() {
     loaded_mods_by_id.clear();
     hook_slots.clear();
     processed_hook_slots.clear();
+    shim_functions.clear();
     recomp::mods::reset_events();
     recomp::mods::reset_hooks();
     num_events = recomp::overlays::num_base_events();

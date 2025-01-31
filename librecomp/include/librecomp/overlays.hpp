@@ -25,6 +25,7 @@ namespace recomp {
 
         void register_patches(const char* patch_data, size_t patch_size, SectionTableEntry* code_sections, size_t num_sections);
         void register_base_export(const std::string& name, recomp_func_t* func);
+        void register_ext_base_export(const std::string& name, recomp_func_ext_t* func);
         void register_base_exports(const FunctionExport* exports);
         void register_base_events(char const* const* event_names);
         void register_manual_patch_symbols(const ManualPatchSymbol* manual_patch_symbols);
@@ -38,6 +39,7 @@ namespace recomp {
         bool get_func_entry_by_section_index_function_offset(uint16_t code_section_index, uint32_t function_offset, FuncEntry& func_out);
         recomp_func_t* get_func_by_section_index_function_offset(uint16_t code_section_index, uint32_t function_offset);
         recomp_func_t* get_base_export(const std::string& export_name);
+        recomp_func_ext_t* get_ext_base_export(const std::string& export_name);
         size_t get_base_event_index(const std::string& event_name);
         size_t num_base_events();
 

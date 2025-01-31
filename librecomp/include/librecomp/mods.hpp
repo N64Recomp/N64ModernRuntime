@@ -30,6 +30,7 @@
 namespace N64Recomp {
     class Context;
     struct LiveGeneratorOutput;
+    class ShimFunction;
 };
 
 namespace recomp {
@@ -348,7 +349,7 @@ namespace recomp {
             void check_dependencies(ModHandle& mod, std::vector<std::pair<ModLoadError, std::string>>& errors);
             CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
             CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
-            CodeModLoadError resolve_code_dependencies(ModHandle& mod, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
+            CodeModLoadError resolve_code_dependencies(ModHandle& mod, size_t mod_index, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail);
             void close_mods();
             std::vector<ModLoadErrorDetails> regenerate_with_hooks(
@@ -388,6 +389,8 @@ namespace recomp {
             // Tracks which hook slots have already been processed. Used to regenerate vanilla functions as needed
             // to add hooks to any functions that weren't already replaced by a mod.
             std::vector<bool> processed_hook_slots;
+            // Generated shim functions to use for implementing shim exports.
+            std::vector<std::unique_ptr<N64Recomp::ShimFunction>> shim_functions;
             ConfigSchema empty_schema;
             std::vector<char> empty_bytes;
             size_t num_events = 0;

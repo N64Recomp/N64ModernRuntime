@@ -1324,7 +1324,7 @@ void recomp::mods::ModContext::set_mod_config_value(size_t mod_index, const std:
     }
 
     // Notify the asynchronous thread it should save the configuration for this mod.
-    mod_configuration_thread_queue.enqueue(ModConfigQueueSaveMod(mod.manifest.mod_id));
+    mod_configuration_thread_queue.enqueue(ModConfigQueueSaveMod{ mod.manifest.mod_id });
 }
 
 void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {

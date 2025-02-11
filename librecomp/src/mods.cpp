@@ -1097,6 +1097,8 @@ std::vector<recomp::mods::ModLoadErrorDetails> build_regen_list(
     uint32_t cur_function_vram = 0xFFFFFFFF;
     std::span<const RelocEntry> cur_section_relocs = {};
     size_t cur_section_reloc_index = 0;
+    bool cur_func_is_base_patched = false;
+    recomp::overlays::BasePatchedFunction cur_base_patched = {};
 
     // Collect the unprocessed hooks into a patch list.
     // Hooks have been sorted by their section address and function address at this point so they
@@ -1159,6 +1161,7 @@ std::vector<recomp::mods::ModLoadErrorDetails> build_regen_list(
             uint32_t function_section_offset = cur_hook_def.function_vram - cur_section_vram;
             FuncEntry func_entry{};
             bool found_func;
+            cur_func_is_base_patched = false;
             
             if constexpr (patched_regenlist) {
                 found_func = recomp::overlays::get_patch_func_entry_by_section_index_function_offset(cur_section_index, function_section_offset, func_entry);
@@ -1193,16 +1196,15 @@ std::vector<recomp::mods::ModLoadErrorDetails> build_regen_list(
             }
             
             // Check if this function has been patched by the base recomp.
-            bool skip_func = false;
             if constexpr (!patched_regenlist) {
                 auto find_patched_it = base_patched_funcs.find(func_entry.func);
                 if (find_patched_it != base_patched_funcs.end()) {
-                    regenlist.patched_hooks.emplace_back(std::make_pair(find_patched_it->second, cur_hook));
-                    skip_func = true;
+                    cur_func_is_base_patched = true;
+                    cur_base_patched = find_patched_it->second;
                 }
             }
 
-            if (!skip_func) {
+            if (!cur_func_is_base_patched) {
                 // Allocate a new function.
                 regenlist.functions.emplace_back(RegeneratedFunction{
                     .section_offset = function_section_offset,
@@ -1251,13 +1253,18 @@ std::vector<recomp::mods::ModLoadErrorDetails> build_regen_list(
             }
         }
 
-        // Record the hooks in the function to hook mapping.
-        size_t func_index = regenlist.functions.size() - 1;
-        if (cur_hook_def.at_return) {
-            regenlist.return_func_hooks[func_index] = cur_hook_slot_index;
+        if (cur_func_is_base_patched) {
+            regenlist.patched_hooks.emplace_back(std::make_pair(cur_base_patched, cur_hook));
         }
         else {
-            regenlist.entry_func_hooks[func_index] = cur_hook_slot_index;
+            // Record the hooks in the function to hook mapping.
+            size_t func_index = regenlist.functions.size() - 1;
+            if (cur_hook_def.at_return) {
+                regenlist.return_func_hooks[func_index] = cur_hook_slot_index;
+            }
+            else {
+                regenlist.entry_func_hooks[func_index] = cur_hook_slot_index;
+            }
         }
     }
 

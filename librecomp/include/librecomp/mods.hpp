@@ -419,7 +419,7 @@ namespace recomp {
         class LiveRecompilerCodeHandle : public ModCodeHandle {
         public:
             LiveRecompilerCodeHandle(const N64Recomp::Context& context, const ModCodeHandleInputs& inputs,
-                std::unordered_map<size_t, size_t>&& entry_func_hooks, std::unordered_map<size_t, size_t>&& return_func_hooks);
+                std::unordered_map<size_t, size_t>&& entry_func_hooks, std::unordered_map<size_t, size_t>&& return_func_hooks, std::vector<size_t>&& original_section_indices, bool regenerated);
 
             ~LiveRecompilerCodeHandle() = default;
             

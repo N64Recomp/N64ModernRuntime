@@ -420,9 +420,11 @@ recomp::mods::CodeModLoadError recomp::mods::DynamicLibraryCodeHandle::populate_
 
 recomp::mods::LiveRecompilerCodeHandle::LiveRecompilerCodeHandle(
     const N64Recomp::Context& context, const ModCodeHandleInputs& inputs,
-    std::unordered_map<size_t, size_t>&& entry_func_hooks, std::unordered_map<size_t, size_t>&& return_func_hooks)
+    std::unordered_map<size_t, size_t>&& entry_func_hooks, std::unordered_map<size_t, size_t>&& return_func_hooks, std::vector<size_t>&& original_section_indices, bool regenerated)
 {
-    section_addresses = std::make_unique<int32_t[]>(context.sections.size());
+    if (!regenerated) {
+       section_addresses = std::make_unique<int32_t[]>(context.sections.size());
+    }
     base_event_index = inputs.base_event_index;
 
     N64Recomp::LiveGeneratorInputs recompiler_inputs{
@@ -436,10 +438,12 @@ recomp::mods::LiveRecompilerCodeHandle::LiveRecompilerCodeHandle(
         .pause_self = pause_self,
         .trigger_event = inputs.recomp_trigger_event,
         .reference_section_addresses = inputs.reference_section_addresses,
-        .local_section_addresses = section_addresses.get(),
+        // Use the reference section addresses as the local section addresses if this is regenerated code so that jump tables work correctly.
+        .local_section_addresses = regenerated ? inputs.reference_section_addresses : section_addresses.get(),
         .run_hook = run_hook,
         .entry_func_hooks = std::move(entry_func_hooks),
-        .return_func_hooks = std::move(return_func_hooks)
+        .return_func_hooks = std::move(return_func_hooks),
+        .original_section_indices = std::move(original_section_indices)
     };
 
     N64Recomp::LiveGenerator generator{ context.functions.size(), recompiler_inputs };
@@ -759,8 +763,10 @@ std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_mod_details(
 struct RegeneratedSection {
     uint32_t rom_addr;
     uint32_t ram_addr;
+    uint16_t original_index;
     size_t first_func_index;
     size_t first_reloc_index;
+    bool relocatable;
 };
 
 struct RegeneratedFunction {
@@ -824,7 +830,7 @@ N64Recomp::Context context_from_regenerated_list(const RegeneratedList& regenlis
         section_out.name = "patch_section_" + std::to_string(section_index);
         section_out.bss_section_index = 0;
         section_out.executable = true;
-        section_out.relocatable = false;
+        section_out.relocatable = section_in.relocatable;
         section_out.has_mips32_relocs = false;
 
         std::vector<size_t>& section_funcs_out = ret.section_functions[section_index];
@@ -1127,17 +1133,22 @@ std::vector<recomp::mods::ModLoadErrorDetails> build_regen_list(
 
             if constexpr (patched_regenlist) {
                 section_ram_addr = recomp::overlays::get_patch_section_ram_addr(section_index);
+                cur_section_relocs = recomp::overlays::get_patch_section_relocs(section_index);
             }
             else {
                 section_ram_addr = recomp::overlays::get_section_ram_addr(section_index);
+                cur_section_relocs = recomp::overlays::get_section_relocs(section_index);
             }
 
             // Allocate a new section.
             auto& section_out = regenlist.sections.emplace_back(RegeneratedSection{
                 .rom_addr = cur_hook_def.section_rom,
                 .ram_addr = section_ram_addr,
+                .original_index = section_index,
                 .first_func_index = regenlist.functions.size(),
-                .first_reloc_index = regenlist.relocs.size()
+                .first_reloc_index = regenlist.relocs.size(),
+                // Patch sections are never relocatable, so a section is relocatable if it has any relocs and is not a base patch section.
+                .relocatable = !patched_regenlist && !cur_section_relocs.empty()
             });
 
             // Update the tracked section fields.
@@ -1145,13 +1156,6 @@ std::vector<recomp::mods::ModLoadErrorDetails> build_regen_list(
             cur_section_vram = section_out.ram_addr;
             cur_section_index = section_index;
             cur_section_reloc_index = 0;
-
-            if constexpr (patched_regenlist) {
-                cur_section_relocs = recomp::overlays::get_patch_section_relocs(cur_section_index);
-            }
-            else {
-                cur_section_relocs = recomp::overlays::get_section_relocs(cur_section_index);
-            }
         
             // Reset the tracked function vram to prevent issues when two functions have the same vram in different sections.
             cur_function_vram = 0xFFFFFFFF;
@@ -1292,7 +1296,15 @@ std::unique_ptr<recomp::mods::LiveRecompilerCodeHandle> apply_regenlist(Regenera
         .do_break = do_break,
         .reference_section_addresses = section_addresses,
     };
-    regenerated_code_handle = std::make_unique<LiveRecompilerCodeHandle>(hook_context, handle_inputs, std::move(regenlist.entry_func_hooks), std::move(regenlist.return_func_hooks));
+
+    std::vector<size_t> original_section_indices{}; 
+    original_section_indices.resize(regenlist.sections.size());
+    for (size_t new_section_index = 0; new_section_index < regenlist.sections.size(); new_section_index++) {
+        original_section_indices[new_section_index] = regenlist.sections[new_section_index].original_index;
+    }
+
+    regenerated_code_handle = std::make_unique<LiveRecompilerCodeHandle>(hook_context, handle_inputs,
+        std::move(regenlist.entry_func_hooks), std::move(regenlist.return_func_hooks), std::move(original_section_indices), true);
 
     if (!regenerated_code_handle->good()) {
         return {};
@@ -1630,7 +1642,8 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
     }
     // Live recompiler code handle.
     else {
-        mod.code_handle = std::make_unique<LiveRecompilerCodeHandle>(*mod.recompiler_context, handle_inputs, std::move(entry_func_hooks), std::move(return_func_hooks));
+        mod.code_handle = std::make_unique<LiveRecompilerCodeHandle>(*mod.recompiler_context, handle_inputs,
+            std::move(entry_func_hooks), std::move(return_func_hooks), std::vector<size_t>{}, false);
         
         if (!mod.code_handle->good()) {
             mod.code_handle.reset();

@@ -30,9 +30,11 @@ namespace recomp {
         bool has_compressed_code = false;
 
         gpr entrypoint_address;
-        void (*entrypoint)(uint8_t* rdram, recomp_context* context);
+        void (*entrypoint)(uint8_t* rdram, recomp_context* context) = nullptr;
 
-        void (*thread_create_callback)(uint8_t* rdram, recomp_context* context);
+        void (*thread_create_callback)(uint8_t* rdram, recomp_context* context) = nullptr;
+
+        void (*on_init_callback)(uint8_t* rdram, recomp_context* context) = nullptr;
 
         std::u8string stored_filename() const;
     };

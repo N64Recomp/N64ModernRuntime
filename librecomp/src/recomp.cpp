@@ -530,6 +530,9 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                 const recomp::GameEntry& game_entry = find_it->second;
 
                 init(rdram, context, game_entry.entrypoint_address);
+                if (game_entry.on_init_callback) {
+                    game_entry.on_init_callback(rdram, context);
+                }
 
                 uint32_t mod_ram_used = 0;
                 if (!game_entry.mod_game_id.empty()) {

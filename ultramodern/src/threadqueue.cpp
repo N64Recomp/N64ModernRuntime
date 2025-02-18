@@ -47,6 +47,7 @@ bool ultramodern::thread_queue_remove(RDRAM_ARG PTR(PTR(OSThread)) queue_, PTR(O
     while (cur != NULLPTR) {
         PTR(OSThread)* cur_ptr = queue_to_ptr(PASS_RDRAM queue_);
         if (*cur_ptr == t_) {
+            *cur_ptr = TO_PTR(OSThread, *cur_ptr)->next;
             return true;
         }
         cur = TO_PTR(OSThread, *cur_ptr)->next;

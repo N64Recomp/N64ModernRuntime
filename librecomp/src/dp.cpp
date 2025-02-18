@@ -12,8 +12,8 @@ enum class RDPStatusBit {
 };
 
 constexpr void update_bit(uint32_t& state, uint32_t flags, RDPStatusBit bit) {
-    int set_bit_pos = (int)bit * 2 + 0;
-    int reset_bit_pos = (int)bit * 2 + 1;
+    int reset_bit_pos = (int)bit * 2 + 0;
+    int set_bit_pos = (int)bit * 2 + 1;
     bool set = (flags & (1U << set_bit_pos)) != 0;
     bool reset = (flags & (1U << reset_bit_pos)) != 0;
 

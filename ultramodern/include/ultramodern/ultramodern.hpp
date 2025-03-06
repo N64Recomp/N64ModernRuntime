@@ -5,6 +5,7 @@
 #include <cassert>
 #include <stdexcept>
 #include <span>
+#include <chrono>
 
 #undef MOODYCAMEL_DELETE_FUNCTION
 #define MOODYCAMEL_DELETE_FUNCTION = delete

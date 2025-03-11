@@ -29,6 +29,7 @@ namespace ultramodern {
             Auto,
             D3D12,
             Vulkan,
+            Metal,
             OptionCount
         };
         enum class AspectRatio {

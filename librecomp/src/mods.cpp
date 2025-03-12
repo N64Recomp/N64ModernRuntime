@@ -227,6 +227,9 @@ private:
 };
 
 void unprotect(void* target_func, uint64_t* old_flags) {
+#if defined(__APPLE__)
+    pthread_jit_write_protect_np(false);
+#endif
     // Align the address to a page boundary.
     uintptr_t page_start = (uintptr_t)target_func;
     int page_size = getpagesize();
@@ -238,6 +241,9 @@ void unprotect(void* target_func, uint64_t* old_flags) {
 }
 
 void protect(void* target_func, uint64_t old_flags) {
+#if defined(__APPLE__)
+    pthread_jit_write_protect_np(true);
+#endif
     // Align the address to a page boundary.
     uintptr_t page_start = (uintptr_t)target_func;
     int page_size = getpagesize();

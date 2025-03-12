@@ -707,7 +707,12 @@ void recomp::start(
         }
     }
 #else
-    rdram = (uint8_t*)mmap(NULL, allocation_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0);
+    int map_flags = MAP_ANONYMOUS | MAP_PRIVATE;
+#if defined(__APPLE__) && defined(__aarch64__)
+    map_flags |= MAP_JIT;
+#endif
+    
+    rdram = (uint8_t*)mmap(NULL, allocation_size, PROT_NONE, map_flags, -1, 0);
     alloc_failed = rdram == reinterpret_cast<uint8_t*>(MAP_FAILED);
     if (!alloc_failed) {
         // mprotect returns -1 on failure.

@@ -561,6 +561,7 @@ void patch_func(recomp_func_t* target_func, recomp::mods::GenericFunction replac
     size_t offset = 0;
 
     auto write_bytes = [&](const void* bytes, size_t count) {
+        // TODO: This is failing for macOS, investigate why.
         memcpy(target_func_u8 + offset, bytes, count);
         offset += count;
     };

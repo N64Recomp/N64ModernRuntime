@@ -3,7 +3,37 @@
 #include "json/json.hpp"
 
 #include "recompiler/context.h"
+#include "librecomp/files.hpp"
 #include "librecomp/mods.hpp"
+
+static bool read_json(std::ifstream input_file, nlohmann::json &json_out) {
+    if (!input_file.good()) {
+        return false;
+    }
+
+    try {
+        input_file >> json_out;
+    }
+    catch (nlohmann::json::parse_error &) {
+        return false;
+    }
+    return true;
+}
+
+static bool read_json_with_backups(const std::filesystem::path &path, nlohmann::json &json_out) {
+    // Try reading and parsing the base file.
+    if (read_json(std::ifstream{ path }, json_out)) {
+        return true;
+    }
+
+    // Try reading and parsing the backup file.
+    if (read_json(recomp::open_input_backup_file(path), json_out)) {
+        return true;
+    }
+
+    // Both reads failed.
+    return false;
+}
 
 recomp::mods::ZipModFileHandle::~ZipModFileHandle() {
     if (file_handle) {
@@ -131,16 +161,6 @@ bool recomp::mods::LooseModFileHandle::file_exists(const std::string& filepath) 
     return true;
 }
 
-enum class ManifestField {
-    GameModId,
-    Id,
-    Version,
-    Authors,
-    MinimumRecompVersion,
-    Dependencies,
-    NativeLibraries,
-};
-
 const std::string game_mod_id_key = "game_id";
 const std::string mod_id_key = "id";
 const std::string display_name_key = "display_name";
@@ -151,16 +171,7 @@ const std::string authors_key = "authors";
 const std::string minimum_recomp_version_key = "minimum_recomp_version";
 const std::string dependencies_key = "dependencies";
 const std::string native_libraries_key = "native_libraries";
-
-std::unordered_map<std::string, ManifestField> field_map {
-    { game_mod_id_key,            ManifestField::GameModId            },
-    { mod_id_key,                 ManifestField::Id                   },
-    { version_key,                ManifestField::Version              },
-    { authors_key,                ManifestField::Authors              },
-    { minimum_recomp_version_key, ManifestField::MinimumRecompVersion },
-    { dependencies_key,           ManifestField::Dependencies         },
-    { native_libraries_key,       ManifestField::NativeLibraries      },
-};
+const std::string config_schema_key = "config_schema";
 
 template <typename T1, typename T2>
 bool get_to(const nlohmann::json& val, T2& out) {
@@ -298,6 +309,206 @@ recomp::mods::ModOpenError try_get_vec(std::vector<T2>& out, const nlohmann::jso
     return recomp::mods::ModOpenError::Good;
 }
 
+constexpr std::string_view config_schema_id_key = "id";
+constexpr std::string_view config_schema_name_key = "name";
+constexpr std::string_view config_schema_description_key = "description";
+constexpr std::string_view config_schema_type_key = "type";
+constexpr std::string_view config_schema_min_key = "min";
+constexpr std::string_view config_schema_max_key = "max";
+constexpr std::string_view config_schema_step_key = "step";
+constexpr std::string_view config_schema_precision_key = "precision";
+constexpr std::string_view config_schema_percent_key = "percent";
+constexpr std::string_view config_schema_options_key = "options";
+constexpr std::string_view config_schema_default_key = "default";
+
+std::unordered_map<std::string, recomp::mods::ConfigOptionType> config_option_map{
+    { "Enum",   recomp::mods::ConfigOptionType::Enum},
+    { "Number", recomp::mods::ConfigOptionType::Number},
+    { "String", recomp::mods::ConfigOptionType::String},
+};
+
+recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::json &config_schema_json, recomp::mods::ModManifest &ret, std::string &error_param) {
+    using json = nlohmann::json;
+    recomp::mods::ConfigOption option;
+    auto id = config_schema_json.find(config_schema_id_key);
+    if (id != config_schema_json.end()) {
+        if (!get_to<json::string_t>(*id, option.id)) {
+            error_param = config_schema_id_key;
+            return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+        }
+    }
+    else {
+        error_param = config_schema_id_key;
+        return recomp::mods::ModOpenError::MissingConfigSchemaField;
+    }
+
+    auto name = config_schema_json.find(config_schema_name_key);
+    if (name != config_schema_json.end()) {
+        if (!get_to<json::string_t>(*name, option.name)) {
+            error_param = config_schema_name_key;
+            return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+        }
+    }
+    else {
+        error_param = config_schema_name_key;
+        return recomp::mods::ModOpenError::MissingConfigSchemaField;
+    }
+
+    auto description = config_schema_json.find(config_schema_description_key);
+    if (description != config_schema_json.end()) {
+        if (!get_to<json::string_t>(*description, option.description)) {
+            error_param = config_schema_description_key;
+            return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+        }
+    }
+
+    auto type = config_schema_json.find(config_schema_type_key);
+    if (type != config_schema_json.end()) {
+        std::string type_string;
+        if (!get_to<json::string_t>(*type, type_string)) {
+            error_param = config_schema_type_key;
+            return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+        }
+        else {
+            auto it = config_option_map.find(type_string);
+            if (it != config_option_map.end()) {
+                option.type = it->second;
+            }
+            else {
+                error_param = config_schema_type_key;
+                return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+            }
+        }
+    }
+    else {
+        error_param = config_schema_type_key;
+        return recomp::mods::ModOpenError::MissingConfigSchemaField;
+    }
+
+    switch (option.type) {
+    case recomp::mods::ConfigOptionType::Enum:
+        {
+            recomp::mods::ConfigOptionEnum option_enum;
+
+            auto options = config_schema_json.find(config_schema_options_key);
+            if (options != config_schema_json.end()) {
+                if (!get_to_vec<std::string>(*options, option_enum.options)) {
+                    error_param = config_schema_options_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            auto default_value = config_schema_json.find(config_schema_default_key);
+            if (default_value != config_schema_json.end()) {
+                std::string default_value_string;
+                if (get_to<json::string_t>(*default_value, default_value_string)) {
+                    auto it = std::find(option_enum.options.begin(), option_enum.options.end(), default_value_string);
+                    if (it != option_enum.options.end()) {
+                        option_enum.default_value = uint32_t(it - option_enum.options.begin());
+                    }
+                    else {
+                        error_param = config_schema_default_key;
+                        return recomp::mods::ModOpenError::InvalidConfigSchemaDefault;
+                    }
+                }
+                else {
+                    error_param = config_schema_default_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            option.variant = option_enum;
+
+        }
+        break;
+    case recomp::mods::ConfigOptionType::Number:
+        {
+            recomp::mods::ConfigOptionNumber option_number;
+
+            auto min = config_schema_json.find(config_schema_min_key);
+            if (min != config_schema_json.end()) {
+                if (!min->is_number()) {
+                    error_param = config_schema_min_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+                option_number.min = min->template get<double>();
+            }
+
+            auto max = config_schema_json.find(config_schema_max_key);
+            if (max != config_schema_json.end()) {
+                if (!max->is_number()) {
+                    error_param = config_schema_max_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+                option_number.max = max->template get<double>();
+            }
+            
+            auto step = config_schema_json.find(config_schema_step_key);
+            if (step != config_schema_json.end()) {
+                if (!step->is_number()) {
+                    error_param = config_schema_step_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+                option_number.step = step->template get<double>();
+            }
+
+            auto precision = config_schema_json.find(config_schema_precision_key);
+            if (precision != config_schema_json.end()) {
+                int64_t precision_int64;
+                if (get_to<int64_t>(*precision, precision_int64)) {
+                    option_number.precision = precision_int64;
+                }
+                else {
+                    error_param = config_schema_precision_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            auto percent = config_schema_json.find(config_schema_percent_key);
+            if (percent != config_schema_json.end()) {
+                if (!get_to<bool>(*percent, option_number.percent)) {
+                    error_param = config_schema_percent_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            auto default_value = config_schema_json.find(config_schema_default_key);
+            if (default_value != config_schema_json.end()) {
+                if (!default_value->is_number()) {
+                    error_param = config_schema_default_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+                option_number.default_value = default_value->template get<double>();
+            }
+
+            option.variant = option_number;
+        }
+        break;
+    case recomp::mods::ConfigOptionType::String:
+        {
+            recomp::mods::ConfigOptionString option_string;
+
+            auto default_value = config_schema_json.find(config_schema_default_key);
+            if (default_value != config_schema_json.end()) {
+                if (!get_to<json::string_t>(*default_value, option_string.default_value)) {
+                    error_param = config_schema_default_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            option.variant = option_string;
+        }
+        break;
+    default:
+        break;
+    }
+
+    ret.config_schema.options_by_id.emplace(option.id, ret.config_schema.options.size());
+    ret.config_schema.options.emplace_back(option);
+
+    return recomp::mods::ModOpenError::Good;
+}
+
 recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param) {
     using json = nlohmann::json;
     json manifest_json = json::parse(manifest_data.begin(), manifest_data.end(), nullptr, false);
@@ -399,7 +610,115 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
         }
     }
 
+    // Config schema (optional)
+    auto find_config_schema_it = manifest_json.find(config_schema_key);
+    if (find_config_schema_it != manifest_json.end()) {
+        auto& val = *find_config_schema_it;
+        if (!val.is_object()) {
+            error_param = config_schema_key;
+            return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+        }
+
+        auto options = val.find(config_schema_options_key);
+        if (options != val.end()) {
+            if (!options->is_array()) {
+                error_param = config_schema_options_key;
+                return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+            }
+
+            for (const json &option : *options) {
+                recomp::mods::ModOpenError open_error = parse_manifest_config_schema_option(option, ret, error_param);
+                if (open_error != recomp::mods::ModOpenError::Good) {
+                    return open_error;
+                }
+            }
+        }
+        else {
+            error_param = config_schema_options_key;
+            return recomp::mods::ModOpenError::MissingConfigSchemaField;
+        }
+    }
+
     return recomp::mods::ModOpenError::Good;
+}
+
+bool parse_mod_config_storage(const std::filesystem::path &path, const std::string &expected_mod_id, recomp::mods::ConfigStorage &config_storage, const recomp::mods::ConfigSchema &config_schema) {
+    using json = nlohmann::json;
+    json config_json;
+    if (!read_json_with_backups(path, config_json)) {
+        return false;
+    }
+
+    auto mod_id = config_json.find("mod_id");
+    if (mod_id != config_json.end()) {
+        std::string mod_id_str;
+        if (get_to<json::string_t>(*mod_id, mod_id_str)) {
+            if (*mod_id != expected_mod_id) {
+                // The mod's ID doesn't match.
+                return false;
+            }
+        }
+        else {
+            // The mod ID is not a string.
+            return false;
+        }
+    }
+    else {
+        // The configuration file doesn't have a mod ID.
+        return false;
+    }
+
+    auto storage_json = config_json.find("storage");
+    if (storage_json == config_json.end()) {
+        // The configuration file doesn't have a storage object.
+        return false;
+    }
+
+    if (!storage_json->is_object()) {
+        // The storage key does not correspond to an object.
+        return false;
+    }
+
+    // Only parse the object for known option types based on the schema.
+    std::string value_str;
+    for (const recomp::mods::ConfigOption &option : config_schema.options) {
+        auto option_json = storage_json->find(option.id);
+        if (option_json == storage_json->end()) {
+            // Option doesn't exist in storage.
+            continue;
+        }
+
+        switch (option.type) {
+        case recomp::mods::ConfigOptionType::Enum:
+            if (get_to<json::string_t>(*option_json, value_str)) {
+                const recomp::mods::ConfigOptionEnum &option_enum = std::get<recomp::mods::ConfigOptionEnum>(option.variant);
+                auto option_it = std::find(option_enum.options.begin(), option_enum.options.end(), value_str);
+                if (option_it != option_enum.options.end()) {
+                    config_storage.value_map[option.id] = uint32_t(option_it - option_enum.options.begin());
+                }
+            }
+
+            break;
+        case recomp::mods::ConfigOptionType::Number:
+            if (option_json->is_number()) {
+                config_storage.value_map[option.id] = option_json->template get<double>();
+            }
+
+            break;
+        case recomp::mods::ConfigOptionType::String: {
+            if (get_to<json::string_t>(*option_json, value_str)) {
+                config_storage.value_map[option.id] = value_str;
+            }
+
+            break;
+        }
+        default:
+            assert(false && "Unknown option type.");
+            break;
+        }
+    }
+
+    return true;
 }
 
 recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest) {
@@ -520,9 +839,23 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         }
     }
 
+    // Read the mod config if it exists.
+    ConfigStorage config_storage;
+    std::filesystem::path config_path = mod_config_directory / (manifest.mod_id + ".json");
+    parse_mod_config_storage(config_path, manifest.mod_id, config_storage, manifest.config_schema);
+
+    // Read the mod thumbnail if it exists.
+    static const std::string thumbnail_dds_name = "thumb.dds";
+    static const std::string thumbnail_png_name = "thumb.png";
+    bool exists = false;
+    std::vector<char> thumbnail_data = manifest.file_handle->read_file(thumbnail_dds_name, exists);
+    if (!exists) {
+        thumbnail_data = manifest.file_handle->read_file(thumbnail_png_name, exists);
+    }
+
     // Store the loaded mod manifest in a new mod handle.
     manifest.mod_root_path = mod_path;
-    add_opened_mod(std::move(manifest), std::move(game_indices), std::move(detected_content_types));
+    add_opened_mod(std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail_data));
 
     return ModOpenError::Good;
 }
@@ -547,6 +880,12 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Mod's mod.json has an invalid schema";
         case ModOpenError::IncorrectManifestFieldType:
             return "Incorrect type for field in mod.json";
+        case ModOpenError::MissingConfigSchemaField:
+            return "Missing required field in config schema in mod.json";
+        case ModOpenError::IncorrectConfigSchemaType:
+            return "Incorrect type for field in config schema in mod.json";
+        case ModOpenError::InvalidConfigSchemaDefault:
+            return "Invalid default for option in config schema in mod.json";
         case ModOpenError::InvalidVersionString:
             return "Invalid version string in mod.json";
         case ModOpenError::InvalidMinimumRecompVersionString:

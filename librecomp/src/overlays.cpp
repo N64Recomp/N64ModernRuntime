@@ -38,6 +38,7 @@ static std::unordered_map<uint32_t, uint16_t> patch_code_sections_by_rom{};
 static std::vector<LoadedSection> loaded_sections{};
 static std::unordered_map<int32_t, recomp_func_t*> func_map{};
 static std::unordered_map<std::string, recomp_func_t*> base_exports{};
+static std::unordered_map<std::string, recomp_func_ext_t*> ext_base_exports{};
 static std::unordered_map<std::string, size_t> base_events;
 static std::unordered_map<uint32_t, recomp_func_t*> manual_patch_symbols_by_vram;
 
@@ -67,6 +68,10 @@ void recomp::overlays::register_base_export(const std::string& name, recomp_func
     base_exports.emplace(name, func);
 }
 
+void recomp::overlays::register_ext_base_export(const std::string& name, recomp_func_ext_t* func) {
+    ext_base_exports.emplace(name, func);
+}
+
 void recomp::overlays::register_base_exports(const FunctionExport* export_list) {
     std::unordered_map<uint32_t, recomp_func_t*> patch_func_vram_map{};
 
@@ -93,6 +98,14 @@ void recomp::overlays::register_base_exports(const FunctionExport* export_list) 
 recomp_func_t* recomp::overlays::get_base_export(const std::string& export_name) {
     auto it = base_exports.find(export_name);
     if (it == base_exports.end()) {
+        return nullptr;
+    }
+    return it->second;
+}
+
+recomp_func_ext_t* recomp::overlays::get_ext_base_export(const std::string& export_name) {
+    auto it = ext_base_exports.find(export_name);
+    if (it == ext_base_exports.end()) {
         return nullptr;
     }
     return it->second;

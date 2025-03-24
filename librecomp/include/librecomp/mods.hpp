@@ -13,6 +13,9 @@
 #include <array>
 #include <cstddef>
 #include <variant>
+#include <mutex>
+
+#include "blockingconcurrentqueue.h"
 
 #define MINIZ_NO_DEFLATE_APIS
 #define MINIZ_NO_ARCHIVE_WRITING_APIS
@@ -27,6 +30,7 @@
 namespace N64Recomp {
     class Context;
     struct LiveGeneratorOutput;
+    class ShimFunction;
 };
 
 namespace recomp {
@@ -55,6 +59,9 @@ struct std::hash<recomp::mods::HookDefinition>
 
 namespace recomp {
     namespace mods {
+        static constexpr std::string_view mods_directory = "mods";
+        static constexpr std::string_view mod_config_directory = "mod_config";
+
         enum class ModOpenError {
             Good,
             DoesNotExist,
@@ -65,6 +72,9 @@ namespace recomp {
             FailedToParseManifest,
             InvalidManifestSchema,
             IncorrectManifestFieldType,
+            MissingConfigSchemaField,
+            IncorrectConfigSchemaType,
+            InvalidConfigSchemaDefault,
             InvalidVersionString,
             InvalidMinimumRecompVersionString,
             InvalidDependencyString,
@@ -115,6 +125,13 @@ namespace recomp {
 
         std::string error_to_string(CodeModLoadError);
 
+        enum class ConfigOptionType {
+            None,
+            Enum,
+            Number,
+            String
+        };
+
         struct ModFileHandle {
             virtual ~ModFileHandle() = default;
             virtual std::vector<char> read_file(const std::string& filepath, bool& exists) const = 0;
@@ -154,6 +171,45 @@ namespace recomp {
             Version version;
         };
 
+        struct ConfigOptionEnum {
+            std::vector<std::string> options;
+            uint32_t default_value = 0;
+        };
+
+        struct ConfigOptionNumber {
+            double min = 0.0;
+            double max = 0.0;
+            double step = 0.0;
+            int precision = 0;
+            bool percent = false;
+            double default_value = 0.0;
+        };
+
+        struct ConfigOptionString {
+            std::string default_value;
+        };
+
+        typedef std::variant<ConfigOptionEnum, ConfigOptionNumber, ConfigOptionString> ConfigOptionVariant;
+
+        struct ConfigOption {
+            std::string id;
+            std::string name;
+            std::string description;
+            ConfigOptionType type;
+            ConfigOptionVariant variant;
+        };
+
+        struct ConfigSchema {
+            std::vector<ConfigOption> options;
+            std::unordered_map<std::string, size_t> options_by_id;
+        };
+
+        typedef std::variant<std::monostate, uint32_t, double, std::string> ConfigValueVariant;
+
+        struct ConfigStorage {
+            std::unordered_map<std::string, ConfigValueVariant> value_map;
+        };
+
         struct ModDetails {
             std::string mod_id;
             std::string display_name;
@@ -176,6 +232,7 @@ namespace recomp {
             std::vector<std::string> authors;
             std::vector<Dependency> dependencies;
             std::unordered_map<std::string, size_t> dependencies_by_id;
+            ConfigSchema config_schema;
             Version minimum_recomp_version;
             Version version;
             bool runtime_toggleable;
@@ -203,6 +260,7 @@ namespace recomp {
         };
 
         std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
+        void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
 
         // Internal functions, TODO move to an internal header.
         struct PatchData {
@@ -244,6 +302,20 @@ namespace recomp {
             bool requires_manifest;
         };
 
+        struct ModConfigQueueSaveMod {
+            std::string mod_id;
+        };
+
+        struct ModConfigQueueSave {
+            uint32_t pad;
+        };
+
+        struct ModConfigQueueEnd {
+            uint32_t pad;
+        };
+
+        typedef std::variant<ModConfigQueueSaveMod, ModConfigQueueSave, ModConfigQueueEnd> ModConfigQueueVariant;
+
         class LiveRecompilerCodeHandle;
         class ModContext {
         public:
@@ -252,12 +324,23 @@ namespace recomp {
 
             void register_game(const std::string& mod_game_id);
             std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
-            void enable_mod(const std::string& mod_id, bool enabled);
+            void load_mods_config();
+            void enable_mod(const std::string& mod_id, bool enabled, bool trigger_save);
             bool is_mod_enabled(const std::string& mod_id);
+            bool is_mod_auto_enabled(const std::string& mod_id);
             size_t num_opened_mods();
             std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
+            void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
+            const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
+            const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
+            void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
+            void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
+            ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
+            ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
+            void set_mods_config_path(const std::filesystem::path &path);
+            void set_mod_config_directory(const std::filesystem::path &path);
             ModContentTypeId register_content_type(const ModContentType& type);
             bool register_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
             ModContentTypeId get_code_content_type() const { return code_content_type_id; }
@@ -268,14 +351,15 @@ namespace recomp {
             void check_dependencies(ModHandle& mod, std::vector<std::pair<ModLoadError, std::string>>& errors);
             CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
             CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
-            CodeModLoadError resolve_code_dependencies(ModHandle& mod, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
-            void add_opened_mod(ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types);
+            CodeModLoadError resolve_code_dependencies(ModHandle& mod, size_t mod_index, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
+            void add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail);
             void close_mods();
             std::vector<ModLoadErrorDetails> regenerate_with_hooks(
                 const std::vector<std::pair<HookDefinition, size_t>>& sorted_unprocessed_hooks,
                 const std::unordered_map<uint32_t, uint16_t>& section_vrom_map,
                 const std::unordered_map<recomp_func_t*, overlays::BasePatchedFunction>& base_patched_funcs,
                 std::span<const uint8_t> decompressed_rom);
+            void dirty_mod_configuration_thread_process();
 
             static void on_code_mod_enabled(ModContext& context, const ModHandle& mod);
 
@@ -285,10 +369,18 @@ namespace recomp {
             std::unordered_map<std::string, size_t> mod_game_ids;
             std::vector<ModHandle> opened_mods;
             std::unordered_map<std::string, size_t> opened_mods_by_id;
+            std::vector<size_t> opened_mods_order;
+            std::mutex opened_mods_mutex;
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
+            std::unordered_set<std::string> auto_enabled_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
+            std::unique_ptr<std::thread> mod_configuration_thread;
+            moodycamel::BlockingConcurrentQueue<ModConfigQueueVariant> mod_configuration_thread_queue;
+            std::filesystem::path mods_config_path;
+            std::filesystem::path mod_config_directory;
+            std::mutex mod_config_storage_mutex;
             std::vector<size_t> loaded_code_mods;
             // Code handle for vanilla code that was regenerated to add hooks.
             std::unique_ptr<LiveRecompilerCodeHandle> regenerated_code_handle;
@@ -299,6 +391,10 @@ namespace recomp {
             // Tracks which hook slots have already been processed. Used to regenerate vanilla functions as needed
             // to add hooks to any functions that weren't already replaced by a mod.
             std::vector<bool> processed_hook_slots;
+            // Generated shim functions to use for implementing shim exports.
+            std::vector<std::unique_ptr<N64Recomp::ShimFunction>> shim_functions;
+            ConfigSchema empty_schema;
+            std::vector<char> empty_bytes;
             size_t num_events = 0;
             ModContentTypeId code_content_type_id;
             size_t active_game = (size_t)-1;
@@ -321,13 +417,15 @@ namespace recomp {
         public:
             // TODO make these private and expose methods for the functionality they're currently used in.
             ModManifest manifest;
+            ConfigStorage config_storage;
             std::unique_ptr<ModCodeHandle> code_handle;
             std::unique_ptr<N64Recomp::Context> recompiler_context;
             std::vector<uint32_t> section_load_addresses;
             // Content types present in this mod.
             std::vector<ModContentTypeId> content_types;
+            std::vector<char> thumbnail;
 
-            ModHandle(const ModContext& context, ModManifest&& manifest, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types);
+            ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail);
             ModHandle(const ModHandle& rhs) = delete;
             ModHandle& operator=(const ModHandle& rhs) = delete;
             ModHandle(ModHandle&& rhs);
@@ -457,12 +555,23 @@ namespace recomp {
 
         CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
 
-        void initialize_mod_recompiler();
+        void initialize_mods();
         void scan_mods();
+        std::filesystem::path get_mods_directory();
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
+        bool is_mod_auto_enabled(const std::string& mod_id);
+        const ConfigSchema &get_mod_config_schema(const std::string &mod_id);
+        const std::vector<char> &get_mod_thumbnail(const std::string &mod_id);
+        void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
+        void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
+        ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
+        ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
         ModContentTypeId register_mod_content_type(const ModContentType& type);
         bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
+
+
+        void register_config_exports();
     }
 };
 

@@ -23,6 +23,7 @@
 #include "ultramodern/error_handling.hpp"
 #include "librecomp/addresses.hpp"
 #include "librecomp/mods.hpp"
+#include "recompiler/live_recompiler.h"
 
 #ifdef _WIN32
 #    define WIN32_LEAN_AND_MEAN
@@ -35,16 +36,6 @@
 #define PATHFMT "%ls"
 #else
 #define PATHFMT "%s"
-#endif
-
-#ifdef _MSC_VER
-inline uint32_t byteswap(uint32_t val) {
-    return _byteswap_ulong(val);
-}
-#else
-constexpr uint32_t byteswap(uint32_t val) {
-    return __builtin_bswap32(val);
-}
 #endif
 
 enum GameStatus {
@@ -91,15 +82,29 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
     return true;
 }
 
+void recomp::mods::initialize_mods() {
+    N64Recomp::live_recompiler_init();
+    std::filesystem::create_directories(config_path / mods_directory);
+    std::filesystem::create_directories(config_path / mod_config_directory);
+    mod_context->set_mods_config_path(config_path / "mods.json");
+    mod_context->set_mod_config_directory(config_path / mod_config_directory);
+}
+
 void recomp::mods::scan_mods() {
     std::vector<recomp::mods::ModOpenErrorDetails> mod_open_errors;
     {
         std::lock_guard mod_lock{ mod_context_mutex };
-        mod_open_errors = mod_context->scan_mod_folder(config_path / "mods");
+        mod_open_errors = mod_context->scan_mod_folder(config_path / mods_directory);
     }
     for (const auto& cur_error : mod_open_errors) {
         printf("Error opening mod " PATHFMT ": %s (%s)\n", cur_error.mod_path.c_str(), recomp::mods::error_to_string(cur_error.error).c_str(), cur_error.error_param.c_str());
     }
+
+    mod_context->load_mods_config();
+}
+
+std::filesystem::path recomp::mods::get_mods_directory() {
+    return config_path / mods_directory;
 }
 
 recomp::mods::ModContentTypeId recomp::mods::register_mod_content_type(const ModContentType& type) {
@@ -502,7 +507,7 @@ void ultramodern::quit() {
 
 void recomp::mods::enable_mod(const std::string& mod_id, bool enabled) {
     std::lock_guard lock { mod_context_mutex };
-    return mod_context->enable_mod(mod_id, enabled);
+    return mod_context->enable_mod(mod_id, enabled, true);
 }
 
 bool recomp::mods::is_mod_enabled(const std::string& mod_id) {
@@ -510,9 +515,49 @@ bool recomp::mods::is_mod_enabled(const std::string& mod_id) {
     return mod_context->is_mod_enabled(mod_id);
 }
 
+bool recomp::mods::is_mod_auto_enabled(const std::string& mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->is_mod_auto_enabled(mod_id);
+}
+
+const recomp::mods::ConfigSchema &recomp::mods::get_mod_config_schema(const std::string &mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_config_schema(mod_id);
+}
+
+const std::vector<char> &recomp::mods::get_mod_thumbnail(const std::string &mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_thumbnail(mod_id);
+}
+
+void recomp::mods::set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->set_mod_config_value(mod_index, option_id, value);
+}
+
+void recomp::mods::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->set_mod_config_value(mod_id, option_id, value);
+}
+
+recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(size_t mod_index, const std::string &option_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_config_value(mod_index, option_id);
+}
+
+recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_config_value(mod_id, option_id);
+}
+
 std::vector<recomp::mods::ModDetails> recomp::mods::get_mod_details(const std::string& mod_game_id) {
     std::lock_guard lock { mod_context_mutex };
     return mod_context->get_mod_details(mod_game_id);
+}
+
+void recomp::mods::set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->set_mod_index(mod_game_id, mod_id, index);
 }
 
 bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
@@ -643,7 +688,8 @@ void recomp::start(
         }
     }
 
-    recomp::mods::initialize_mod_recompiler();
+    recomp::mods::initialize_mods();
+    recomp::mods::scan_mods();
 
     // Allocate rdram without comitting it. Use a platform-specific virtual allocation function
     // that initializes to zero. Protect the region above the memory size to catch accesses to invalid addresses.
@@ -678,6 +724,7 @@ void recomp::start(
     }
 
     recomp::register_heap_exports();
+    recomp::mods::register_config_exports();
 
     std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");

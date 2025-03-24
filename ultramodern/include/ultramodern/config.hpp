@@ -74,8 +74,6 @@ namespace ultramodern {
 
             virtual ~GraphicsConfig() = default;
 
-            std::string get_graphics_api_name() const;
-
             auto operator<=>(const GraphicsConfig& rhs) const = default;
         };
 
@@ -103,6 +101,7 @@ namespace ultramodern {
             {ultramodern::renderer::GraphicsApi::Auto, "Auto"},
             {ultramodern::renderer::GraphicsApi::D3D12, "D3D12"},
             {ultramodern::renderer::GraphicsApi::Vulkan, "Vulkan"},
+            {ultramodern::renderer::GraphicsApi::Metal, "Metal"},
         });
 
         NLOHMANN_JSON_SERIALIZE_ENUM(ultramodern::renderer::AspectRatio, {

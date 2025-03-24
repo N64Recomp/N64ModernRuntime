@@ -20,11 +20,22 @@ std::unique_ptr<ultramodern::renderer::RendererContext> ultramodern::renderer::c
     return render_callbacks.create_render_context(rdram, window_handle, developer_mode);
 }
 
-std::string ultramodern::renderer::get_graphics_api_name(const GraphicsConfig& config) {
+std::string ultramodern::renderer::get_graphics_api_name(GraphicsApi api) {
     if (render_callbacks.get_graphics_api_name != nullptr) {
-        return render_callbacks.get_graphics_api_name(config);
+        return render_callbacks.get_graphics_api_name(api);
     }
-    return config.get_graphics_api_name();
+    switch (api) {
+    case ultramodern::renderer::GraphicsApi::Auto:
+        return "Auto";
+    case ultramodern::renderer::GraphicsApi::D3D12:
+        return "D3D12";
+    case ultramodern::renderer::GraphicsApi::Vulkan:
+        return "Vulkan";
+    case ultramodern::renderer::GraphicsApi::Metal:
+        return "Metal";
+    default:
+        return "[Unknown graphics API]";
+    }
 }
 
 
@@ -40,31 +51,4 @@ void ultramodern::renderer::set_graphics_config(const GraphicsConfig& config) {
 const ultramodern::renderer::GraphicsConfig& ultramodern::renderer::get_graphics_config() {
     std::lock_guard<std::mutex> lock(graphic_config_mutex);
     return graphic_config;
-}
-
-std::string ultramodern::renderer::GraphicsConfig::get_graphics_api_name() const {
-    ultramodern::renderer::GraphicsApi api = api_option;
-
-    if (api == ultramodern::renderer::GraphicsApi::Auto) {
-#if defined(_WIN32)
-        api = ultramodern::renderer::GraphicsApi::D3D12;
-#elif defined(__gnu_linux__)
-        api = ultramodern::renderer::GraphicsApi::Vulkan;
-#elif defined(__APPLE__)
-        api = ultramodern::renderer::GraphicsApi::Metal;
-#else
-        static_assert(false && "Unimplemented")
-#endif
-    }
-
-    switch (api) {
-        case ultramodern::renderer::GraphicsApi::D3D12:
-            return "D3D12";
-        case ultramodern::renderer::GraphicsApi::Vulkan:
-            return "Vulkan";
-        case ultramodern::renderer::GraphicsApi::Metal:
-            return "Metal";
-        default:
-            return "[Unknown graphics API]";
-    }
 }

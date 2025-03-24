@@ -62,6 +62,7 @@ namespace ultramodern {
 
                 virtual bool valid() = 0;
                 virtual SetupResult get_setup_result() const { return setup_result; }
+                virtual GraphicsApi get_chosen_api() const { return chosen_api; }
 
                 virtual bool update_config(const GraphicsConfig& old_config, const GraphicsConfig& new_config) = 0;
 
@@ -74,11 +75,12 @@ namespace ultramodern {
 
             protected:
                 SetupResult setup_result;
+                GraphicsApi chosen_api;
         };
 
         struct callbacks_t {
             using create_render_context_t = std::unique_ptr<RendererContext>(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
-            using get_graphics_api_name_t = std::string(const GraphicsConfig& config);
+            using get_graphics_api_name_t = std::string(GraphicsApi api);
 
             /**
              * Instances a subclass of RendererContext that is used to render the game.
@@ -97,7 +99,7 @@ namespace ultramodern {
 
         std::unique_ptr<RendererContext> create_render_context(uint8_t* rdram, WindowHandle window_handle, bool developer_mode);
 
-        std::string get_graphics_api_name(const GraphicsConfig& config);
+        std::string get_graphics_api_name(GraphicsApi api);
     }
 }
 

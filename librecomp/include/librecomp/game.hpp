@@ -16,6 +16,7 @@ namespace recomp {
         Sram,
         Flashram,
         AllowAll, // Allows all save types to work and reports eeprom size as 16kbit.
+        Custom, // Custom save type for recomp with a configurable size.
     };
 
     struct GameEntry {
@@ -24,6 +25,7 @@ namespace recomp {
         std::u8string game_id;
         std::string mod_game_id;
         SaveType save_type = SaveType::None;
+        uint32_t custom_save_size = 0;
         bool is_enabled;
         // Only needed for mod function hooking support, not needed if `has_compressed_code` is false.
         std::vector<uint8_t> (*decompression_routine)(std::span<const uint8_t> compressed_rom) = nullptr;
@@ -106,6 +108,7 @@ namespace recomp {
     bool eeprom_allowed();
     bool sram_allowed();
     bool flashram_allowed();
+    bool custom_saving_allowed();
 
     void start_game(const std::u8string& game_id);
     std::u8string current_game_id();

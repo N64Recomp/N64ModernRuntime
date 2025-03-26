@@ -32,7 +32,7 @@ constexpr uint32_t save_size = 1024 * 1024 / 8; // Maximum save size, 1Mbit for 
 
 // Initialization.
 void preinit(RDRAM_ARG renderer::WindowHandle window_handle);
-void init_saving(RDRAM_ARG1);
+void init_saving(RDRAM_ARG uint32_t custom_save_size);
 void init_events(RDRAM_ARG renderer::WindowHandle window_handle);
 void init_timers(RDRAM_ARG1);
 void init_thread_cleanup();

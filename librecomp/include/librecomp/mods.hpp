@@ -570,10 +570,11 @@ namespace recomp {
         ModContentTypeId register_mod_content_type(const ModContentType& type);
         bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
 
-
         void register_config_exports();
     }
 };
+
+extern recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param);
 
 extern "C" void recomp_trigger_event(uint8_t* rdram, recomp_context* ctx, uint32_t event_index);
 

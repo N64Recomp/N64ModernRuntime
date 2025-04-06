@@ -105,6 +105,7 @@ uint64_t total_vis = 0;
 
 
 extern std::atomic_bool exited;
+extern moodycamel::LightweightSemaphore graphics_shutdown_ready;
 
 void set_dummy_vi();
 
@@ -318,6 +319,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
         }
     }
 
+    graphics_shutdown_ready.wait();
     renderer_context->shutdown();
 }
 

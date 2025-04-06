@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <variant>
 #include <mutex>
+#include <optional>
 
 #include "blockingconcurrentqueue.h"
 
@@ -259,7 +260,9 @@ namespace recomp {
                 mod_id(mod_id_), error(error_), error_param(error_param_) {}
         };
 
-        std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
+        std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename);
+        std::optional<ModDetails> get_details_for_mod(const std::string& mod_id);
+        std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
         void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
 
         // Internal functions, TODO move to an internal header.
@@ -324,6 +327,7 @@ namespace recomp {
 
             void register_game(const std::string& mod_game_id);
             std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
+            void close_mods();
             void load_mods_config();
             void enable_mod(const std::string& mod_id, bool enabled, bool trigger_save);
             bool is_mod_enabled(const std::string& mod_id);
@@ -331,7 +335,9 @@ namespace recomp {
             size_t num_opened_mods();
             std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
-            std::vector<ModDetails> get_mod_details(const std::string& mod_game_id);
+            std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename) const;
+            std::optional<ModDetails> get_details_for_mod(const std::string& mod_id) const;
+            std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
             const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
             const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
@@ -353,7 +359,6 @@ namespace recomp {
             CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
             CodeModLoadError resolve_code_dependencies(ModHandle& mod, size_t mod_index, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
             void add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail);
-            void close_mods();
             std::vector<ModLoadErrorDetails> regenerate_with_hooks(
                 const std::vector<std::pair<HookDefinition, size_t>>& sorted_unprocessed_hooks,
                 const std::unordered_map<uint32_t, uint16_t>& section_vrom_map,
@@ -369,6 +374,7 @@ namespace recomp {
             std::unordered_map<std::string, size_t> mod_game_ids;
             std::vector<ModHandle> opened_mods;
             std::unordered_map<std::string, size_t> opened_mods_by_id;
+            std::unordered_map<std::filesystem::path, size_t> opened_mods_by_filename;
             std::vector<size_t> opened_mods_order;
             std::mutex opened_mods_mutex;
             std::unordered_set<std::string> mod_ids;
@@ -452,6 +458,19 @@ namespace recomp {
 
             void disable_runtime_toggle() {
                 runtime_toggleable = false;
+            }
+            
+            ModDetails get_details() const {
+                return ModDetails {
+                    .mod_id = manifest.mod_id,
+                    .display_name = manifest.display_name,
+                    .description = manifest.description,
+                    .short_description = manifest.short_description,
+                    .version = manifest.version,
+                    .authors = manifest.authors,
+                    .dependencies = manifest.dependencies,
+                    .runtime_toggleable = is_runtime_toggleable()
+                };
             }
         private:
             // Mapping of export name to function index.
@@ -553,10 +572,12 @@ namespace recomp {
         void reset_hooks();
         void run_hook(uint8_t* rdram, recomp_context* ctx, size_t hook_slot_index);
 
+        ModOpenError parse_manifest(ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param);
         CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
 
         void initialize_mods();
         void scan_mods();
+        void close_mods();
         std::filesystem::path get_mods_directory();
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
@@ -573,8 +594,6 @@ namespace recomp {
         void register_config_exports();
     }
 };
-
-extern recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param);
 
 extern "C" void recomp_trigger_event(uint8_t* rdram, recomp_context* ctx, uint32_t event_index);
 

@@ -509,81 +509,81 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
     return recomp::mods::ModOpenError::Good;
 }
 
-recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param) {
+recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param) {
     using json = nlohmann::json;
     json manifest_json = json::parse(manifest_data.begin(), manifest_data.end(), nullptr, false);
 
     if (manifest_json.is_discarded()) {
-        return recomp::mods::ModOpenError::FailedToParseManifest;
+        return ModOpenError::FailedToParseManifest;
     }
 
     if (!manifest_json.is_object()) {
-        return recomp::mods::ModOpenError::InvalidManifestSchema;
+        return ModOpenError::InvalidManifestSchema;
     }
 
-    recomp::mods::ModOpenError current_error = recomp::mods::ModOpenError::Good;
+    ModOpenError current_error = ModOpenError::Good;
 
     // Mod Game ID
     std::string mod_game_id{};
     current_error = try_get<json::string_t>(mod_game_id, manifest_json, game_mod_id_key, true, error_param);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
     ret.mod_game_ids.emplace_back(std::move(mod_game_id));
 
     // Mod ID
     current_error = try_get<json::string_t>(ret.mod_id, manifest_json, mod_id_key, true, error_param);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
 
     // Display name
     current_error = try_get<json::string_t>(ret.display_name, manifest_json, display_name_key, true, error_param);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
 
     // Description (optional)
     current_error = try_get<json::string_t>(ret.description, manifest_json, description_key, false, error_param);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
 
     // Short Description (optional)
     current_error = try_get<json::string_t>(ret.short_description, manifest_json, short_description_key, false, error_param);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
 
     // Version
-    current_error = try_get_version(ret.version, manifest_json, version_key, error_param, recomp::mods::ModOpenError::InvalidVersionString);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    current_error = try_get_version(ret.version, manifest_json, version_key, error_param, ModOpenError::InvalidVersionString);
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
 
     // Authors
     current_error = try_get_vec<json::string_t>(ret.authors, manifest_json, authors_key, true, error_param);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
 
     // Minimum recomp version
-    current_error = try_get_version(ret.minimum_recomp_version, manifest_json, minimum_recomp_version_key, error_param, recomp::mods::ModOpenError::InvalidMinimumRecompVersionString);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    current_error = try_get_version(ret.minimum_recomp_version, manifest_json, minimum_recomp_version_key, error_param, ModOpenError::InvalidMinimumRecompVersionString);
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
 
     // Dependencies (optional)
     std::vector<std::string> dep_strings{};
     current_error = try_get_vec<json::string_t>(dep_strings, manifest_json, dependencies_key, false, error_param);
-    if (current_error != recomp::mods::ModOpenError::Good) {
+    if (current_error != ModOpenError::Good) {
         return current_error;
     }
     for (const std::string& dep_string : dep_strings) {
-        recomp::mods::Dependency cur_dep;
+        Dependency cur_dep;
         if (!parse_dependency(dep_string, cur_dep)) {
             error_param = dep_string;
-            return recomp::mods::ModOpenError::InvalidDependencyString;
+            return ModOpenError::InvalidDependencyString;
         }
 
         size_t dependency_index = ret.dependencies.size();
@@ -597,15 +597,15 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
         auto& val = *find_libs_it;
         if (!val.is_object()) {
             error_param = native_libraries_key;
-            return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+            return ModOpenError::IncorrectManifestFieldType;
         }
         for (const auto& [lib_name, lib_exports] : val.items()) {
-            recomp::mods::NativeLibraryManifest& cur_lib = ret.native_libraries.emplace_back();
+            NativeLibraryManifest& cur_lib = ret.native_libraries.emplace_back();
 
             cur_lib.name = lib_name;
             if (!get_to_vec<std::string>(lib_exports, cur_lib.exports)) {
                 error_param = native_libraries_key;
-                return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                return ModOpenError::IncorrectManifestFieldType;
             }
         }
     }
@@ -616,30 +616,30 @@ recomp::mods::ModOpenError parse_manifest(recomp::mods::ModManifest& ret, const 
         auto& val = *find_config_schema_it;
         if (!val.is_object()) {
             error_param = config_schema_key;
-            return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+            return ModOpenError::IncorrectManifestFieldType;
         }
 
         auto options = val.find(config_schema_options_key);
         if (options != val.end()) {
             if (!options->is_array()) {
                 error_param = config_schema_options_key;
-                return recomp::mods::ModOpenError::IncorrectManifestFieldType;
+                return ModOpenError::IncorrectManifestFieldType;
             }
 
             for (const json &option : *options) {
-                recomp::mods::ModOpenError open_error = parse_manifest_config_schema_option(option, ret, error_param);
-                if (open_error != recomp::mods::ModOpenError::Good) {
+                ModOpenError open_error = parse_manifest_config_schema_option(option, ret, error_param);
+                if (open_error != ModOpenError::Good) {
                     return open_error;
                 }
             }
         }
         else {
             error_param = config_schema_options_key;
-            return recomp::mods::ModOpenError::MissingConfigSchemaField;
+            return ModOpenError::MissingConfigSchemaField;
         }
     }
 
-    return recomp::mods::ModOpenError::Good;
+    return ModOpenError::Good;
 }
 
 bool parse_mod_config_storage(const std::filesystem::path &path, const std::string &expected_mod_id, recomp::mods::ConfigStorage &config_storage, const recomp::mods::ConfigSchema &config_schema) {

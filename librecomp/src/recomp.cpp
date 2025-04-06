@@ -103,6 +103,13 @@ void recomp::mods::scan_mods() {
     mod_context->load_mods_config();
 }
 
+void recomp::mods::close_mods() {
+    {
+        std::lock_guard mod_lock{ mod_context_mutex };
+        mod_context->close_mods();
+    }
+}
+
 std::filesystem::path recomp::mods::get_mods_directory() {
     return config_path / mods_directory;
 }
@@ -550,9 +557,19 @@ recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(const std::s
     return mod_context->get_mod_config_value(mod_id, option_id);
 }
 
-std::vector<recomp::mods::ModDetails> recomp::mods::get_mod_details(const std::string& mod_game_id) {
+std::string recomp::mods::get_mod_id_from_filename(const std::filesystem::path& mod_filename) {
     std::lock_guard lock { mod_context_mutex };
-    return mod_context->get_mod_details(mod_game_id);
+    return mod_context->get_mod_id_from_filename(mod_filename);
+}
+
+std::optional<recomp::mods::ModDetails> recomp::mods::get_details_for_mod(const std::string& mod_id) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->get_details_for_mod(mod_id);
+}
+
+std::vector<recomp::mods::ModDetails> recomp::mods::get_all_mod_details(const std::string& mod_game_id) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->get_all_mod_details(mod_game_id);
 }
 
 void recomp::mods::set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index) {

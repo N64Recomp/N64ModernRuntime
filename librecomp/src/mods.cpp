@@ -598,7 +598,7 @@ void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, ConfigStor
     std::unique_lock lock(opened_mods_mutex);
     size_t mod_index = opened_mods.size();
     opened_mods_by_id.emplace(manifest.mod_id, mod_index);
-    opened_mods_by_filename.emplace(manifest.mod_root_path.filename(), mod_index);
+    opened_mods_by_filename.emplace(manifest.mod_root_path.filename().native(), mod_index);
     opened_mods.emplace_back(*this, std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail));
     opened_mods_order.emplace_back(mod_index);
 }
@@ -1069,7 +1069,7 @@ size_t recomp::mods::ModContext::num_opened_mods() {
 }
 
 std::string recomp::mods::ModContext::get_mod_id_from_filename(const std::filesystem::path& filename) const {
-    auto find_it = opened_mods_by_filename.find(filename);
+    auto find_it = opened_mods_by_filename.find(filename.native());
     if (find_it == opened_mods_by_filename.end()) {
         return {};
     }

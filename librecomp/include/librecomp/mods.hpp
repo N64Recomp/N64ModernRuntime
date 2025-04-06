@@ -374,7 +374,7 @@ namespace recomp {
             std::unordered_map<std::string, size_t> mod_game_ids;
             std::vector<ModHandle> opened_mods;
             std::unordered_map<std::string, size_t> opened_mods_by_id;
-            std::unordered_map<std::filesystem::path, size_t> opened_mods_by_filename;
+            std::unordered_map<std::filesystem::path::string_type, size_t> opened_mods_by_filename;
             std::vector<size_t> opened_mods_order;
             std::mutex opened_mods_mutex;
             std::unordered_set<std::string> mod_ids;

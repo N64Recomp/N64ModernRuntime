@@ -502,6 +502,7 @@ bool ultramodern::is_game_started() {
 }
 
 std::atomic_bool exited = false;
+moodycamel::LightweightSemaphore graphics_shutdown_ready;
 
 void ultramodern::quit() {
     exited.store(true);
@@ -762,6 +763,8 @@ void recomp::start(
             gfx_callbacks.update_gfx(gfx_data);
         }
     }
+
+    graphics_shutdown_ready.signal();
 
     game_thread.join();
     ultramodern::join_event_threads();

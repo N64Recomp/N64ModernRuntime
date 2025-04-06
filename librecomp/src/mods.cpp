@@ -598,6 +598,7 @@ void recomp::mods::ModContext::add_opened_mod(ModManifest&& manifest, ConfigStor
     std::unique_lock lock(opened_mods_mutex);
     size_t mod_index = opened_mods.size();
     opened_mods_by_id.emplace(manifest.mod_id, mod_index);
+    opened_mods_by_filename.emplace(manifest.mod_root_path.filename().native(), mod_index);
     opened_mods.emplace_back(*this, std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail));
     opened_mods_order.emplace_back(mod_index);
 }
@@ -626,6 +627,7 @@ void recomp::mods::ModContext::register_game(const std::string& mod_game_id) {
 void recomp::mods::ModContext::close_mods() {
     std::unique_lock lock(opened_mods_mutex);
     opened_mods_by_id.clear();
+    opened_mods_by_filename.clear();
     opened_mods.clear();
     opened_mods_order.clear();
     mod_ids.clear();
@@ -1066,7 +1068,27 @@ size_t recomp::mods::ModContext::num_opened_mods() {
     return opened_mods.size();
 }
 
-std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_mod_details(const std::string &mod_game_id) {
+std::string recomp::mods::ModContext::get_mod_id_from_filename(const std::filesystem::path& filename) const {
+    auto find_it = opened_mods_by_filename.find(filename.native());
+    if (find_it == opened_mods_by_filename.end()) {
+        return {};
+    }
+
+    return opened_mods[find_it->second].manifest.mod_id;
+}
+
+std::optional<recomp::mods::ModDetails> recomp::mods::ModContext::get_details_for_mod(const std::string& mod_id) const {
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return {};
+    }
+
+    size_t mod_index = find_it->second;
+    const ModHandle &mod = opened_mods[mod_index];
+    return mod.get_details();
+}
+
+std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_all_mod_details(const std::string &mod_game_id) {
     std::vector<ModDetails> ret{};
     bool all_games = mod_game_id.empty();
     size_t game_index = (size_t)-1;
@@ -1081,16 +1103,7 @@ std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_mod_details(
         if (all_games || mod.is_for_game(game_index)) {
             std::vector<Dependency> cur_dependencies{};
 
-            ret.emplace_back(ModDetails{
-                .mod_id = mod.manifest.mod_id,
-                .display_name = mod.manifest.display_name,
-                .description = mod.manifest.description,
-                .short_description = mod.manifest.short_description,
-                .version = mod.manifest.version,
-                .authors = mod.manifest.authors,
-                .dependencies = mod.manifest.dependencies,
-                .runtime_toggleable = mod.is_runtime_toggleable()
-            });
+            ret.emplace_back(mod.get_details());
         }
     }
 

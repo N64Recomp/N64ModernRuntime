@@ -563,6 +563,16 @@ std::string recomp::mods::get_mod_id_from_filename(const std::filesystem::path& 
     return mod_context->get_mod_id_from_filename(mod_filename);
 }
 
+std::filesystem::path recomp::mods::get_mod_filename(const std::string& mod_id) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->get_mod_filename(mod_id);
+}
+
+size_t recomp::mods::get_mod_order_index(const std::string& mod_id) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->get_mod_order_index(mod_id);
+}
+
 std::optional<recomp::mods::ModDetails> recomp::mods::get_details_for_mod(const std::string& mod_id) {
     std::lock_guard lock { mod_context_mutex };
     return mod_context->get_details_for_mod(mod_id);

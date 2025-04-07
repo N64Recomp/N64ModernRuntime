@@ -614,7 +614,10 @@ recomp::mods::ModLoadError recomp::mods::ModContext::load_mod(recomp::mods::ModH
     }
 
     for (ModContentTypeId type_id : mod.content_types) {
-        content_types[type_id.value].on_enabled(*this, mod);
+        content_enabled_callback* callback = content_types[type_id.value].on_enabled;
+        if (callback) {
+            callback(*this, mod);
+        }
     }
     
     return ModLoadError::Good;
@@ -872,7 +875,8 @@ recomp::mods::ModContext::ModContext() {
         .content_filename = std::string{modpaths::binary_syms_path},
         .allow_runtime_toggle = false,
         .on_enabled = ModContext::on_code_mod_enabled,
-        .on_disabled = nullptr
+        .on_disabled = nullptr,
+        .on_reordered = nullptr
     };
     code_content_type_id = register_content_type(code_content_type);
     
@@ -969,7 +973,10 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
         // If mods have been loaded and a mod was successfully enabled by this call, call the on_enabled handlers for its content types.
         if (was_enabled && mods_loaded) {
             for (ModContentTypeId type_id : mod.content_types) {
-                content_types[type_id.value].on_enabled(*this, mod);
+                content_enabled_callback* callback = content_types[type_id.value].on_enabled;
+                if (callback) {
+                    callback(*this, mod);
+                }
             }
         }
 
@@ -990,7 +997,10 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
 
                             if (mods_loaded) {
                                 for (ModContentTypeId type_id : mod_from_stack_handle.content_types) {
-                                    content_types[type_id.value].on_enabled(*this, mod_from_stack_handle);
+                                    content_enabled_callback* callback = content_types[type_id.value].on_enabled;
+                                    if (callback) {
+                                        callback(*this, mod_from_stack_handle);
+                                    }
                                 }
                             }
                         }
@@ -1005,7 +1015,10 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
         // If mods have been loaded and a mod was successfully disabled by this call, call the on_disabled handlers for its content types.
         if (was_disabled && mods_loaded) {
             for (ModContentTypeId type_id : mod.content_types) {
-                content_types[type_id.value].on_disabled(*this, mod);
+                content_disabled_callback* callback = content_types[type_id.value].on_disabled;
+                if (callback) {
+                    callback(*this, mod);
+                }
             }
         }
 
@@ -1040,7 +1053,10 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
                         if (enabled_mod_it != opened_mods_by_id.end()) {
                             const ModHandle &enabled_mod_handle = opened_mods[enabled_mod_it->second];
                             for (ModContentTypeId type_id : enabled_mod_handle.content_types) {
-                                content_types[type_id.value].on_disabled(*this, enabled_mod_handle);
+                                content_disabled_callback* callback = content_types[type_id.value].on_disabled;
+                                if (callback) {
+                                    callback(*this, enabled_mod_handle);
+                                }
                             }
                         }
                     }
@@ -1075,6 +1091,31 @@ std::string recomp::mods::ModContext::get_mod_id_from_filename(const std::filesy
     }
 
     return opened_mods[find_it->second].manifest.mod_id;
+}
+
+std::filesystem::path recomp::mods::ModContext::get_mod_filename(const std::string& mod_id) const {
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return {};
+    }
+
+    return opened_mods[find_it->second].manifest.mod_root_path;
+}
+
+size_t recomp::mods::ModContext::get_mod_order_index(const std::string& mod_id) const {
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return static_cast<size_t>(-1);
+    }
+
+    // TODO keep a mapping of mod index to mod order index to prevent needing a lookup here.
+    auto find_order_it = std::find(opened_mods_order.begin(), opened_mods_order.end(), find_it->second);
+    if (find_order_it == opened_mods_order.end()) {
+        assert(false);
+        return static_cast<size_t>(-1);
+    }
+
+    return find_order_it - opened_mods_order.begin();
 }
 
 std::optional<recomp::mods::ModDetails> recomp::mods::ModContext::get_details_for_mod(const std::string& mod_id) const {
@@ -1270,6 +1311,13 @@ void recomp::mods::ModContext::set_mod_index(const std::string &mod_game_id, con
 
     if (!inserted) {
         opened_mods_order.push_back(mod_index);
+    }
+
+    for (ModContentTypeId type_id : opened_mods[mod_index].content_types) {
+        content_reordered_callback* callback = content_types[type_id.value].on_reordered;
+        if (callback) {
+            callback(*this);
+        }
     }
 
     mod_configuration_thread_queue.enqueue(ModConfigQueueSave());

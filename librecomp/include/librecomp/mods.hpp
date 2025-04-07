@@ -260,9 +260,6 @@ namespace recomp {
                 mod_id(mod_id_), error(error_), error_param(error_param_) {}
         };
 
-        std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename);
-        std::optional<ModDetails> get_details_for_mod(const std::string& mod_id);
-        std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
         void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
 
         // Internal functions, TODO move to an internal header.
@@ -277,6 +274,7 @@ namespace recomp {
         class ModHandle;
         using content_enabled_callback = void(ModContext&, const ModHandle&);
         using content_disabled_callback = void(ModContext&, const ModHandle&);
+        using content_reordered_callback = void(ModContext&);
 
         struct ModContentType {
             // The file that's used to indicate that a mod contains this content type.
@@ -288,6 +286,11 @@ namespace recomp {
             content_enabled_callback* on_enabled;
             // Function to call when an instance of this content type is disabled.
             content_disabled_callback* on_disabled;
+            // Function to call when an instance of this content type has been reordered.
+            // No mod handle is provided as multiple instances may have been reordered at the same time.
+            // Will not be called if an instance of this content type was incidentally reordered due
+            // to the reordering of another mod, as the ordering of just instances of this content type will not have changed.
+            content_reordered_callback* on_reordered;
         };
 
         // Holds IDs for mod content types, which get assigned as they're registered.
@@ -336,6 +339,8 @@ namespace recomp {
             std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename) const;
+            std::filesystem::path get_mod_filename(const std::string& mod_id) const;
+            size_t get_mod_order_index(const std::string& mod_id) const;
             std::optional<ModDetails> get_details_for_mod(const std::string& mod_id) const;
             std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
@@ -579,6 +584,8 @@ namespace recomp {
         void scan_mods();
         void close_mods();
         std::filesystem::path get_mods_directory();
+        std::optional<ModDetails> get_details_for_mod(const std::string& mod_id);
+        std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);
@@ -588,6 +595,9 @@ namespace recomp {
         void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
         ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
         ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
+        std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename);
+        std::filesystem::path get_mod_filename(const std::string& mod_id);
+        size_t get_mod_order_index(const std::string& mod_id);
         ModContentTypeId register_mod_content_type(const ModContentType& type);
         bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
 

@@ -1151,6 +1151,14 @@ std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_all_mod_deta
     return ret;
 }
 
+recomp::Version recomp::mods::ModContext::get_mod_version(size_t mod_index) {
+    return opened_mods[mod_index].manifest.version;
+}
+
+std::string recomp::mods::ModContext::get_mod_id(size_t mod_index) {
+    return opened_mods[mod_index].manifest.mod_id;
+}
+
 struct RegeneratedSection {
     uint32_t rom_addr;
     uint32_t ram_addr;

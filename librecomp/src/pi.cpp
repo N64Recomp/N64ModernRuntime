@@ -88,7 +88,12 @@ void recomp::do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr)
 struct {
     std::vector<char> save_buffer;
     std::thread saving_thread;
+    std::filesystem::path save_file_path;
     moodycamel::LightweightSemaphore write_sempahore;
+    // Used to tell the saving thread that a file swap is pending.
+    moodycamel::LightweightSemaphore swap_file_pending_sempahore;
+    // Used to tell the consumer thread that the saving thread is ready for a file swap.
+    moodycamel::LightweightSemaphore swap_file_ready_sempahore;
     std::mutex save_buffer_mutex;
 } save_context;
 
@@ -97,7 +102,15 @@ const std::u8string save_folder = u8"saves";
 extern std::filesystem::path config_path;
 
 std::filesystem::path get_save_file_path() {
-    return config_path / save_folder / (std::u8string{recomp::current_game_id()} + u8".bin");
+    return save_context.save_file_path;
+}
+
+void set_save_file_path(const std::u8string& subfolder, const std::u8string& name) {
+    std::filesystem::path save_folder_path = config_path / save_folder;
+    if (!subfolder.empty()) {
+        save_folder_path = save_folder_path / subfolder;
+    }
+    save_context.save_file_path = save_folder_path / (name + u8".bin");
 }
 
 void update_save_file() {
@@ -142,6 +155,10 @@ void saving_thread_func(RDRAM_ARG1) {
         // If an action came through that affected the save file, save the updated contents.
         if (save_buffer_updated) {
             update_save_file();
+        }
+
+        if (save_context.swap_file_pending_sempahore.tryWait()) {
+            save_context.swap_file_ready_sempahore.signal();
         }
     }
 }
@@ -207,13 +224,11 @@ size_t get_save_size(recomp::SaveType save_type) {
     return 0;
 }
 
-void ultramodern::init_saving(RDRAM_ARG1) {
+void read_save_file() {
     std::filesystem::path save_file_path = get_save_file_path();
 
     // Ensure the save file directory exists.
     std::filesystem::create_directories(save_file_path.parent_path());
-
-    save_context.save_buffer.resize(get_save_size(recomp::get_save_type()));
 
     // Read the save file if it exists.
     std::ifstream save_file = recomp::open_input_file_with_backup(save_file_path, std::ios_base::binary);
@@ -224,8 +239,26 @@ void ultramodern::init_saving(RDRAM_ARG1) {
         // Otherwise clear the save file to all zeroes.
         std::fill(save_context.save_buffer.begin(), save_context.save_buffer.end(), 0);
     }
+}
+
+void ultramodern::init_saving(RDRAM_ARG1) {
+    set_save_file_path(u8"", recomp::current_game_id());
+
+    save_context.save_buffer.resize(get_save_size(recomp::get_save_type()));
+
+    read_save_file();
 
     save_context.saving_thread = std::thread{saving_thread_func, PASS_RDRAM};
+}
+
+void ultramodern::change_save_file(const std::u8string& subfolder, const std::u8string& name) {
+    // Tell the saving thread that a file swap is pending.
+    save_context.swap_file_pending_sempahore.signal();
+    // Wait until the saving thread indicates it's ready to swap files.
+    save_context.swap_file_ready_sempahore.wait();
+    // Perform the save file swap.
+    set_save_file_path(subfolder, name);
+    read_save_file();
 }
 
 void ultramodern::join_saving_thread() {

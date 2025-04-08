@@ -37,6 +37,9 @@ void init_events(RDRAM_ARG renderer::WindowHandle window_handle);
 void init_timers(RDRAM_ARG1);
 void init_thread_cleanup();
 
+// Saving
+void change_save_file(const std::u8string& subfolder, const std::u8string& name);
+
 // Thread queues.
 constexpr PTR(PTR(OSThread)) running_queue = (PTR(PTR(OSThread)))-1;
 

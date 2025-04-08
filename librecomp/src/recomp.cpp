@@ -490,6 +490,13 @@ std::u8string recomp::current_game_id() {
     return current_game.value();
 };
 
+std::string recomp::current_mod_game_id() {
+    auto find_it = game_roms.find(current_game_id());
+    const recomp::GameEntry& game_entry = find_it->second;
+
+    return game_entry.mod_game_id;
+}
+
 void recomp::start_game(const std::u8string& game_id) {
     std::lock_guard<std::mutex> lock(current_game_mutex);
     current_game = game_id;

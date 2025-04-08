@@ -63,6 +63,16 @@ void recomp_get_mod_version(uint8_t* rdram, recomp_context* ctx, size_t mod_inde
     *patch_out = version.patch;
 }
 
+void recomp_change_save_file(uint8_t* rdram, recomp_context* ctx, size_t mod_index) {
+    std::string name = _arg_string<0>(rdram, ctx);
+    std::u8string name_u8 = std::u8string{reinterpret_cast<const char8_t*>(name.data()), name.size()};
+
+    std::string mod_id = recomp::mods::get_mod_id(mod_index);
+    std::u8string mod_id_u8 = std::u8string{reinterpret_cast<const char8_t*>(mod_id.data()), mod_id.size()};
+
+    ultramodern::change_save_file(mod_id_u8, name_u8);
+}
+
 void recomp_free_config_string(uint8_t* rdram, recomp_context* ctx) {
     gpr str_rdram = (gpr)_arg<0, PTR(char)>(rdram, ctx);
     gpr offset = str_rdram - 0xFFFFFFFF80000000ULL;
@@ -75,5 +85,6 @@ void recomp::mods::register_config_exports() {
     recomp::overlays::register_ext_base_export("recomp_get_config_double", recomp_get_config_double);
     recomp::overlays::register_ext_base_export("recomp_get_config_string", recomp_get_config_string);
     recomp::overlays::register_ext_base_export("recomp_get_mod_version", recomp_get_mod_version);
+    recomp::overlays::register_ext_base_export("recomp_change_save_file", recomp_change_save_file);
     recomp::overlays::register_base_export("recomp_free_config_string", recomp_free_config_string);
 }

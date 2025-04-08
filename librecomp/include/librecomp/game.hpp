@@ -109,6 +109,7 @@ namespace recomp {
 
     void start_game(const std::u8string& game_id);
     std::u8string current_game_id();
+    std::string current_mod_game_id();
 }
 
 #endif

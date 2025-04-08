@@ -583,6 +583,16 @@ std::vector<recomp::mods::ModDetails> recomp::mods::get_all_mod_details(const st
     return mod_context->get_all_mod_details(mod_game_id);
 }
 
+recomp::Version recomp::mods::get_mod_version(size_t mod_index) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->get_mod_version(mod_index);
+}
+
+std::string recomp::mods::get_mod_id(size_t mod_index) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->get_mod_id(mod_index);
+}
+
 void recomp::mods::set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->set_mod_index(mod_game_id, mod_id, index);

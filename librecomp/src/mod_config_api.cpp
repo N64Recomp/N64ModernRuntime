@@ -51,6 +51,18 @@ void recomp_get_config_string(uint8_t* rdram, recomp_context* ctx, size_t mod_in
     }
 }
 
+void recomp_get_mod_version(uint8_t* rdram, recomp_context* ctx, size_t mod_index) {
+    uint32_t* major_out = _arg<0, uint32_t*>(rdram, ctx);
+    uint32_t* minor_out = _arg<1, uint32_t*>(rdram, ctx);
+    uint32_t* patch_out = _arg<2, uint32_t*>(rdram, ctx);
+
+    recomp::Version version = recomp::mods::get_mod_version(mod_index);
+
+    *major_out = version.major;
+    *minor_out = version.minor;
+    *patch_out = version.patch;
+}
+
 void recomp_free_config_string(uint8_t* rdram, recomp_context* ctx) {
     gpr str_rdram = (gpr)_arg<0, PTR(char)>(rdram, ctx);
     gpr offset = str_rdram - 0xFFFFFFFF80000000ULL;
@@ -62,5 +74,6 @@ void recomp::mods::register_config_exports() {
     recomp::overlays::register_ext_base_export("recomp_get_config_u32", recomp_get_config_u32);
     recomp::overlays::register_ext_base_export("recomp_get_config_double", recomp_get_config_double);
     recomp::overlays::register_ext_base_export("recomp_get_config_string", recomp_get_config_string);
+    recomp::overlays::register_ext_base_export("recomp_get_mod_version", recomp_get_mod_version);
     recomp::overlays::register_base_export("recomp_free_config_string", recomp_free_config_string);
 }

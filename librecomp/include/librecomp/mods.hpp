@@ -343,6 +343,8 @@ namespace recomp {
             size_t get_mod_order_index(const std::string& mod_id) const;
             std::optional<ModDetails> get_details_for_mod(const std::string& mod_id) const;
             std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
+            recomp::Version get_mod_version(size_t mod_index);
+            std::string get_mod_id(size_t mod_index);
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
             const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
             const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
@@ -586,6 +588,8 @@ namespace recomp {
         std::filesystem::path get_mods_directory();
         std::optional<ModDetails> get_details_for_mod(const std::string& mod_id);
         std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
+        recomp::Version get_mod_version(size_t mod_index);
+        std::string get_mod_id(size_t mod_index);
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);

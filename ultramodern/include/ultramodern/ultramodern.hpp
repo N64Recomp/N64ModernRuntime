@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <span>
 #include <chrono>
+#include <filesystem>
 
 #undef MOODYCAMEL_DELETE_FUNCTION
 #define MOODYCAMEL_DELETE_FUNCTION = delete
@@ -39,6 +40,7 @@ void init_thread_cleanup();
 
 // Saving
 void change_save_file(const std::u8string& subfolder, const std::u8string& name);
+std::filesystem::path get_save_file_path();
 
 // Thread queues.
 constexpr PTR(PTR(OSThread)) running_queue = (PTR(PTR(OSThread)))-1;

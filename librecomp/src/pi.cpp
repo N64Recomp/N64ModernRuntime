@@ -101,7 +101,7 @@ const std::u8string save_folder = u8"saves";
 
 extern std::filesystem::path config_path;
 
-std::filesystem::path get_save_file_path() {
+std::filesystem::path ultramodern::get_save_file_path() {
     return save_context.save_file_path;
 }
 
@@ -116,7 +116,7 @@ void set_save_file_path(const std::u8string& subfolder, const std::u8string& nam
 void update_save_file() {
     bool saving_failed = false;
     {
-        std::ofstream save_file = recomp::open_output_file_with_backup(get_save_file_path(), std::ios_base::binary);
+        std::ofstream save_file = recomp::open_output_file_with_backup(ultramodern::get_save_file_path(), std::ios_base::binary);
 
         if (save_file.good()) {
             std::lock_guard lock{ save_context.save_buffer_mutex };
@@ -127,7 +127,7 @@ void update_save_file() {
         }
     }
     if (!saving_failed) {
-        saving_failed = !recomp::finalize_output_file_with_backup(get_save_file_path());
+        saving_failed = !recomp::finalize_output_file_with_backup(ultramodern::get_save_file_path());
     }
     if (saving_failed) {
         ultramodern::error_handling::message_box("Failed to write to the save file. Check your file permissions and whether the save folder has been moved to Dropbox or similar, as this can cause issues.");
@@ -225,7 +225,7 @@ size_t get_save_size(recomp::SaveType save_type) {
 }
 
 void read_save_file() {
-    std::filesystem::path save_file_path = get_save_file_path();
+    std::filesystem::path save_file_path = ultramodern::get_save_file_path();
 
     // Ensure the save file directory exists.
     std::filesystem::create_directories(save_file_path.parent_path());

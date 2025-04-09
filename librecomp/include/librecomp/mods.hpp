@@ -350,8 +350,8 @@ namespace recomp {
             const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
             void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
             void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
-            ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
-            ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
+            ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id) const;
+            ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id) const;
             void set_mods_config_path(const std::filesystem::path &path);
             void set_mod_config_directory(const std::filesystem::path &path);
             ModContentTypeId register_content_type(const ModContentType& type);
@@ -393,7 +393,7 @@ namespace recomp {
             moodycamel::BlockingConcurrentQueue<ModConfigQueueVariant> mod_configuration_thread_queue;
             std::filesystem::path mods_config_path;
             std::filesystem::path mod_config_directory;
-            std::mutex mod_config_storage_mutex;
+            mutable std::mutex mod_config_storage_mutex;
             std::vector<size_t> loaded_code_mods;
             // Code handle for vanilla code that was regenerated to add hooks.
             std::unique_ptr<LiveRecompilerCodeHandle> regenerated_code_handle;

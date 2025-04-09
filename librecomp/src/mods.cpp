@@ -1406,7 +1406,7 @@ void recomp::mods::ModContext::set_mod_config_value(const std::string &mod_id, c
     set_mod_config_value(find_it->second, option_id, value);
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(size_t mod_index, const std::string &option_id) {
+recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(size_t mod_index, const std::string &option_id) const {
     // Check that the mod exists.
     if (mod_index >= opened_mods.size()) {
         return std::monostate();
@@ -1440,7 +1440,7 @@ recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(
     }
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
+recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(const std::string &mod_id, const std::string &option_id) const {
     // Check that the mod exists.
     auto find_it = opened_mods_by_id.find(mod_id);
     if (find_it == opened_mods_by_id.end()) {

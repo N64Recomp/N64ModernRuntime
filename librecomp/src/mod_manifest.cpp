@@ -169,6 +169,7 @@ const std::string short_description_key = "short_description";
 const std::string version_key = "version";
 const std::string authors_key = "authors";
 const std::string minimum_recomp_version_key = "minimum_recomp_version";
+const std::string enabled_by_default_key = "enabled_by_default";
 const std::string dependencies_key = "dependencies";
 const std::string native_libraries_key = "native_libraries";
 const std::string config_schema_key = "config_schema";
@@ -569,6 +570,12 @@ recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const 
 
     // Minimum recomp version
     current_error = try_get_version(ret.minimum_recomp_version, manifest_json, minimum_recomp_version_key, error_param, ModOpenError::InvalidMinimumRecompVersionString);
+    if (current_error != ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Enabled by default (optional)
+    current_error = try_get<json::boolean_t>(ret.enabled_by_default, manifest_json, enabled_by_default_key, false, error_param);
     if (current_error != ModOpenError::Good) {
         return current_error;
     }

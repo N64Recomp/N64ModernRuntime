@@ -862,8 +862,11 @@ void recomp::mods::ModContext::load_mods_config() {
 
     // Enable mods that are specified in the configuration or mods that are considered new.
     for (size_t i = 0; i < opened_mods.size(); i++) {
-        const std::string &mod_id = opened_mods[i].manifest.mod_id;
-        if (!opened_mod_is_known[i] || (config_enabled_mods.find(mod_id) != config_enabled_mods.end())) {
+        const ModHandle& mod = opened_mods[i];
+        const std::string &mod_id = mod.manifest.mod_id;
+        bool is_default_enabled = !opened_mod_is_known[i] && mod.manifest.enabled_by_default;
+        bool is_manually_enabled = config_enabled_mods.contains(mod_id);
+        if (is_default_enabled || is_manually_enabled) {
             enable_mod(mod_id, true, false);
         }
     }

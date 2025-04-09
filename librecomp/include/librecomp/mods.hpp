@@ -220,6 +220,7 @@ namespace recomp {
             std::vector<std::string> authors;
             std::vector<Dependency> dependencies;
             bool runtime_toggleable;
+            bool enabled_by_default;
         };
 
         struct ModManifest {
@@ -237,6 +238,7 @@ namespace recomp {
             Version minimum_recomp_version;
             Version version;
             bool runtime_toggleable;
+            bool enabled_by_default = true;
 
             std::vector<NativeLibraryManifest> native_libraries;
             std::unique_ptr<ModFileHandle> file_handle;
@@ -476,7 +478,8 @@ namespace recomp {
                     .version = manifest.version,
                     .authors = manifest.authors,
                     .dependencies = manifest.dependencies,
-                    .runtime_toggleable = is_runtime_toggleable()
+                    .runtime_toggleable = is_runtime_toggleable(),
+                    .enabled_by_default = manifest.enabled_by_default
                 };
             }
         private:

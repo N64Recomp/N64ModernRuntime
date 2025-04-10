@@ -238,7 +238,7 @@ namespace recomp {
             Version minimum_recomp_version;
             Version version;
             bool runtime_toggleable;
-            bool enabled_by_default = true;
+            bool enabled_by_default;
 
             std::vector<NativeLibraryManifest> native_libraries;
             std::unique_ptr<ModFileHandle> file_handle;

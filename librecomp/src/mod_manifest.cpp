@@ -240,14 +240,14 @@ static bool parse_dependency(const std::string& val, recomp::mods::Dependency& o
 }
 
 template <typename T1, typename T2>
-recomp::mods::ModOpenError try_get(T2& out, const nlohmann::json& data, const std::string& key, bool required, std::string& error_param) {
+recomp::mods::ModOpenError try_get(T2& out, const nlohmann::json& data, const std::string& key, bool required, std::string& error_param, T2 default_value = {}) {
     auto find_it = data.find(key);
     if (find_it == data.end()) {
         if (required) {
             error_param = key;
             return recomp::mods::ModOpenError::MissingManifestField;
         }
-        out = {};
+        out = default_value;
         return recomp::mods::ModOpenError::Good;
     }
 
@@ -574,8 +574,8 @@ recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const 
         return current_error;
     }
 
-    // Enabled by default (optional)
-    current_error = try_get<json::boolean_t>(ret.enabled_by_default, manifest_json, enabled_by_default_key, false, error_param);
+    // Enabled by default (optional, true if not present)
+    current_error = try_get<json::boolean_t>(ret.enabled_by_default, manifest_json, enabled_by_default_key, false, error_param, true);
     if (current_error != ModOpenError::Good) {
         return current_error;
     }
@@ -795,6 +795,7 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
                 manifest.version.major = 0;
                 manifest.version.minor = 0;
                 manifest.version.patch = 0;
+                manifest.enabled_by_default = true;
             }
         }
         else {

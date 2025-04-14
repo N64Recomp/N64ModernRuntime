@@ -2,6 +2,7 @@
 
 #include "librecomp/addresses.hpp"
 #include "librecomp/overlays.hpp"
+#include "librecomp/helpers.hpp"
 
 static uint32_t heap_offset;
 
@@ -15,7 +16,12 @@ extern "C" void recomp_alloc(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void recomp_free(uint8_t* rdram, recomp_context* ctx) {
-    recomp::free(rdram, TO_PTR(void, ctx->r4));
+    PTR(void) to_free = _arg<0, PTR(void)>(rdram, ctx);
+    // Handle NULL frees.
+    if (to_free == NULLPTR) {
+        return;
+    }
+    recomp::free(rdram, TO_PTR(void, to_free));
 }
 
 void recomp::register_heap_exports() {

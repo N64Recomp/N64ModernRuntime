@@ -69,6 +69,16 @@ recomp::mods::ZipModFileHandle::ZipModFileHandle(const std::filesystem::path& mo
     error = ModOpenError::Good;
 }
 
+recomp::mods::ZipModFileHandle::ZipModFileHandle(std::span<const uint8_t> mod_bytes, ModOpenError& error) {
+    archive = std::make_unique<mz_zip_archive>();
+    if (!mz_zip_reader_init_mem(archive.get(), mod_bytes.data(), mod_bytes.size(), 0)) {
+        error = ModOpenError::InvalidZip;
+        return;
+    }
+
+    error = ModOpenError::Good;
+}
+
 std::vector<char> recomp::mods::ZipModFileHandle::read_file(const std::string& filepath, bool& exists) const {
     std::vector<char> ret{};
 
@@ -728,8 +738,114 @@ bool parse_mod_config_storage(const std::filesystem::path &path, const std::stri
     return true;
 }
 
-recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest) {
+recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_manifest(ModManifest& manifest, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest) {
+    {
+        bool exists;
+        std::vector<char> manifest_data = manifest.file_handle->read_file("mod.json", exists);
+        if (!exists) {
+            // If this container type requires a manifest then return an error.
+            if (requires_manifest) {
+                return ModOpenError::NoManifest;
+            }
+            // Otherwise, create a default manifest.
+            else {
+                // Take the file handle from the manifest before clearing it so that it can be reassigned afterwards.
+                std::unique_ptr<ModFileHandle> file_handle = std::move(manifest.file_handle);
+                manifest = {};
+                manifest.file_handle = std::move(file_handle);
+
+                for (const auto &[key, val] : mod_game_ids) {
+                    manifest.mod_game_ids.emplace_back(key);
+                }
+
+                manifest.mod_id = manifest.mod_root_path.stem().string();
+                manifest.display_name = manifest.mod_id;
+                manifest.description.clear();
+                manifest.short_description.clear();
+                manifest.authors = { "Unknown" };
+
+                manifest.minimum_recomp_version.major = 0;
+                manifest.minimum_recomp_version.minor = 0;
+                manifest.minimum_recomp_version.patch = 0;
+                manifest.version.major = 0;
+                manifest.version.minor = 0;
+                manifest.version.patch = 0;
+                manifest.enabled_by_default = true;
+            }
+        }
+        else {
+            ModOpenError parse_error = parse_manifest(manifest, manifest_data, error_param);
+            if (parse_error != ModOpenError::Good) {
+                return parse_error;
+            }
+        }
+    }
+
+    // Check for this being a duplicate of another opened mod.
+    if (mod_ids.contains(manifest.mod_id)) {
+        error_param = manifest.mod_id;
+        return ModOpenError::DuplicateMod;
+    }
+    mod_ids.emplace(manifest.mod_id);
+
+    // Check for this mod's game ids being valid.
+    std::vector<size_t> game_indices;
+    for (const auto &mod_game_id : manifest.mod_game_ids) {
+        auto find_id_it = mod_game_ids.find(mod_game_id);
+        if (find_id_it == mod_game_ids.end()) {
+            error_param = mod_game_id;
+            return ModOpenError::WrongGame;
+        }
+        game_indices.emplace_back(find_id_it->second);
+    }
+
+    // Scan for content types present in this mod.
+    std::vector<ModContentTypeId> detected_content_types;
+
+    auto scan_for_content_type = [&detected_content_types, &manifest](ModContentTypeId type_id, std::vector<ModContentType> &content_types) {
+        const ModContentType &content_type = content_types[type_id.value];
+        if (manifest.file_handle->file_exists(content_type.content_filename)) {
+            detected_content_types.emplace_back(type_id);
+        }
+        };
+
+    // If the mod has a list of specific content types, scan for only those.
+    if (!supported_content_types.empty()) {
+        for (ModContentTypeId content_type_id : supported_content_types) {
+            scan_for_content_type(content_type_id, content_types);
+        }
+    }
+    // Otherwise, scan for all content types.
+    else {
+        for (size_t content_type_index = 0; content_type_index < content_types.size(); content_type_index++) {
+            scan_for_content_type(ModContentTypeId{ .value = content_type_index }, content_types);
+        }
+    }
+
+    // Read the mod config if it exists.
+    ConfigStorage config_storage;
+    std::filesystem::path config_path = mod_config_directory / (manifest.mod_id + ".json");
+    parse_mod_config_storage(config_path, manifest.mod_id, config_storage, manifest.config_schema);
+
+    // Read the mod thumbnail if it exists.
+    static const std::string thumbnail_dds_name = "thumb.dds";
+    static const std::string thumbnail_png_name = "thumb.png";
+    bool exists = false;
+    std::vector<char> thumbnail_data = manifest.file_handle->read_file(thumbnail_dds_name, exists);
+    if (!exists) {
+        thumbnail_data = manifest.file_handle->read_file(thumbnail_png_name, exists);
+    }
+
+    // Store the loaded mod manifest in a new mod handle.
+    add_opened_mod(std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail_data));
+
+    return ModOpenError::Good;
+}
+
+recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_path(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest) {
     ModManifest manifest{};
+    manifest.mod_root_path = mod_path;
+
     std::error_code ec;
     error_param = "";
 
@@ -764,108 +880,18 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod(const std::filesys
         return handle_error;
     }
 
-    {
-        bool exists;
-        std::vector<char> manifest_data = manifest.file_handle->read_file("mod.json", exists);
-        if (!exists) {
-            // If this container type requires a manifest then return an error.
-            if (requires_manifest) {
-                return ModOpenError::NoManifest;
-            }
-            // Otherwise, create a default manifest.
-            else {
-                // Take the file handle from the manifest before clearing it so that it can be reassigned afterwards.
-                std::unique_ptr<ModFileHandle> file_handle = std::move(manifest.file_handle);
-                manifest = {};
-                manifest.file_handle = std::move(file_handle);
-                
-                for (const auto& [key, val] : mod_game_ids) {
-                    manifest.mod_game_ids.emplace_back(key);
-                }
+    return open_mod_from_manifest(manifest, error_param, supported_content_types, requires_manifest);
+}
 
-                manifest.mod_id = mod_path.stem().string();
-                manifest.display_name = manifest.mod_id;
-                manifest.description.clear();
-                manifest.short_description.clear();
-                manifest.authors = { "Unknown" };
-
-                manifest.minimum_recomp_version.major = 0;
-                manifest.minimum_recomp_version.minor = 0;
-                manifest.minimum_recomp_version.patch = 0;
-                manifest.version.major = 0;
-                manifest.version.minor = 0;
-                manifest.version.patch = 0;
-                manifest.enabled_by_default = true;
-            }
-        }
-        else {
-            ModOpenError parse_error = parse_manifest(manifest, manifest_data, error_param);
-            if (parse_error != ModOpenError::Good) {
-                return parse_error;
-            }
-        }
+recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_memory(std::span<const uint8_t> mod_bytes, std::string &error_param, const std::vector<ModContentTypeId> &supported_content_types, bool requires_manifest) {
+    ModManifest manifest{};
+    ModOpenError handle_error;
+    manifest.file_handle = std::make_unique<recomp::mods::ZipModFileHandle>(mod_bytes, handle_error);
+    if (handle_error != ModOpenError::Good) {
+        return handle_error;
     }
 
-    // Check for this being a duplicate of another opened mod.
-    if (mod_ids.contains(manifest.mod_id)) {
-        error_param = manifest.mod_id;
-        return ModOpenError::DuplicateMod;
-    }
-    mod_ids.emplace(manifest.mod_id);
-
-    // Check for this mod's game ids being valid.
-    std::vector<size_t> game_indices;
-    for (const auto& mod_game_id : manifest.mod_game_ids) {
-        auto find_id_it = mod_game_ids.find(mod_game_id);
-        if (find_id_it == mod_game_ids.end()) {
-            error_param = mod_game_id;
-            return ModOpenError::WrongGame;
-        }
-        game_indices.emplace_back(find_id_it->second);
-    }
-    
-    // Scan for content types present in this mod.
-    std::vector<ModContentTypeId> detected_content_types;
-
-    auto scan_for_content_type = [&detected_content_types, &manifest](ModContentTypeId type_id, std::vector<ModContentType>& content_types) {
-        const ModContentType& content_type = content_types[type_id.value];
-        if (manifest.file_handle->file_exists(content_type.content_filename)) {
-            detected_content_types.emplace_back(type_id);
-        }
-    };
-
-    // If the mod has a list of specific content types, scan for only those.
-    if (!supported_content_types.empty()) {
-        for (ModContentTypeId content_type_id : supported_content_types) {
-            scan_for_content_type(content_type_id, content_types);
-        }
-    }
-    // Otherwise, scan for all content types.
-    else {
-        for (size_t content_type_index = 0; content_type_index < content_types.size(); content_type_index++) {
-            scan_for_content_type(ModContentTypeId{.value = content_type_index}, content_types);
-        }
-    }
-
-    // Read the mod config if it exists.
-    ConfigStorage config_storage;
-    std::filesystem::path config_path = mod_config_directory / (manifest.mod_id + ".json");
-    parse_mod_config_storage(config_path, manifest.mod_id, config_storage, manifest.config_schema);
-
-    // Read the mod thumbnail if it exists.
-    static const std::string thumbnail_dds_name = "thumb.dds";
-    static const std::string thumbnail_png_name = "thumb.png";
-    bool exists = false;
-    std::vector<char> thumbnail_data = manifest.file_handle->read_file(thumbnail_dds_name, exists);
-    if (!exists) {
-        thumbnail_data = manifest.file_handle->read_file(thumbnail_png_name, exists);
-    }
-
-    // Store the loaded mod manifest in a new mod handle.
-    manifest.mod_root_path = mod_path;
-    add_opened_mod(std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail_data));
-
-    return ModOpenError::Good;
+    return open_mod_from_manifest(manifest, error_param, supported_content_types, requires_manifest);
 }
 
 std::string recomp::mods::error_to_string(ModOpenError error) {

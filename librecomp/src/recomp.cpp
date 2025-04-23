@@ -90,6 +90,11 @@ void recomp::mods::initialize_mods() {
     mod_context->set_mod_config_directory(config_path / mod_config_directory);
 }
 
+void recomp::mods::register_embedded_mod(const std::string &mod_id, std::span<const uint8_t> mod_bytes) {
+    std::lock_guard<std::mutex> lock(mod_context_mutex);
+    mod_context->register_embedded_mod(mod_id, mod_bytes);
+}
+
 void recomp::mods::scan_mods() {
     std::vector<recomp::mods::ModOpenErrorDetails> mod_open_errors;
     {

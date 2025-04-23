@@ -627,6 +627,10 @@ void recomp::mods::ModContext::register_game(const std::string& mod_game_id) {
     mod_game_ids.emplace(mod_game_id, mod_game_ids.size());
 }
 
+void recomp::mods::ModContext::register_embedded_mod(const std::string &mod_id, std::span<const uint8_t> mod_bytes) {
+    embedded_mod_bytes.emplace(mod_id, mod_bytes);
+}
+
 void recomp::mods::ModContext::close_mods() {
     std::unique_lock lock(opened_mods_mutex);
     opened_mods_by_id.clear();
@@ -802,10 +806,10 @@ std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mo
     std::error_code ec;
     close_mods();
 
+    static const std::vector<ModContentTypeId> empty_content_types{};
     for (const auto& mod_path : std::filesystem::directory_iterator{mod_folder, std::filesystem::directory_options::skip_permission_denied, ec}) {
         bool is_mod = false;
         bool requires_manifest = true;
-        static const std::vector<ModContentTypeId> empty_content_types{};
         std::reference_wrapper<const std::vector<ModContentTypeId>> supported_content_types = std::cref(empty_content_types);
         if (mod_path.is_regular_file()) {
             auto find_container_it = container_types.find(mod_path.path().extension().string());
@@ -821,7 +825,7 @@ std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mo
         if (is_mod) {
             printf("Opening mod " PATHFMT "\n", mod_path.path().stem().c_str());
             std::string open_error_param;
-            ModOpenError open_error = open_mod(mod_path, open_error_param, supported_content_types, requires_manifest);
+            ModOpenError open_error = open_mod_from_path(mod_path, open_error_param, supported_content_types, requires_manifest);
 
             if (open_error != ModOpenError::Good) {
                 ret.emplace_back(mod_path.path(), open_error, open_error_param);
@@ -829,6 +833,18 @@ std::vector<recomp::mods::ModOpenErrorDetails> recomp::mods::ModContext::scan_mo
         }
         else {
             printf("Skipping non-mod " PATHFMT PATHFMT "\n", mod_path.path().stem().c_str(), mod_path.path().extension().c_str());
+        }
+    }
+
+    for (const auto &mod_bytes : embedded_mod_bytes) {
+        if (opened_mods_by_id.contains(mod_bytes.first)) {
+            continue;
+        }
+
+        std::string open_error_param;
+        ModOpenError open_error = open_mod_from_memory(mod_bytes.second, open_error_param, empty_content_types, true);
+        if (open_error != ModOpenError::Good) {
+            ret.emplace_back(mod_bytes.first, open_error, open_error_param);
         }
     }
 

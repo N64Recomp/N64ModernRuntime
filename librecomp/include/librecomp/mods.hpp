@@ -145,6 +145,7 @@ namespace recomp {
 
             ZipModFileHandle() = default;
             ZipModFileHandle(const std::filesystem::path& mod_path, ModOpenError& error);
+            ZipModFileHandle(std::span<const uint8_t> mod_bytes, ModOpenError& error);
             ~ZipModFileHandle() final;
 
             std::vector<char> read_file(const std::string& filepath, bool& exists) const final;
@@ -331,6 +332,7 @@ namespace recomp {
             ~ModContext();
 
             void register_game(const std::string& mod_game_id);
+            void register_embedded_mod(const std::string& mod_id, std::span<const uint8_t> mod_bytes);
             std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
             void close_mods();
             void load_mods_config();
@@ -361,7 +363,9 @@ namespace recomp {
             ModContentTypeId get_code_content_type() const { return code_content_type_id; }
             bool is_content_runtime_toggleable(ModContentTypeId content_type) const;
         private:
-            ModOpenError open_mod(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest);
+            ModOpenError open_mod_from_manifest(ModManifest &manifest, std::string &error_param, const std::vector<ModContentTypeId> &supported_content_types, bool requires_manifest);
+            ModOpenError open_mod_from_path(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest);
+            ModOpenError open_mod_from_memory(std::span<const uint8_t> mod_bytes, std::string &error_param, const std::vector<ModContentTypeId> &supported_content_types, bool requires_manifest);
             ModLoadError load_mod(ModHandle& mod, std::string& error_param);
             void check_dependencies(ModHandle& mod, std::vector<std::pair<ModLoadError, std::string>>& errors);
             CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
@@ -381,6 +385,7 @@ namespace recomp {
             std::unordered_map<std::string, ModContainerType> container_types;
             // Maps game mod ID to the mod's internal integer ID. 
             std::unordered_map<std::string, size_t> mod_game_ids;
+            std::unordered_map<std::string, std::span<const uint8_t>> embedded_mod_bytes;
             std::vector<ModHandle> opened_mods;
             std::unordered_map<std::string, size_t> opened_mods_by_id;
             std::unordered_map<std::filesystem::path::string_type, size_t> opened_mods_by_filename;
@@ -586,6 +591,7 @@ namespace recomp {
         CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
 
         void initialize_mods();
+        void register_embedded_mod(const std::string &mod_id, std::span<const uint8_t> mod_bytes);
         void scan_mods();
         void close_mods();
         std::filesystem::path get_mods_directory();

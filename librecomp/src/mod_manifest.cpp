@@ -751,8 +751,10 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_manifest(ModM
             else {
                 // Take the file handle from the manifest before clearing it so that it can be reassigned afterwards.
                 std::unique_ptr<ModFileHandle> file_handle = std::move(manifest.file_handle);
+                std::filesystem::path root_path = std::move(manifest.mod_root_path);
                 manifest = {};
                 manifest.file_handle = std::move(file_handle);
+                manifest.mod_root_path = std::move(root_path);
 
                 for (const auto &[key, val] : mod_game_ids) {
                     manifest.mod_game_ids.emplace_back(key);

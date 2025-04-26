@@ -90,6 +90,12 @@ void recomp_get_save_file_path(uint8_t* rdram, recomp_context* ctx) {
     return_string(rdram, ctx, std::filesystem::absolute(save_file_path).u8string());    
 }
 
+void recomp_get_mod_folder_path(uint8_t* rdram, recomp_context* ctx) {
+    std::filesystem::path mod_folder_path = recomp::mods::get_mods_directory();
+
+    return_string(rdram, ctx, std::filesystem::absolute(mod_folder_path).u8string());    
+}
+
 void recomp::mods::register_config_exports() {
     recomp::overlays::register_ext_base_export("recomp_get_config_u32", recomp_get_config_u32);
     recomp::overlays::register_ext_base_export("recomp_get_config_double", recomp_get_config_double);
@@ -98,4 +104,5 @@ void recomp::mods::register_config_exports() {
     recomp::overlays::register_ext_base_export("recomp_get_mod_version", recomp_get_mod_version);
     recomp::overlays::register_ext_base_export("recomp_change_save_file", recomp_change_save_file);
     recomp::overlays::register_base_export("recomp_get_save_file_path", recomp_get_save_file_path);
+    recomp::overlays::register_base_export("recomp_get_mod_folder_path", recomp_get_mod_folder_path);
 }

@@ -327,6 +327,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModHandle::load_native_library(cons
         return api_error;
     }
 
+    native_library_exports.clear();
     for (const std::string& export_name : lib_manifest.exports) {
         recomp_func_t* cur_func;
         if (native_library_exports.contains(export_name)) {
@@ -2097,8 +2098,14 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::init_mod_code(uint8_t* 
             MEM_B(i, (gpr)cur_section_addr) = binary_data[section.rom_addr + i];
         }
         mod.section_load_addresses[section_index] = cur_section_addr;
-        // Calculate the next section's address based on the size of this section and its bss.
-        cur_section_addr += section.size + section.bss_size;
+        // Calculate the bss section's address based on the size of this section.
+        cur_section_addr += section.size;
+        // Zero the bss section.
+        for (size_t i = 0; i < section.bss_size; i++) {
+            MEM_B(i, (gpr)cur_section_addr) = 0;
+        }
+        // Calculate the next section's address based on the size of the bss section.
+        cur_section_addr += section.bss_size;
         // Align the next section's address to 16 bytes.
         cur_section_addr = (cur_section_addr + 15) & ~15;
         // Add some empty space between mods to act as a buffer for misbehaving mods that have out of bounds accesses.

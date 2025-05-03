@@ -1290,7 +1290,13 @@ N64Recomp::Context context_from_regenerated_list(const RegeneratedList& regenlis
 
             reloc_out.address = reloc_in.section_offset + section_out.ram_addr;
             reloc_out.target_section_offset = reloc_in.target_section_offset;
-            reloc_out.symbol_index = 0; // Unused for live recompilation.
+            if (reloc_in.target_section == N64Recomp::SectionEvent) {
+                // Symbol index holds the event index for event reference symbols.
+                reloc_out.symbol_index = reloc_in.target_section_offset;
+            }
+            else {
+                reloc_out.symbol_index = 0; // Unused for live recompilation.
+            }
             reloc_out.target_section = reloc_in.target_section;
             reloc_out.type = static_cast<N64Recomp::RelocType>(reloc_in.type);
             reloc_out.reference_symbol = true;

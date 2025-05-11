@@ -4,6 +4,7 @@ project(librecomp)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 11)
 
 # Define the library
 add_library(librecomp STATIC
@@ -46,11 +47,13 @@ target_include_directories(librecomp PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include/librecomp"
 )
 
-target_compile_options(librecomp PRIVATE
-#    -Wall
-#    -Wextra
-    -Wno-unused-parameter
-)
+if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    target_compile_options(librecomp PRIVATE
+        # -Wall
+        # -Wextra
+        -Wno-unused-parameter
+    )
+endif()
 
 if (WIN32)
     add_compile_definitions(NOMINMAX)

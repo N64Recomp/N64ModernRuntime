@@ -345,6 +345,7 @@ namespace recomp {
             std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename) const;
             std::filesystem::path get_mod_filename(const std::string& mod_id) const;
             size_t get_mod_order_index(const std::string& mod_id) const;
+            size_t get_mod_order_index(size_t mod_index) const;
             std::optional<ModDetails> get_details_for_mod(const std::string& mod_id) const;
             std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
             recomp::Version get_mod_version(size_t mod_index);
@@ -378,6 +379,7 @@ namespace recomp {
                 const std::unordered_map<recomp_func_t*, overlays::BasePatchedFunction>& base_patched_funcs,
                 std::span<const uint8_t> decompressed_rom);
             void dirty_mod_configuration_thread_process();
+            void rebuild_mod_order_lookup();
 
             static void on_code_mod_enabled(ModContext& context, const ModHandle& mod);
 
@@ -389,7 +391,8 @@ namespace recomp {
             std::vector<ModHandle> opened_mods;
             std::unordered_map<std::string, size_t> opened_mods_by_id;
             std::unordered_map<std::filesystem::path::string_type, size_t> opened_mods_by_filename;
-            std::vector<size_t> opened_mods_order;
+            std::vector<size_t> opened_mods_order; // order index -> mod index
+            std::vector<size_t> mod_order_lookup; // mod index -> order index
             std::mutex opened_mods_mutex;
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
@@ -579,11 +582,14 @@ namespace recomp {
         };
 
         void setup_events(size_t num_events);
-        void register_event_callback(size_t event_index, GenericFunction callback);
+        void register_event_callback(size_t event_index, size_t mod_index, GenericFunction callback);
         void reset_events();
         
         void setup_hooks(size_t num_hook_slots);
-        void register_hook(size_t hook_slot_index, GenericFunction callback);
+        void set_hook_type(size_t hook_slot_index, bool is_return_hook);
+        void register_hook(size_t hook_slot_index, size_t mod_index, GenericFunction callback);
+        void finish_event_setup(const ModContext& context);
+        void finish_hook_setup(const ModContext& context);
         void reset_hooks();
         void run_hook(uint8_t* rdram, recomp_context* ctx, size_t hook_slot_index);
 
@@ -611,6 +617,7 @@ namespace recomp {
         std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename);
         std::filesystem::path get_mod_filename(const std::string& mod_id);
         size_t get_mod_order_index(const std::string& mod_id);
+        size_t get_mod_order_index(size_t mod_index);
         ModContentTypeId register_mod_content_type(const ModContentType& type);
         bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
 

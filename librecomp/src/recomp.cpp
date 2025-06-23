@@ -780,6 +780,7 @@ void recomp::start(
 
     recomp::register_heap_exports();
     recomp::mods::register_config_exports();
+    recomp::mods::register_hook_exports();
 
     std::thread game_thread{[](ultramodern::renderer::WindowHandle window_handle, uint8_t* rdram) {
         debug_printf("[Recomp] Starting\n");

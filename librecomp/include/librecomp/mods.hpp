@@ -591,6 +591,7 @@ namespace recomp {
         void finish_event_setup(const ModContext& context);
         void finish_hook_setup(const ModContext& context);
         void reset_hooks();
+        void register_hook_exports();
         void run_hook(uint8_t* rdram, recomp_context* ctx, size_t hook_slot_index);
 
         ModOpenError parse_manifest(ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param);

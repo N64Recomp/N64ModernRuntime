@@ -131,7 +131,7 @@ public:
 
     template <typename T>
     bool get_dll_symbol(T& out, const char* name) const {
-        out = (T)GetProcAddress(native_handle, name);
+        out = (T)(void*)GetProcAddress(native_handle, name);
         if (out == nullptr) {
             return false;
         }
@@ -638,6 +638,7 @@ void recomp::mods::ModContext::close_mods() {
     opened_mods_by_filename.clear();
     opened_mods.clear();
     opened_mods_order.clear();
+    mod_order_lookup.clear();
     mod_ids.clear();
     enabled_mods.clear();
     auto_enabled_mods.clear();
@@ -877,6 +878,8 @@ void recomp::mods::ModContext::load_mods_config() {
         return sort_order[i] < sort_order[j];
     });
 
+    rebuild_mod_order_lookup();
+
     // Enable mods that are specified in the configuration or mods that are considered new.
     for (size_t i = 0; i < opened_mods.size(); i++) {
         const ModHandle& mod = opened_mods[i];
@@ -886,6 +889,18 @@ void recomp::mods::ModContext::load_mods_config() {
         if (is_default_enabled || is_manually_enabled) {
             enable_mod(mod_id, true, false);
         }
+    }
+}
+
+void recomp::mods::ModContext::rebuild_mod_order_lookup() {
+    // Initialize the mod order lookup to all -1 so that mods that aren't enabled have an order index of -1.
+    mod_order_lookup.resize(opened_mods.size());
+    std::fill(mod_order_lookup.begin(), mod_order_lookup.end(), static_cast<size_t>(-1));
+
+    // Build the lookup of mod index to mod order by inverting the opened mods order list.
+    for (size_t mod_order_index = 0; mod_order_index < opened_mods_order.size(); mod_order_index++) {
+        size_t mod_index = opened_mods_order[mod_order_index];
+        mod_order_lookup[mod_index] = mod_order_index;
     }
 }
 
@@ -1128,14 +1143,18 @@ size_t recomp::mods::ModContext::get_mod_order_index(const std::string& mod_id) 
         return static_cast<size_t>(-1);
     }
 
-    // TODO keep a mapping of mod index to mod order index to prevent needing a lookup here.
-    auto find_order_it = std::find(opened_mods_order.begin(), opened_mods_order.end(), find_it->second);
-    if (find_order_it == opened_mods_order.end()) {
+    return get_mod_order_index(find_it->second);
+}
+
+size_t recomp::mods::ModContext::get_mod_order_index(size_t mod_index) const {
+    size_t order_index = mod_order_lookup[mod_index];
+    // Check if the mod has a proper order index and assert if it doesn't, as that means the mod isn't actually loaded.
+    if (order_index == static_cast<size_t>(-1)) {
         assert(false);
         return static_cast<size_t>(-1);
     }
 
-    return find_order_it - opened_mods_order.begin();
+    return order_index;
 }
 
 std::optional<recomp::mods::ModDetails> recomp::mods::ModContext::get_details_for_mod(const std::string& mod_id) const {
@@ -1346,6 +1365,8 @@ void recomp::mods::ModContext::set_mod_index(const std::string &mod_game_id, con
     if (!inserted) {
         opened_mods_order.push_back(mod_index);
     }
+
+    rebuild_mod_order_lookup();
 
     for (ModContentTypeId type_id : opened_mods[mod_index].content_types) {
         content_reordered_callback* callback = content_types[type_id.value].on_reordered;
@@ -1655,12 +1676,13 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
 
     // Regenerate any remaining hook slots that weren't handled during mod recompilation.
 
-    // List of unprocessed hooks and their hook index.
+    // List of unprocessed hooks and their hook index. Also set up which hooks are return hooks.
     std::vector<std::pair<recomp::mods::HookDefinition, size_t>> unprocessed_hooks;
     for (const auto& [def, index] : hook_slots) {
         if (!processed_hook_slots[index]) {
             unprocessed_hooks.emplace_back(std::make_pair(def, index));
         }
+        recomp::mods::set_hook_type(index, def.at_return);
     }
 
     if (!unprocessed_hooks.empty()) {
@@ -1684,6 +1706,9 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
             return ret;
         }
     }
+
+    finish_event_setup(*this);
+    finish_hook_setup(*this);
 
     active_game = mod_game_index;
     return ret;
@@ -2389,7 +2414,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
             return CodeModLoadError::InvalidCallbackEvent;
         }
 
-        recomp::mods::register_event_callback(event_index, func);
+        recomp::mods::register_event_callback(event_index, mod_index, func);
     }
 
     // Register hooks.
@@ -2411,7 +2436,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
 
         // Register the function handle for this hook slot.
         GenericFunction func = mod.code_handle->get_function_handle(cur_hook.func_index);
-        recomp::mods::register_hook(find_it->second, func);
+        recomp::mods::register_hook(find_it->second, mod_index, func);
     }
 
     // Populate the relocated section addresses for the mod.

@@ -80,3 +80,35 @@ extern "C" void __ull_to_f_recomp(uint8_t * rdram, recomp_context * ctx) {
 
     ctx->f0.fl = ret;
 }
+
+extern "C" void __ull_rshift_recomp(uint8_t * rdram, recomp_context * ctx) {Add commentMore actions
+    uint64_t a = (ctx->r4 << 32) | ((ctx->r5 << 0) & 0xFFFFFFFFu);
+    uint64_t b = (ctx->r6 << 32) | ((ctx->r7 << 0) & 0xFFFFFFFFu);
+    uint64_t ret = a >> b;
+
+    ctx->r2 = (int32_t)(ret >> 32);
+    ctx->r3 = (int32_t)(ret >> 0);
+}
+
+extern "C" void __ll_to_f_recomp(uint8_t * rdram, recomp_context * ctx) {
+    int64_t a = (ctx->r4 << 32) | ((ctx->r5 << 0) & 0xFFFFFFFFu);
+    float ret = (float)a;
+
+    ctx->f0.fl = ret;
+}
+
+extern "C" void __f_to_ll_recomp(uint8_t * rdram, recomp_context * ctx) {
+    int64_t ret = (int64_t)ctx->f12.fl;
+
+    ctx->r2 = (int32_t)(ret >> 32);
+    ctx->r3 = (int32_t)(ret >> 0);
+}
+
+extern "C" void __ll_lshift_recomp(uint8_t * rdram, recomp_context * ctx) {
+    uint64_t a = (ctx->r4 << 32) | ((ctx->r5 << 0) & 0xFFFFFFFFu);
+    uint64_t b = (ctx->r6 << 32) | ((ctx->r7 << 0) & 0xFFFFFFFFu);
+    uint64_t ret = a << b;
+
+    ctx->r2 = (int32_t)(ret >> 32);
+    ctx->r3 = (int32_t)(ret >> 0);
+}

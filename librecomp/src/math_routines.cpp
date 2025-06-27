@@ -81,7 +81,7 @@ extern "C" void __ull_to_f_recomp(uint8_t * rdram, recomp_context * ctx) {
     ctx->f0.fl = ret;
 }
 
-extern "C" void __ull_rshift_recomp(uint8_t * rdram, recomp_context * ctx) {Add commentMore actions
+extern "C" void __ull_rshift_recomp(uint8_t * rdram, recomp_context * ctx) {
     uint64_t a = (ctx->r4 << 32) | ((ctx->r5 << 0) & 0xFFFFFFFFu);
     uint64_t b = (ctx->r6 << 32) | ((ctx->r7 << 0) & 0xFFFFFFFFu);
     uint64_t ret = a >> b;

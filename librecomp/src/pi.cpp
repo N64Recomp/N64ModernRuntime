@@ -67,7 +67,6 @@ void recomp::do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr
     // TODO handle misaligned DMA
     assert((physical_addr & 0x1) == 0 && "Only PI DMA from aligned ROM addresses is currently supported");
     assert((ram_address & 0x7) == 0 && "Only PI DMA to aligned RDRAM addresses is currently supported");
-    assert((num_bytes & 0x1) == 0 && "Only PI DMA with aligned sizes is currently supported");
     uint8_t* rom_addr = rom.data() + physical_addr - recomp::rom_base;
     for (size_t i = 0; i < num_bytes; i++) {
         MEM_B(i, ram_address) = *rom_addr;

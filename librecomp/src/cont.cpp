@@ -50,10 +50,12 @@ extern "C" void osContGetReadData_recomp(uint8_t* rdram, recomp_context* ctx) {
     osContGetReadData(dummy_data);
 
     for (int controller = 0; controller < MAXCONTROLLERS; controller++) {
-        MEM_H(6 * controller + 0, data) = dummy_data[controller].button;
-        MEM_B(6 * controller + 2, data) = dummy_data[controller].stick_x;
-        MEM_B(6 * controller + 3, data) = dummy_data[controller].stick_y;
-        MEM_B(6 * controller + 4, data) = dummy_data[controller].err_no;
+        if (dummy_data[controller].err_no == 0) {
+            MEM_H(6 * controller + 0, data) = dummy_data[controller].button;
+            MEM_B(6 * controller + 2, data) = dummy_data[controller].stick_x;
+            MEM_B(6 * controller + 3, data) = dummy_data[controller].stick_y;
+            MEM_B(6 * controller + 4, data) = dummy_data[controller].err_no;
+        }
     }
 }
 

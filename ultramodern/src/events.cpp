@@ -160,7 +160,7 @@ void vi_thread_func() {
                 else {
                     set_dummy_vi();
                     static bool swap = false;
-                    uint32_t vi_origin = 0x400 + 0x280; // Skip initial RDRAM contents and add the usual origin offset
+                    uint32_t vi_origin = 0x80700000; // Skip initial RDRAM contents
                     // Offset by one FB every other frame so RT64 continues drawing
                     if (swap) {
                         vi_origin += 0x25800;

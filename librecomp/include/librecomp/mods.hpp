@@ -96,6 +96,7 @@ namespace recomp {
         };
 
         std::string error_to_string(ModLoadError);
+        void unmet_dependency_handler(uint8_t* rdram, recomp_context* ctx, uintptr_t arg);
 
         enum class CodeModLoadError {
             Good,
@@ -131,6 +132,19 @@ namespace recomp {
             Enum,
             Number,
             String
+        };
+
+        enum class DependencyStatus {
+            // Do not change these values as they're exposed in the mod API!
+
+            // The dependency was found and the version requirement was met.
+            Found = 0,
+            // The ID given is not a dependency of the mod in question.
+            InvalidDependency = 1,
+            // The dependency was not found.
+            NotFound = 2,
+            // The dependency was found, but the version requirement was not met.
+            WrongVersion = 3
         };
 
         struct ModFileHandle {
@@ -171,6 +185,7 @@ namespace recomp {
         struct Dependency {
             std::string mod_id;
             Version version;
+            bool optional;
         };
 
         struct ConfigOptionEnum {
@@ -363,6 +378,10 @@ namespace recomp {
             bool register_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
             ModContentTypeId get_code_content_type() const { return code_content_type_id; }
             bool is_content_runtime_toggleable(ModContentTypeId content_type) const;
+            std::string get_mod_display_name(size_t mod_index) const;
+            std::filesystem::path get_mod_path(size_t mod_index) const;
+            std::pair<std::string, std::string> get_mod_import_info(size_t mod_index, size_t import_index) const;
+            DependencyStatus is_dependency_met(size_t mod_index, const std::string& dependency_id) const;
         private:
             ModOpenError open_mod_from_manifest(ModManifest &manifest, std::string &error_param, const std::vector<ModContentTypeId> &supported_content_types, bool requires_manifest);
             ModOpenError open_mod_from_path(const std::filesystem::path& mod_path, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest);
@@ -621,6 +640,10 @@ namespace recomp {
         size_t get_mod_order_index(size_t mod_index);
         ModContentTypeId register_mod_content_type(const ModContentType& type);
         bool register_mod_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
+        std::string get_mod_display_name(size_t mod_index);
+        std::filesystem::path get_mod_path(size_t mod_index);
+        std::pair<std::string, std::string> get_mod_import_info(size_t mod_index, size_t import_index);
+        DependencyStatus is_dependency_met(size_t mod_index, const std::string& dependency_id);
 
         void register_config_exports();
     }

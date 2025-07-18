@@ -141,7 +141,7 @@ extern "C" void osPfsDeleteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     }
 }
 
-bool IsFileEmpty(FILE* file, s32 file_no) {
+bool IsFileEmpty(FILE* file) {
     u8 data_buffer[256];
 
     fseek(file, 0, SEEK_SET);
@@ -169,7 +169,7 @@ extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
         pak->file = fopen(filename, "wb+");
     }
 
-    if (!IsFileEmpty(pak->file, file_no)) {
+    if (!IsFileEmpty(pak->file)) {
         state->file_size = pak->state.file_size;
         state->company_code = pak->state.company_code;
         state->game_code = pak->state.game_code;

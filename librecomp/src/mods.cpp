@@ -505,18 +505,20 @@ recomp::mods::LiveRecompilerCodeHandle::LiveRecompilerCodeHandle(
     N64Recomp::LiveGenerator generator{ context.functions.size(), recompiler_inputs };
     std::vector<std::vector<uint32_t>> dummy_static_funcs{};
 
+    bool errored = false;
+
     for (size_t func_index = 0; func_index < context.functions.size(); func_index++) {
         std::ostringstream dummy_ostream{};
 
         if (!N64Recomp::recompile_function_live(generator, context, func_index, dummy_ostream, dummy_static_funcs, true)) {
-            is_good = false;
+            errored = true;
             break;
         }
     }
 
     // Generate the code.
     recompiler_output = std::make_unique<N64Recomp::LiveGeneratorOutput>(generator.finish());
-    is_good = recompiler_output->good;
+    is_good = !errored && recompiler_output->good;
 }
 
 void recomp::mods::LiveRecompilerCodeHandle::set_imported_function(size_t import_index, GenericFunction func) {
@@ -2167,22 +2169,28 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::init_mod_code(uint8_t* 
     int32_t cur_section_addr = load_address;
     for (size_t section_index = 0; section_index < mod_sections.size(); section_index++) {
         const auto& section = mod_sections[section_index];
-        for (size_t i = 0; i < section.size; i++) {
-            MEM_B(i, (gpr)cur_section_addr) = binary_data[section.rom_addr + i];
+        // Do not load fixed address sections into mod memory. Use their address as-is.
+        if (section.fixed_address) {
+            mod.section_load_addresses[section_index] = section.ram_addr;
         }
-        mod.section_load_addresses[section_index] = cur_section_addr;
-        // Calculate the bss section's address based on the size of this section.
-        cur_section_addr += section.size;
-        // Zero the bss section.
-        for (size_t i = 0; i < section.bss_size; i++) {
-            MEM_B(i, (gpr)cur_section_addr) = 0;
+        else {
+            for (size_t i = 0; i < section.size; i++) {
+                MEM_B(i, (gpr)cur_section_addr) = binary_data[section.rom_addr + i];
+            }
+            mod.section_load_addresses[section_index] = cur_section_addr;
+            // Calculate the bss section's address based on the size of this section.
+            cur_section_addr += section.size;
+            // Zero the bss section.
+            for (size_t i = 0; i < section.bss_size; i++) {
+                MEM_B(i, (gpr)cur_section_addr) = 0;
+            }
+            // Calculate the next section's address based on the size of the bss section.
+            cur_section_addr += section.bss_size;
+            // Align the next section's address to 16 bytes.
+            cur_section_addr = (cur_section_addr + 15) & ~15;
+            // Add some empty space between mods to act as a buffer for misbehaving mods that have out of bounds accesses.
+            cur_section_addr += 0x400;
         }
-        // Calculate the next section's address based on the size of the bss section.
-        cur_section_addr += section.bss_size;
-        // Align the next section's address to 16 bytes.
-        cur_section_addr = (cur_section_addr + 15) & ~15;
-        // Add some empty space between mods to act as a buffer for misbehaving mods that have out of bounds accesses.
-        cur_section_addr += 0x400;
     }
 
     // Iterate over each section again after loading them to perform R_MIPS_32 relocations.
@@ -2245,7 +2253,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::load_mod_code(uint8_t* 
     std::unordered_map<size_t, size_t> entry_func_hooks{};
     std::unordered_map<size_t, size_t> return_func_hooks{};
 
-    // Scan the replacements and check for any 
+    // Scan the replacements to handle hooks on the replaced functions.
     for (const auto& replacement : mod.recompiler_context->replacements) {
         // Check if there's a hook slot for the entry of this function.
         HookDefinition entry_def {

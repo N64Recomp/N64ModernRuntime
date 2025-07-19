@@ -129,6 +129,26 @@ bool recomp::mods::register_mod_container_type(const std::string& extension, con
     return mod_context->register_container_type(extension, content_types, requires_manifest);
 }
 
+std::string recomp::mods::get_mod_display_name(size_t mod_index) {
+    std::lock_guard mod_lock{ mod_context_mutex };
+    return mod_context->get_mod_display_name(mod_index);
+}
+
+std::filesystem::path recomp::mods::get_mod_path(size_t mod_index) {
+    std::lock_guard mod_lock{ mod_context_mutex };
+    return mod_context->get_mod_path(mod_index);
+}
+
+std::pair<std::string, std::string> recomp::mods::get_mod_import_info(size_t mod_index, size_t import_index) {
+    std::lock_guard mod_lock{ mod_context_mutex };
+    return mod_context->get_mod_import_info(mod_index, import_index);
+}
+
+recomp::mods::DependencyStatus recomp::mods::is_dependency_met(size_t mod_index, const std::string& dependency_id) {
+    std::lock_guard mod_lock{ mod_context_mutex };
+    return mod_context->is_dependency_met(mod_index, dependency_id);
+}
+
 bool check_hash(const std::vector<uint8_t>& rom_data, uint64_t expected_hash) {
     uint64_t calculated_hash = XXH3_64bits(rom_data.data(), rom_data.size());
     return calculated_hash == expected_hash;

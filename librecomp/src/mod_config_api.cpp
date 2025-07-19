@@ -96,6 +96,18 @@ void recomp_get_mod_folder_path(uint8_t* rdram, recomp_context* ctx) {
     return_string(rdram, ctx, std::filesystem::absolute(mod_folder_path).u8string());    
 }
 
+void recomp_get_mod_file_path(uint8_t* rdram, recomp_context* ctx, size_t mod_index) {
+    std::filesystem::path mod_file_path = recomp::mods::get_mod_path(mod_index);
+
+    return_string(rdram, ctx, std::filesystem::absolute(mod_file_path).u8string()); 
+}
+
+void recomp_is_dependency_met(uint8_t* rdram, recomp_context* ctx, size_t mod_index) {
+    std::string dependency_id = _arg_string<0>(rdram, ctx);
+    recomp::mods::DependencyStatus status = recomp::mods::is_dependency_met(mod_index, dependency_id);
+    _return(ctx, static_cast<uint32_t>(status));
+}
+
 void recomp::mods::register_config_exports() {
     recomp::overlays::register_ext_base_export("recomp_get_config_u32", recomp_get_config_u32);
     recomp::overlays::register_ext_base_export("recomp_get_config_double", recomp_get_config_double);
@@ -105,4 +117,6 @@ void recomp::mods::register_config_exports() {
     recomp::overlays::register_ext_base_export("recomp_change_save_file", recomp_change_save_file);
     recomp::overlays::register_base_export("recomp_get_save_file_path", recomp_get_save_file_path);
     recomp::overlays::register_base_export("recomp_get_mod_folder_path", recomp_get_mod_folder_path);
+    recomp::overlays::register_ext_base_export("recomp_get_mod_file_path", recomp_get_mod_file_path);
+    recomp::overlays::register_ext_base_export("recomp_is_dependency_met", recomp_is_dependency_met);
 }

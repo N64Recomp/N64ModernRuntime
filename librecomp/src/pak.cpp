@@ -86,7 +86,7 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     printf("osPfsAllocateFile_recomp was called!\n");
     assert(false);
-    #if 0
+#if 0
     ControllerPak* pak = &sControllerPak[*file_no];
 
     printf("osPfsAllocateFile_recomp:\n");
@@ -108,7 +108,7 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     pak->state.game_code = game_code;
     strcpy(pak->state.game_name, (const char*) game_name);
     strcpy(pak->state.ext_name, (const char*) ext_name);
-    #endif
+#endif
     ctx->r2 = 0; // PFS_NO_ERROR
 }
 
@@ -163,7 +163,7 @@ extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
     char filename[100];
     sprintf(filename, "controllerPak_file_%d.sav", file_no);
     // pak.file = fopen(filename, "rb+");
-    pak.file.open(filename, std::ios::binary | std::ios::app);
+    pak.file.open(filename, std::ios::binary | std::ios::in | std::ios::out);
     if (!pak.file.good()) {
         printf("File's not good\n");
         assert(false);
@@ -221,7 +221,7 @@ extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     // if (sControllerPak[*file_no].file == NULL) {
     //     sControllerPak[*file_no].file = fopen(filename, "wb+");
     // }
-    sControllerPak[*file_no].file.open(filename, std::ios::binary | std::ios::app);
+    sControllerPak[*file_no].file.open(filename, std::ios::binary | std::ios::in | std::ios::out);
     if (!sControllerPak[*file_no].file.good()) {
         assert(false);
     }
@@ -253,7 +253,7 @@ extern "C" void osPfsReadWriteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
         ByteSwapFile(data_buffer, size_in_bytes);
     } else {
         // TODO: use a separate buffer for holding the swapped memory
-        ByteSwapFile(data_buffer, size_in_bytes); 
+        ByteSwapFile(data_buffer, size_in_bytes);
         // fseek(pak.file, offset, SEEK_SET);
         pak.file.seekg(offset, std::ios::beg);
         // fwrite(data_buffer, size_in_bytes, 1, pak.file);

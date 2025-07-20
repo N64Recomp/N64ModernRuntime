@@ -8,7 +8,7 @@
 
 typedef struct ControllerPak {
     OSPfsState state;
-    FILE* file;
+    std::fstream file;
 } ControllerPak;
 
 static ControllerPak sControllerPak[16];
@@ -84,6 +84,9 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     s32 file_size_in_bytes = (s32) MEM_W(0x14, ctx->r29);
     s32* file_no = TO_PTR(s32, MEM_W(0x18, ctx->r29));
 
+    printf("osPfsAllocateFile_recomp was called!\n");
+    assert(false);
+    #if 0
     ControllerPak* pak = &sControllerPak[*file_no];
 
     printf("osPfsAllocateFile_recomp:\n");
@@ -92,7 +95,8 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     char filename[100];
     sprintf(filename, "controllerPak_file_%d.sav", *file_no);
-    pak->file = fopen(filename, "wb+");
+    // pak->file = fopen(filename, "wb+");
+    //pak->file.open()
 
     file_size_in_bytes = (file_size_in_bytes + 31) & ~31;
 
@@ -104,7 +108,7 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     pak->state.game_code = game_code;
     strcpy(pak->state.game_name, (const char*) game_name);
     strcpy(pak->state.ext_name, (const char*) ext_name);
-
+    #endif
     ctx->r2 = 0; // PFS_NO_ERROR
 }
 
@@ -141,50 +145,48 @@ extern "C" void osPfsDeleteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     }
 }
 
-bool IsFileEmpty(FILE* file) {
-    u8 data_buffer[256];
-
-    fseek(file, 0, SEEK_SET);
-    fread(data_buffer, 0x100, 1, file);
-
-    long current = ftell(file);
-    fseek(file, 0, SEEK_END);
-    long size = ftell(file);
-    fseek(file, current, SEEK_SET);
+bool IsFileEmpty(std::fstream& file) {
+    file.seekg(0, std::ios::end);
+    long size = file.tellg();
+    file.seekg(0, std::ios::beg);
 
     return size == 0;
 }
-
+// f.read(ptr, size) and f.write(ptr, size);
 // s32 osPfsFileState(OSPfs* pfs, s32 file_no, OSPfsState* state);
 extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
     s32 file_no = _arg<1, s32>(rdram, ctx);
     OSPfsState* state = _arg<2, OSPfsState*>(rdram, ctx);
 
-    ControllerPak* pak = &sControllerPak[file_no];
+    ControllerPak& pak = sControllerPak[file_no];
 
     char filename[100];
     sprintf(filename, "controllerPak_file_%d.sav", file_no);
-    pak->file = fopen(filename, "rb+");
-    if (pak->file == NULL) {
-        pak->file = fopen(filename, "wb+");
+    // pak.file = fopen(filename, "rb+");
+    pak.file.open(filename, std::ios::binary | std::ios::app);
+    if (!pak.file.good()) {
+        printf("File's not good\n");
+        assert(false);
     }
 
-    if (!IsFileEmpty(pak->file)) {
-        state->file_size = pak->state.file_size;
-        state->company_code = pak->state.company_code;
-        state->game_code = pak->state.game_code;
+    if (!IsFileEmpty(pak.file)) {
+        state->file_size = pak.state.file_size;
+        state->company_code = pak.state.company_code;
+        state->game_code = pak.state.game_code;
 
-        for (size_t j = 0; j < ARRAYSIZE(pak->state.game_name); j++) {
-            state->game_name[j] = pak->state.game_name[j];
+        for (size_t j = 0; j < ARRAYSIZE(pak.state.game_name); j++) {
+            state->game_name[j] = pak.state.game_name[j];
         }
-        for (size_t j = 0; j < ARRAYSIZE(pak->state.ext_name); j++) {
-            state->ext_name[j] = pak->state.ext_name[j];
+        for (size_t j = 0; j < ARRAYSIZE(pak.state.ext_name); j++) {
+            state->ext_name[j] = pak.state.ext_name[j];
         }
 
-        fclose(pak->file);
+        // fclose(pak.file);
+        pak.file.close();
         ctx->r2 = 0; // PFS_NO_ERROR
     } else {
-        fclose(pak->file);
+        // fclose(pak.file);
+        pak.file.close();
         remove(filename);
         ctx->r2 = 1; // PFS_ERR_NOPACK
     }
@@ -215,9 +217,13 @@ extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     char filename[100];
     sprintf(filename, "controllerPak_file_%d.sav", *file_no);
-    sControllerPak[*file_no].file = fopen(filename, "rb+");
-    if (sControllerPak[*file_no].file == NULL) {
-        sControllerPak[*file_no].file = fopen(filename, "wb+");
+    // sControllerPak[*file_no].file = fopen(filename, "rb+");
+    // if (sControllerPak[*file_no].file == NULL) {
+    //     sControllerPak[*file_no].file = fopen(filename, "wb+");
+    // }
+    sControllerPak[*file_no].file.open(filename, std::ios::binary | std::ios::app);
+    if (!sControllerPak[*file_no].file.good()) {
+        assert(false);
     }
 
     sControllerPak[*file_no].state.company_code = company_code;
@@ -236,16 +242,22 @@ extern "C" void osPfsReadWriteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     s32 size_in_bytes = (s32) MEM_W(0x10, ctx->r29);
     u8* data_buffer = TO_PTR(u8, MEM_W(0x14, ctx->r29));
 
-    ControllerPak* pak = &sControllerPak[file_no];
+    ControllerPak& pak = sControllerPak[file_no];
 
     if (flag == 0) {
-        fseek(pak->file, offset, SEEK_SET);
-        fread(data_buffer, size_in_bytes, 1, pak->file);
+        // fseek(pak.file, offset, SEEK_SET);
+        pak.file.seekg(offset, std::ios::beg);
+        // fread(data_buffer, size_in_bytes, 1, pak.file);
+        pak.file.read((char*) data_buffer, size_in_bytes);
+        // TODO: use a separate buffer for holding the swapped memory
         ByteSwapFile(data_buffer, size_in_bytes);
     } else {
-        ByteSwapFile(data_buffer, size_in_bytes);
-        fseek(pak->file, offset, SEEK_SET);
-        fwrite(data_buffer, size_in_bytes, 1, pak->file);
+        // TODO: use a separate buffer for holding the swapped memory
+        ByteSwapFile(data_buffer, size_in_bytes); 
+        // fseek(pak.file, offset, SEEK_SET);
+        pak.file.seekg(offset, std::ios::beg);
+        // fwrite(data_buffer, size_in_bytes, 1, pak.file);
+        pak.file.write((char*) data_buffer, size_in_bytes);
     }
 
     ctx->r2 = 0; // PFS_NO_ERROR

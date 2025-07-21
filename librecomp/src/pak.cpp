@@ -226,6 +226,13 @@ extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
     // games call this function 16 times, once per file
     // fills the incoming state with the information inside the header of the pak.
 
+    char filename[100];
+    sprintf(filename, "controllerPak_file_%d.sav", file_no);
+    if (!std::filesystem::exists(filename)) {
+        ctx->r2 = 5; // PFS_ERR_INVALID
+        return;
+    }
+
     /* Read game info from pak */
     ControllerPak pak;
 

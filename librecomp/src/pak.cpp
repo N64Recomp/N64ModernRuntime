@@ -157,12 +157,12 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
         assert(false);
     }
     u8 freeFileIndex = 0;
-#if 0
+#if 0 ///   THIS IS BROKEN
     /* Search for a free slot */
-    for (size_t i = 0; i < 16; i++) {
+    for (size_t i = 0; i < MAX_FILES; i++) {
         u32 seek = i * sizeof(OSPfsState);
-        u32 game_code_;
-        u16 company_code_;
+        u32 game_code_ = 0;
+        u16 company_code_ = 0;
 
         // game_code
         pak.header.seekg(seek + 0x4, std::ios::beg);
@@ -175,12 +175,10 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
             freeFileIndex = i;
             break;
         }
-
-        game_code_ = company_code_ = 0;
     }
 #endif
     /* Set file parameters to header */
-    freeFileIndex = 0;
+    // freeFileIndex = 0;
     u32 seek = freeFileIndex * 0x20;
 
     // file_size
@@ -322,17 +320,6 @@ extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     ControllerPak pak;
 
-    char filename[100];
-    sprintf(filename, "controllerPak_file_%d.sav", *file_no);
-    pak.file.open(filename, std::ios::binary | std::ios::in | std::ios::out);
-
-    if (!std::filesystem::exists(filename) || IsFileEmpty(pak.file)) {
-        pak.file.close();
-        ctx->r2 = 5; // PFS_ERR_INVALID
-        return;
-    }
-    pak.file.close();
-
     pak.header.open("controllerPak_header.sav", std::ios::binary | std::ios::in | std::ios::out);
 
     if (!pak.header.good()) {
@@ -364,8 +351,6 @@ extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
         // game_name
         pak.header.seekg(seek + 0x10, std::ios::beg);
         pak.header.read((char*) game_name_, 16);
-
-        
 
         if ((company_code_ == 0) || (game_code_ == 0)) {
             continue;

@@ -158,17 +158,6 @@ extern "C" void osPfsInitPak_recomp(uint8_t* rdram, recomp_context* ctx) {
 extern "C" void osPfsFreeBlocks_recomp(uint8_t* rdram, recomp_context* ctx) {
     s32* bytes_not_used = _arg<1, s32*>(rdram, ctx);
 
-    ControllerPak pak;
-
-    pak.header.open("controllerPak_header.sav", std::ios::binary | std::ios::in | std::ios::out);
-
-    if (!pak.header.good()) {
-        assert(false);
-    }
-    if (!pak.header.is_open()) {
-        assert(false);
-    }
-
     s32 usedSpace = 0;
     for (size_t i = 0; i < MAX_FILES; i++) {
         u32 file_size = 0;
@@ -185,8 +174,6 @@ extern "C" void osPfsFreeBlocks_recomp(uint8_t* rdram, recomp_context* ctx) {
             usedSpace += file_size >> 8;
         }
     }
-
-    pak.header.close();
 
     *bytes_not_used = (123 - usedSpace) << 8;
 
@@ -205,8 +192,6 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
         ctx->r2 = 5; // PFS_ERR_INVALID
         return;
     }
-
-    ControllerPak pak;
 
     /* Search for a free slot */
     u8 freeFileIndex = 0;
@@ -228,6 +213,8 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     Pfs_PakHeader_Write(&file_size, &game_code, &company_code, ext_name, game_name, freeFileIndex);
 
     /* Create empty file */
+
+    ControllerPak pak;
 
     char filename[100];
     sprintf(filename, "controllerPak_file_%d.sav", freeFileIndex);
@@ -263,7 +250,7 @@ extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
     // should pass the state of the requested file_no to the incoming state pointer,
     // games call this function 16 times, once per file
     // fills the incoming state with the information inside the header of the pak.
-    // If a header file doesn't exist, create it.
+
     char filename[100];
     sprintf(filename, "controllerPak_file_%d.sav", file_no);
     if (!std::filesystem::exists(filename)) {
@@ -294,8 +281,6 @@ extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     u8* game_name = _arg<3, u8*>(rdram, ctx);
     u8* ext_name = TO_PTR(u8, MEM_W(0x10, ctx->r29));
     s32* file_no = TO_PTR(s32, MEM_W(0x14, ctx->r29));
-
-    ControllerPak pak;
 
     for (size_t i = 0; i < MAX_FILES; i++) {
         u32 file_size_ = 0;

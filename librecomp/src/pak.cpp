@@ -116,7 +116,7 @@ extern "C" void osPfsIsPlug_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsInit_recomp(uint8_t* rdram, recomp_context* ctx) {
-    OSMesgQueue* queue = _arg<0, OSMesgQueue*>(rdram, ctx);
+    int32_t* queue = _arg<0, int32_t*>(rdram, ctx);
     OSPfs* pfs = _arg<1, OSPfs*>(rdram, ctx);
     s32 channel = _arg<2, s32>(rdram, ctx);
 

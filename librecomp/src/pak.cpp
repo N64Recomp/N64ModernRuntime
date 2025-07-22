@@ -7,6 +7,7 @@
 #include "recomp.h"
 #include "helpers.hpp"
 
+#define ARRAY_COUNT(arr) (s32)(sizeof(arr) / sizeof(arr[0]))
 #define MAX_FILES 16
 
 typedef struct ControllerPak {
@@ -277,10 +278,10 @@ extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
     state->company_code = game_code;
     state->game_code = game_code;
 
-    for (size_t j = 0; j < ARRAYSIZE(game_name); j++) {
+    for (size_t j = 0; j < ARRAY_COUNT(game_name); j++) {
         state->game_name[j] = game_name[j];
     }
-    for (size_t j = 0; j < ARRAYSIZE(ext_name); j++) {
+    for (size_t j = 0; j < ARRAY_COUNT(ext_name); j++) {
         state->ext_name[j] = ext_name[j];
     }
 

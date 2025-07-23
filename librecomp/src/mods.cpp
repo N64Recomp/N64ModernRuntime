@@ -2447,6 +2447,7 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
         GenericFunction func = mod.code_handle->get_function_handle(callback.function_index);
         size_t event_index = 0;
         bool did_find_event = false;
+        bool optional = false;
 
         if (dependency_id == N64Recomp::DependencyBaseRecomp) {
             event_index = recomp::overlays::get_base_event_index(dependency_event.event_name);
@@ -2458,23 +2459,40 @@ recomp::mods::CodeModLoadError recomp::mods::ModContext::resolve_code_dependenci
             did_find_event = mod.get_global_event_index(dependency_event.event_name, event_index);
         }
         else {
+            // Check if the dependency is optional.
             auto find_mod_it = loaded_mods_by_id.find(dependency_id);
             if (find_mod_it == loaded_mods_by_id.end()) {
-                error_param = "Failed to find callback dependency while loading code: " + dependency_id;
-                // This should never happen, as dependencies are scanned before mod code is loaded and the symbol dependency list
-                // is validated against the manifest's. 
-                return CodeModLoadError::InternalError;
+                // Get the manifest's version of the dependency.
+                auto find_manifest_dep = mod.manifest.dependencies_by_id.find(dependency_id);
+                // This should always be found, but just in case validate that the find was successful.
+                // This will get treated as an error if it wasn't found in the manifest.
+                if (find_manifest_dep != mod.manifest.dependencies_by_id.end()) {
+                    const auto& manifest_dep = mod.manifest.dependencies[find_manifest_dep->second];
+                    if (manifest_dep.optional) {
+                        optional = true;
+                    }
+                }
+
+                if (!optional) {
+                    error_param = "Failed to find callback dependency while loading code: " + dependency_id;
+                    // This should never happen, as dependencies are scanned before mod code is loaded and the symbol dependency list
+                    // is validated against the manifest's. 
+                    return CodeModLoadError::InternalError;
+                }
             }
-            const auto& dependency_mod = opened_mods[find_mod_it->second];
-            did_find_event = dependency_mod.get_global_event_index(dependency_event.event_name, event_index);
+            else {
+                const auto& dependency_mod = opened_mods[find_mod_it->second];
+                did_find_event = dependency_mod.get_global_event_index(dependency_event.event_name, event_index);
+            }
         }
 
-        if (!did_find_event) {
+        if (did_find_event) {
+            recomp::mods::register_event_callback(event_index, mod_index, func);
+        }
+        else if (!optional) {
             error_param = dependency_id + ":" + dependency_event.event_name;
             return CodeModLoadError::InvalidCallbackEvent;
         }
-
-        recomp::mods::register_event_callback(event_index, mod_index, func);
     }
 
     // Register hooks.

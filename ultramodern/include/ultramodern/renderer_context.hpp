@@ -12,7 +12,6 @@
 #elif defined(__ANDROID__)
 #   include "android/native_window.h"
 #elif defined(__linux__)
-#   include "X11/Xlib.h"
 #   undef None
 #   undef Status
 #   undef LockMask

@@ -56,10 +56,6 @@ if (WIN32)
     add_compile_definitions(NOMINMAX)
 endif()
 
-if (LINUX_USE_WAYLAND)
-    target_compile_definitions(librecomp PRIVATE LINUX_USE_WAYLAND)
-endif()
-
 add_subdirectory(${PROJECT_SOURCE_DIR}/../thirdparty/miniz ${CMAKE_CURRENT_BINARY_DIR}/miniz)
 add_subdirectory(${PROJECT_SOURCE_DIR}/../N64Recomp ${CMAKE_CURRENT_BINARY_DIR}/N64Recomp EXCLUDE_FROM_ALL)
 

@@ -38,3 +38,7 @@ target_compile_options(ultramodern PRIVATE
 if (WIN32)
     add_compile_definitions(NOMINMAX)
 endif()
+
+if (LINUX_USE_WAYLAND)
+    target_compile_definitions(ultramodern PRIVATE LINUX_USE_WAYLAND)
+endif()

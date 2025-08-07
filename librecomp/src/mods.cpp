@@ -671,6 +671,9 @@ bool save_mod_config_storage(const std::filesystem::path &path, const std::strin
         case recomp::mods::ConfigOptionType::String:
             storage_json[it.first] = std::get<std::string>(it.second);
             break;
+        case recomp::mods::ConfigOptionType::Bool:
+            storage_json[it.first] = std::get<bool>(it.second);
+            break;
         default:
             assert(false && "Unknown config type.");
             break;
@@ -1474,6 +1477,12 @@ void recomp::mods::ModContext::set_mod_config_value(size_t mod_index, const std:
             }
 
             break;
+        case ConfigOptionType::Bool:
+            if (std::holds_alternative<bool>(value)) {
+                mod.config_storage.value_map[option_id] = value;
+            }
+
+            break;
         default:
             assert(false && "Unknown config option type.");
             return;
@@ -1521,6 +1530,8 @@ recomp::mods::ConfigValueVariant recomp::mods::ModContext::get_mod_config_value(
             return std::get<ConfigOptionNumber>(option.variant).default_value;
         case ConfigOptionType::String:
             return std::get<ConfigOptionString>(option.variant).default_value;
+        case ConfigOptionType::Bool:
+            return std::get<ConfigOptionBool>(option.variant).default_value;
         default:
             assert(false && "Unknown config option type.");
             return std::monostate();

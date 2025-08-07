@@ -131,7 +131,8 @@ namespace recomp {
             None,
             Enum,
             Number,
-            String
+            String,
+            Bool
         };
 
         enum class DependencyStatus {
@@ -206,7 +207,11 @@ namespace recomp {
             std::string default_value;
         };
 
-        typedef std::variant<ConfigOptionEnum, ConfigOptionNumber, ConfigOptionString> ConfigOptionVariant;
+        struct ConfigOptionBool {
+            bool default_value;
+        };
+
+        typedef std::variant<ConfigOptionEnum, ConfigOptionNumber, ConfigOptionString, ConfigOptionBool> ConfigOptionVariant;
 
         struct ConfigOption {
             std::string id;
@@ -221,7 +226,7 @@ namespace recomp {
             std::unordered_map<std::string, size_t> options_by_id;
         };
 
-        typedef std::variant<std::monostate, uint32_t, double, std::string> ConfigValueVariant;
+        typedef std::variant<std::monostate, uint32_t, double, std::string, bool> ConfigValueVariant;
 
         struct ConfigStorage {
             std::unordered_map<std::string, ConfigValueVariant> value_map;

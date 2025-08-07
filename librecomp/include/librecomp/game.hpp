@@ -70,6 +70,7 @@ namespace recomp {
         OtherError
     };
     void register_config_path(std::filesystem::path path);
+    std::filesystem::path get_config_path();
     bool register_game(const recomp::GameEntry& entry);
     void check_all_stored_roms();
     bool load_stored_rom(std::u8string& game_id);

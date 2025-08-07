@@ -3,12 +3,15 @@
 #include "librecomp/addresses.hpp"
 
 void recomp_get_config_u32(uint8_t* rdram, recomp_context* ctx, size_t mod_index) {
-    recomp::mods::ConfigValueVariant val = recomp::mods::get_mod_config_value(mod_index, _arg_string<0>(rdram, ctx));
+    recomp::config::ConfigValueVariant val = recomp::mods::get_mod_config_value(mod_index, _arg_string<0>(rdram, ctx));
     if (uint32_t* as_u32 = std::get_if<uint32_t>(&val)) {
         _return(ctx, *as_u32);
     }
     else if (double* as_double = std::get_if<double>(&val)) {
         _return(ctx, uint32_t(int32_t(*as_double)));
+    }
+    else if (bool* as_bool = std::get_if<bool>(&val)) {
+        _return(ctx, uint32_t(*as_bool));
     }
     else {
         _return(ctx, uint32_t{0});
@@ -16,12 +19,15 @@ void recomp_get_config_u32(uint8_t* rdram, recomp_context* ctx, size_t mod_index
 }
 
 void recomp_get_config_double(uint8_t* rdram, recomp_context* ctx, size_t mod_index) {
-    recomp::mods::ConfigValueVariant val = recomp::mods::get_mod_config_value(mod_index, _arg_string<0>(rdram, ctx));
+    recomp::config::ConfigValueVariant val = recomp::mods::get_mod_config_value(mod_index, _arg_string<0>(rdram, ctx));
     if (uint32_t* as_u32 = std::get_if<uint32_t>(&val)) {
         ctx->f0.d = double(*as_u32);
     }
     else if (double* as_double = std::get_if<double>(&val)) {
         ctx->f0.d = *as_double;
+    }
+    else if (bool* as_bool = std::get_if<bool>(&val)) {
+        ctx->f0.d = double(*as_bool);
     }
     else {
         ctx->f0.d = 0.0;
@@ -46,7 +52,7 @@ void return_string(uint8_t* rdram, recomp_context* ctx, const StringType& str) {
 }
 
 void recomp_get_config_string(uint8_t* rdram, recomp_context* ctx, size_t mod_index) {
-    recomp::mods::ConfigValueVariant val = recomp::mods::get_mod_config_value(mod_index, _arg_string<0>(rdram, ctx));
+    recomp::config::ConfigValueVariant val = recomp::mods::get_mod_config_value(mod_index, _arg_string<0>(rdram, ctx));
     if (std::string* as_string = std::get_if<std::string>(&val)) {
         return_string(rdram, ctx, *as_string);
     }

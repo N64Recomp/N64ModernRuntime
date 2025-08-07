@@ -336,6 +336,7 @@ std::unordered_map<std::string, recomp::mods::ConfigOptionType> config_option_ma
     { "Enum",   recomp::mods::ConfigOptionType::Enum},
     { "Number", recomp::mods::ConfigOptionType::Number},
     { "String", recomp::mods::ConfigOptionType::String},
+    { "Bool",   recomp::mods::ConfigOptionType::Bool},
 };
 
 recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::json &config_schema_json, recomp::mods::ModManifest &ret, std::string &error_param) {
@@ -508,6 +509,21 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
             }
 
             option.variant = option_string;
+        }
+        break;
+    case recomp::mods::ConfigOptionType::Bool:
+        {
+            recomp::mods::ConfigOptionBool option_bool;
+
+            auto default_value = config_schema_json.find(config_schema_default_key);
+            if (default_value != config_schema_json.end()) {
+                if (!get_to<json::boolean_t>(*default_value, option_bool.default_value)) {
+                    error_param = config_schema_default_key;
+                    return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+            }
+
+            option.variant = option_bool;
         }
         break;
     default:
@@ -725,6 +741,13 @@ bool parse_mod_config_storage(const std::filesystem::path &path, const std::stri
         case recomp::mods::ConfigOptionType::String: {
             if (get_to<json::string_t>(*option_json, value_str)) {
                 config_storage.value_map[option.id] = value_str;
+            }
+
+            break;
+        }
+        case recomp::mods::ConfigOptionType::Bool: {
+            if (option_json->is_boolean()) {
+                config_storage.value_map[option.id] = option_json->get<bool>();
             }
 
             break;

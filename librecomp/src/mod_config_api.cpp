@@ -10,6 +10,9 @@ void recomp_get_config_u32(uint8_t* rdram, recomp_context* ctx, size_t mod_index
     else if (double* as_double = std::get_if<double>(&val)) {
         _return(ctx, uint32_t(int32_t(*as_double)));
     }
+    else if (bool* as_bool = std::get_if<bool>(&val)) {
+        _return(ctx, uint32_t(*as_bool));
+    }
     else {
         _return(ctx, uint32_t{0});
     }
@@ -22,6 +25,9 @@ void recomp_get_config_double(uint8_t* rdram, recomp_context* ctx, size_t mod_in
     }
     else if (double* as_double = std::get_if<double>(&val)) {
         ctx->f0.d = *as_double;
+    }
+    else if (bool* as_bool = std::get_if<bool>(&val)) {
+        ctx->f0.d = double(*as_bool);
     }
     else {
         ctx->f0.d = 0.0;

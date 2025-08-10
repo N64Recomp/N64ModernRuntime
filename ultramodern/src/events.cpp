@@ -13,6 +13,7 @@
 
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
+#include "ultramodern/ultramodern_tracy.hpp"
 
 #include "ultramodern/rsp.hpp"
 #include "ultramodern/renderer_context.hpp"
@@ -152,6 +153,7 @@ void vi_thread_func() {
 
                 if (ultramodern::is_game_started()) {
                     if (events_context.vi.mq != NULLPTR) {
+                        TracyMessageL("VI Event");
                         if (osSendMesg(PASS_RDRAM events_context.vi.mq, events_context.vi.msg, OS_MESG_NOBLOCK) == -1) {
                             //printf("Game skipped a VI frame!\n");
                         }
@@ -170,6 +172,7 @@ void vi_thread_func() {
                 }
             }
             if (events_context.ai.mq != NULLPTR) {
+                TracyMessageL("AI Event");
                 if (osSendMesg(PASS_RDRAM events_context.ai.mq, events_context.ai.msg, OS_MESG_NOBLOCK) == -1) {
                     //printf("Game skipped a AI frame!\n");
                 }
@@ -299,7 +302,10 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
                 ultramodern::measure_input_latency();
 
                 auto renderer_start = std::chrono::high_resolution_clock::now();
-                renderer_context->send_dl(&task_action->task);
+                {
+                    ZoneScopedN("Displaylist");
+                    renderer_context->send_dl(&task_action->task);
+                }
                 auto renderer_end = std::chrono::high_resolution_clock::now();
                 dp_complete();
                 // printf("Renderer ProcessDList time: %d us\n", static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(renderer_end - renderer_start).count()));
@@ -362,6 +368,7 @@ void set_dummy_vi() {
 }
 
 extern "C" void osViSwapBuffer(RDRAM_ARG PTR(void) frameBufPtr) {
+    ZoneScoped;
     VI_H_START_REG = hstart;
     if (vi_state & VI_STATE_BLACK) {
         VI_H_START_REG = 0;

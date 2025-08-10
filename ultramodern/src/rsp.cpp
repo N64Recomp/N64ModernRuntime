@@ -2,6 +2,7 @@
 #include <cstring>
 
 #include "ultramodern/rsp.hpp"
+#include "ultramodern/ultramodern_tracy.hpp"
 
 static ultramodern::rsp::callbacks_t rsp_callbacks {};
 
@@ -16,6 +17,7 @@ void ultramodern::rsp::init() {
 }
 
 bool ultramodern::rsp::run_task(RDRAM_ARG const OSTask* task) {
+    ZoneScoped;
     assert(rsp_callbacks.run_task != nullptr);
 
     return rsp_callbacks.run_task(PASS_RDRAM task);

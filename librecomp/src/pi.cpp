@@ -10,6 +10,7 @@
 #include "librecomp/files.hpp"
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
+#include <ultramodern/ultramodern_tracy.hpp>
 
 static std::vector<uint8_t> rom;
 
@@ -310,6 +311,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
 }
 
 extern "C" void osPiStartDma_recomp(RDRAM_ARG recomp_context* ctx) {
+    ZoneScoped;
     uint32_t mb = ctx->r4;
     uint32_t pri = ctx->r5;
     uint32_t direction = ctx->r6;
@@ -327,6 +329,7 @@ extern "C" void osPiStartDma_recomp(RDRAM_ARG recomp_context* ctx) {
 }
 
 extern "C" void osEPiStartDma_recomp(RDRAM_ARG recomp_context* ctx) {
+    ZoneScoped;
     OSPiHandle* handle = TO_PTR(OSPiHandle, ctx->r4);
     OSIoMesg* mb = TO_PTR(OSIoMesg, ctx->r5);
     uint32_t direction = ctx->r6;
@@ -344,6 +347,7 @@ extern "C" void osEPiStartDma_recomp(RDRAM_ARG recomp_context* ctx) {
 }
 
 extern "C" void osEPiReadIo_recomp(RDRAM_ARG recomp_context * ctx) {
+    ZoneScoped;
     OSPiHandle* handle = TO_PTR(OSPiHandle, ctx->r4);
     uint32_t devAddr = handle->baseAddress | ctx->r5;
     gpr dramAddr = ctx->r6;

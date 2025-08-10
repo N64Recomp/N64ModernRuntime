@@ -3,6 +3,7 @@
 #include "ultramodern/input.hpp"
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
+#include "ultramodern/ultramodern_tracy.hpp"
 
 static ultramodern::input::callbacks_t input_callbacks {};
 
@@ -104,6 +105,7 @@ extern "C" s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue) mq) {
 }
 
 extern "C" s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue) mq) {
+    ZoneScoped;
     if (input_callbacks.poll_input != nullptr) {
         input_callbacks.poll_input();
     }
@@ -128,6 +130,7 @@ extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
 }
 
 extern "C" void osContGetReadData(OSContPad *data) {
+    ZoneScoped;
     for (int controller = 0; controller < max_controllers; controller++) {
         uint16_t buttons = 0;
         float x = 0.0f;
@@ -168,6 +171,7 @@ s32 osMotorStart(RDRAM_ARG PTR(OSPfs) pfs) {
 }
 
 s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs) pfs_, s32 flag) {
+    ZoneScoped;
     OSPfs *pfs = TO_PTR(OSPfs, pfs_);
 
     if (input_callbacks.set_rumble != nullptr) {

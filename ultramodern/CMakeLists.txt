@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(ULTRAMODERN_TRACY_PATH "" CACHE STRING "Include path for Tracy library, if used.")
+
 add_library(ultramodern STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/audio.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/error_handling.cpp"
@@ -34,6 +36,11 @@ target_compile_options(ultramodern PRIVATE
 #    -Wextra
     -Wno-unused-parameter
 )
+
+if(NOT ULTRAMODERN_TRACY_PATH STREQUAL "")
+    target_compile_definitions(ultramodern PRIVATE "TRACY_ENABLED")
+    target_include_directories(ultramodern PRIVATE ${ULTRAMODERN_TRACY_PATH})
+endif()
 
 if (WIN32)
     add_compile_definitions(NOMINMAX)

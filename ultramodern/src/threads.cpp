@@ -5,6 +5,7 @@
 
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
+#include "ultramodern/ultramodern_tracy.hpp"
 #include "blockingconcurrentqueue.h"
 
 #include "ultramodern/threads.hpp"
@@ -146,8 +147,14 @@ void ultramodern::set_native_thread_name(const std::string& name) {
 void ultramodern::set_native_thread_priority(ThreadPriority pri) {}
 #endif
 
-void wait_for_resumed(RDRAM_ARG UltraThreadContext* thread_context) {
+void wait_for_resumed(RDRAM_ARG UltraThreadContext* thread_context, bool first_start = false) {
+    if (!first_start) {
+        // TracyMessageL("Pause");
+    }
     thread_context->running.wait();
+    if (!first_start) {
+        // TracyMessageL("Resume");
+    }
     // If this thread's context was replaced by another thread or deleted, destroy it again from its own context.
     // This will trigger thread cleanup instead.
     if (TO_PTR(OSThread, ultramodern::this_thread())->context != thread_context) {
@@ -189,8 +196,14 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
     is_game_thread = true;
 
     // Set the thread name
-    ultramodern::set_native_thread_name(ultramodern::threads::get_game_thread_name(self));
+    std::string thread_name = ultramodern::threads::get_game_thread_name(self);
+
+    // Copy the thread name into the fixed address buffer (for profiling).
+    ultramodern::set_native_thread_name(thread_name);
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::High);
+
+    // Set the thread name in tracy and the thread group to 0x1064 to indicate a game thread.
+    TracySetThreadNameWithHint(thread_name.c_str(), 0x1064);
 
     // Signal the initialized semaphore to indicate that this thread can be started.
     thread_context->initialized.signal();
@@ -199,9 +212,12 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
 
     // Wait until the thread is marked as running.
     try {
-        wait_for_resumed(PASS_RDRAM thread_context);
+        ZoneScopedN("Wait for Start");
+        wait_for_resumed(PASS_RDRAM thread_context, true);
     } catch (ultramodern::thread_terminated& terminated) {
     }
+
+    TracyMessageL("Start");
 
     // Make sure the thread wasn't replaced or destroyed before it was started.
     if (self->context == thread_context) {

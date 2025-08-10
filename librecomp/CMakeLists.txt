@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(LIBRECOMP_TRACY_PATH "" CACHE STRING "Include path for Tracy library, if used.")
+
 # Define the library
 add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ai.cpp"
@@ -51,6 +53,11 @@ target_compile_options(librecomp PRIVATE
 #    -Wextra
     -Wno-unused-parameter
 )
+
+if(NOT LIBRECOMP_TRACY_PATH STREQUAL "")
+    target_compile_definitions(librecomp PRIVATE "TRACY_ENABLED")
+    target_include_directories(librecomp PRIVATE ${ULTRAMODERN_TRACY_PATH})
+endif()
 
 if (WIN32)
     add_compile_definitions(NOMINMAX)

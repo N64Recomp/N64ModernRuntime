@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <fstream>
 #include <ultramodern/ultramodern.hpp>
+#include <ultramodern/ultramodern_tracy.hpp>
 #include "recomp.h"
 
 extern "C" void osSpTaskLoad_recomp(uint8_t* rdram, recomp_context* ctx) {
@@ -10,6 +11,7 @@ extern "C" void osSpTaskLoad_recomp(uint8_t* rdram, recomp_context* ctx) {
 bool dump_frame = false;
 
 extern "C" void osSpTaskStartGo_recomp(uint8_t* rdram, recomp_context* ctx) {
+    ZoneScoped;
     //printf("[sp] osSpTaskStartGo(0x%08X)\n", (uint32_t)ctx->r4);
     OSTask* task = TO_PTR(OSTask, ctx->r4);
     if (task->t.type == M_GFXTASK) {

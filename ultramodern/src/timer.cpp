@@ -13,6 +13,8 @@
 
 // Start time for the program
 static std::chrono::high_resolution_clock::time_point start_time = std::chrono::high_resolution_clock::now();
+// Offset of the duration since program start used to calculate the value for osGetTime. 
+static int64_t ostime_offset = 0;
 // Game speed multiplier (1 means no speedup)
 constexpr uint32_t speed_multiplier = 1;
 // N64 CPU counter ticks per millisecond
@@ -162,10 +164,18 @@ extern "C" u32 osGetCount() {
     return (uint32_t)total_count;
 }
 
+extern "C" void osSetCount(u32 count) {
+    assert(false);
+}
+
 extern "C" OSTime osGetTime() {
-    uint64_t total_count = time_now();
+    uint64_t total_count = time_now() - ostime_offset;
 
     return total_count;
+}
+
+extern "C" void osSetTime(OSTime t) {
+    ostime_offset = time_now() - t;
 }
 
 extern "C" int osSetTimer(RDRAM_ARG PTR(OSTimer) t_, OSTime countdown, OSTime interval, PTR(OSMesgQueue) mq, OSMesg msg) {

@@ -28,6 +28,7 @@ struct SpTaskAction {
 };
 
 struct ScreenUpdateAction {
+    ultramodern::renderer::ViRegs regs;
 };
 
 struct UpdateConfigAction {
@@ -55,6 +56,7 @@ static struct {
         int field;
         ViState states[2];
         ultramodern::renderer::ViRegs regs;
+        ultramodern::renderer::ViRegs update_screen_regs;
 
         ViState* get_next_state() {
             return &states[cur_state ^ 1];
@@ -131,7 +133,7 @@ static struct {
 } events_context{};
 
 ultramodern::renderer::ViRegs* ultramodern::renderer::get_vi_regs() {
-    return &events_context.vi.regs;
+    return &events_context.vi.update_screen_regs;
 }
 
 extern "C" void osSetEventMesg(RDRAM_ARG OSEvent event_id, PTR(OSMesgQueue) mq_, OSMesg msg) {
@@ -198,8 +200,9 @@ void vi_thread_func() {
             next = std::chrono::high_resolution_clock::now();
         }
         ultramodern::sleep_until(next);
+        auto time_now = ultramodern::time_since_start();
         // Calculate how many VIs have passed
-        uint64_t new_total_vis = (ultramodern::time_since_start() * (60 * ultramodern::get_speed_multiplier()) / 1000ms) + 1;
+        uint64_t new_total_vis = (time_now * (60 * ultramodern::get_speed_multiplier()) / 1000ms) + 1;
         if (new_total_vis > total_vis + 1) {
             //printf("Skipped % " PRId64 " frames in VI interupt thread!\n", new_total_vis - total_vis - 1);
         }
@@ -212,11 +215,12 @@ void vi_thread_func() {
             odd = !odd;
         }
 
+        // Queue a screen update for the graphics thread with the current VI register state.
+        // Doing this before the VI update is equivalent to updating the screen after the previous frame's scanout finished.
+        events_context.action_queue.enqueue(ScreenUpdateAction{ events_context.vi.regs });
+
         // Update VI registers and swap VI modes.
         events_context.vi.update_vi();
-
-        // Queue a screen update for the graphics thread.
-        events_context.action_queue.enqueue(ScreenUpdateAction{ });
 
         // If the game has started, handle sending VI and AI events.
         if (ultramodern::is_game_started()) {
@@ -226,13 +230,12 @@ void vi_thread_func() {
             std::lock_guard lock{ events_context.message_mutex };
             ViState* cur_state = events_context.vi.get_cur_state();
             if (remaining_retraces == 0) {
-                remaining_retraces = cur_state->retrace_count;
-
                 if (cur_state->mq != NULLPTR) {
                     if (osSendMesg(PASS_RDRAM cur_state->mq, cur_state->msg, OS_MESG_NOBLOCK) == -1) {
                         //printf("Game skipped a VI frame!\n");
                     }
                 }
+                remaining_retraces = cur_state->retrace_count;
             }
             if (events_context.ai.mq != NULLPTR) {
                 if (osSendMesg(PASS_RDRAM events_context.ai.mq, events_context.ai.msg, OS_MESG_NOBLOCK) == -1) {
@@ -370,7 +373,7 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
                 // printf("Renderer ProcessDList time: %d us\n", static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(renderer_end - renderer_start).count()));
             }
             else if (const auto* screen_update_action = std::get_if<ScreenUpdateAction>(&action)) {
-                (void)screen_update_action;
+                events_context.vi.update_screen_regs = screen_update_action->regs;
                 renderer_context->update_screen();
                 display_refresh_rate = renderer_context->get_display_framerate();
                 resolution_scale = renderer_context->get_resolution_scale();

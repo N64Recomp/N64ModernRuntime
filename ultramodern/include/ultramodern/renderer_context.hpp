@@ -28,6 +28,23 @@ struct SDL_Window;
 
 namespace ultramodern {
     namespace renderer {
+        struct ViRegs {
+            unsigned int VI_STATUS_REG;
+            unsigned int VI_ORIGIN_REG;
+            unsigned int VI_WIDTH_REG;
+            unsigned int VI_INTR_REG;
+            unsigned int VI_V_CURRENT_LINE_REG;
+            unsigned int VI_TIMING_REG;
+            unsigned int VI_V_SYNC_REG;
+            unsigned int VI_H_SYNC_REG;
+            unsigned int VI_LEAP_REG;
+            unsigned int VI_H_START_REG;
+            unsigned int VI_V_START_REG;
+            unsigned int VI_V_BURST_REG;
+            unsigned int VI_X_SCALE_REG;
+            unsigned int VI_Y_SCALE_REG;
+        };
+        ViRegs* get_vi_regs();
 
 #if defined(_WIN32)
         // Native HWND handle to the target window.
@@ -67,7 +84,7 @@ namespace ultramodern {
 
                 virtual void enable_instant_present() = 0;
                 virtual void send_dl(const OSTask* task) = 0;
-                virtual void update_screen(uint32_t vi_origin) = 0;
+                virtual void update_screen() = 0;
                 virtual void shutdown() = 0;
                 virtual uint32_t get_display_framerate() const = 0;
                 virtual float get_resolution_scale() const = 0;

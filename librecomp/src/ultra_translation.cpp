@@ -73,10 +73,19 @@ extern "C" void osGetCount_recomp(uint8_t * rdram, recomp_context * ctx) {
     ctx->r2 = osGetCount();
 }
 
+extern "C" void osSetCount_recomp(uint8_t * rdram, recomp_context * ctx) {
+    osSetCount(ctx->r4);
+}
+
 extern "C" void osGetTime_recomp(uint8_t * rdram, recomp_context * ctx) {
     uint64_t total_count = osGetTime();
     ctx->r2 = (int32_t)(total_count >> 32);
     ctx->r3 = (int32_t)(total_count >> 0);
+}
+
+extern "C" void osSetTime_recomp(uint8_t * rdram, recomp_context * ctx) {
+    uint64_t t = ((uint64_t)(ctx->r4) << 32) | ((ctx->r5) & 0xFFFFFFFFu);
+    osSetTime(t);
 }
 
 extern "C" void osSetTimer_recomp(uint8_t * rdram, recomp_context * ctx) {

@@ -27,23 +27,84 @@ struct SpTaskAction {
     OSTask task;
 };
 
-struct SwapBuffersAction {
-    uint32_t origin;
+struct ScreenUpdateAction {
+    ultramodern::renderer::ViRegs regs;
 };
 
 struct UpdateConfigAction {
 };
 
-using Action = std::variant<SpTaskAction, SwapBuffersAction, UpdateConfigAction>;
+using Action = std::variant<SpTaskAction, ScreenUpdateAction, UpdateConfigAction>;
+
+struct ViState {
+    const OSViMode* mode;
+    PTR(void) framebuffer;
+    PTR(OSMesg) mq;
+    OSMesg msg;
+    uint32_t state;
+    uint32_t control;
+    int retrace_count = 1;
+};
+
+#define VI_STATE_BLACK 0x20
+#define VI_STATE_REPEATLINE 0x40
 
 static struct {
     struct {
         std::thread thread;
-        PTR(OSMesgQueue) mq = NULLPTR;
-        PTR(void) current_buffer = NULLPTR;
-        PTR(void) next_buffer = NULLPTR;
-        OSMesg msg = (OSMesg)0;
-        int retrace_count = 1;
+        int cur_state;
+        int field;
+        ViState states[2];
+        ultramodern::renderer::ViRegs regs;
+        ultramodern::renderer::ViRegs update_screen_regs;
+
+        ViState* get_next_state() {
+            return &states[cur_state ^ 1];
+        }
+        ViState* get_cur_state() {
+            return &states[cur_state];
+        }
+        void update_vi() {
+            ViState* next_state = get_next_state();
+            const OSViMode* next_mode = next_state->mode;
+            const OSViCommonRegs* common_regs = &next_mode->comRegs;
+            const OSViFieldRegs* field_regs = &next_mode->fldRegs[field];
+            PTR(void) framebuffer = osVirtualToPhysical(next_state->framebuffer);
+            PTR(void) origin = framebuffer + field_regs->origin;
+
+            // Process the VI state flags.
+            uint32_t hStart = common_regs->hStart;
+            if (next_state->state & VI_STATE_BLACK) {
+                hStart = 0;
+            }
+
+            uint32_t yScale = field_regs->yScale;
+            if (next_state->state & VI_STATE_REPEATLINE) {
+                yScale = 0;
+                origin = framebuffer;
+            }
+
+            // TODO implement osViFade
+
+            // Update VI registers.
+            regs.VI_ORIGIN_REG = origin;
+            regs.VI_WIDTH_REG = common_regs->width;
+            regs.VI_TIMING_REG = common_regs->burst;
+            regs.VI_V_SYNC_REG = common_regs->vSync;
+            regs.VI_H_SYNC_REG = common_regs->hSync;
+            regs.VI_LEAP_REG = common_regs->leap;
+            regs.VI_H_START_REG = hStart;
+            regs.VI_V_START_REG = field_regs->vStart; // TODO implement osViExtendVStart
+            regs.VI_V_BURST_REG = field_regs->vBurst;
+            regs.VI_INTR_REG = field_regs->vIntr;
+            regs.VI_X_SCALE_REG = common_regs->xScale; // TODO implement osViSetXScale
+            regs.VI_Y_SCALE_REG = yScale; // TODO implement osViSetYScale
+            regs.VI_STATUS_REG = next_state->control;
+            
+            // Swap VI states.
+            cur_state ^= 1;
+            *get_next_state() = *get_cur_state();
+        }
     } vi;
     struct {
         std::thread gfx_thread;
@@ -71,8 +132,11 @@ static struct {
     moodycamel::ConcurrentQueue<OSThread*> deleted_threads{};
 } events_context{};
 
+ultramodern::renderer::ViRegs* ultramodern::renderer::get_vi_regs() {
+    return &events_context.vi.update_screen_regs;
+}
+
 extern "C" void osSetEventMesg(RDRAM_ARG OSEvent event_id, PTR(OSMesgQueue) mq_, OSMesg msg) {
-    OSMesgQueue* mq = TO_PTR(OSMesgQueue, mq_);
     std::lock_guard lock{ events_context.message_mutex };
 
     switch (event_id) {
@@ -96,9 +160,10 @@ extern "C" void osSetEventMesg(RDRAM_ARG OSEvent event_id, PTR(OSMesgQueue) mq_,
 
 extern "C" void osViSetEvent(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, u32 retrace_count) {
     std::lock_guard lock{ events_context.message_mutex };
-    events_context.vi.mq = mq_;
-    events_context.vi.msg = msg;
-    events_context.vi.retrace_count = retrace_count;
+    ViState* next_state = events_context.vi.get_next_state();
+    next_state->mq = mq_;
+    next_state->msg = msg;
+    next_state->retrace_count = retrace_count;
 }
 
 uint64_t total_vis = 0;
@@ -107,7 +172,7 @@ uint64_t total_vis = 0;
 extern std::atomic_bool exited;
 extern moodycamel::LightweightSemaphore graphics_shutdown_ready;
 
-void set_dummy_vi();
+void set_dummy_vi(bool odd);
 
 void vi_thread_func() {
     ultramodern::set_native_thread_name("VI Thread");
@@ -116,7 +181,7 @@ void vi_thread_func() {
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::Critical);
     using namespace std::chrono_literals;
 
-    int remaining_retraces = events_context.vi.retrace_count;
+    int remaining_retraces = 1;
 
     while (!exited) {
         // Determine the next VI time (more accurate than adding 16ms each VI interrupt)
@@ -135,39 +200,42 @@ void vi_thread_func() {
             next = std::chrono::high_resolution_clock::now();
         }
         ultramodern::sleep_until(next);
+        auto time_now = ultramodern::time_since_start();
         // Calculate how many VIs have passed
-        uint64_t new_total_vis = (ultramodern::time_since_start() * (60 * ultramodern::get_speed_multiplier()) / 1000ms) + 1;
+        uint64_t new_total_vis = (time_now * (60 * ultramodern::get_speed_multiplier()) / 1000ms) + 1;
         if (new_total_vis > total_vis + 1) {
             //printf("Skipped % " PRId64 " frames in VI interupt thread!\n", new_total_vis - total_vis - 1);
         }
         total_vis = new_total_vis;
 
-        remaining_retraces--;
+        // If the game hasn't started yet, set a dummy VI mode and origin.
+        if (!ultramodern::is_game_started()) {
+            static bool odd = false;
+            set_dummy_vi(odd);
+            odd = !odd;
+        }
 
-        {
-            std::lock_guard lock{ events_context.message_mutex };
+        // Queue a screen update for the graphics thread with the current VI register state.
+        // Doing this before the VI update is equivalent to updating the screen after the previous frame's scanout finished.
+        events_context.action_queue.enqueue(ScreenUpdateAction{ events_context.vi.regs });
+
+        // Update VI registers and swap VI modes.
+        events_context.vi.update_vi();
+
+        // If the game has started, handle sending VI and AI events.
+        if (ultramodern::is_game_started()) {
+            remaining_retraces--;
+            
             uint8_t* rdram = events_context.rdram;
+            std::lock_guard lock{ events_context.message_mutex };
+            ViState* cur_state = events_context.vi.get_cur_state();
             if (remaining_retraces == 0) {
-                remaining_retraces = events_context.vi.retrace_count;
-
-                if (ultramodern::is_game_started()) {
-                    if (events_context.vi.mq != NULLPTR) {
-                        if (osSendMesg(PASS_RDRAM events_context.vi.mq, events_context.vi.msg, OS_MESG_NOBLOCK) == -1) {
-                            //printf("Game skipped a VI frame!\n");
-                        }
+                if (cur_state->mq != NULLPTR) {
+                    if (osSendMesg(PASS_RDRAM cur_state->mq, cur_state->msg, OS_MESG_NOBLOCK) == -1) {
+                        //printf("Game skipped a VI frame!\n");
                     }
                 }
-                else {
-                    set_dummy_vi();
-                    static bool swap = false;
-                    uint32_t vi_origin = 0x400 + 0x280; // Skip initial RDRAM contents and add the usual origin offset
-                    // Offset by one FB every other frame so RT64 continues drawing
-                    if (swap) {
-                        vi_origin += 0x25800;
-                    }
-                    osViSwapBuffer(rdram, vi_origin);
-                    swap = !swap;
-                }
+                remaining_retraces = cur_state->retrace_count;
             }
             if (events_context.ai.mq != NULLPTR) {
                 if (osSendMesg(PASS_RDRAM events_context.ai.mq, events_context.ai.msg, OS_MESG_NOBLOCK) == -1) {
@@ -298,19 +366,20 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
                 sp_complete();
                 ultramodern::measure_input_latency();
 
-                auto renderer_start = std::chrono::high_resolution_clock::now();
+                [[maybe_unused]] auto renderer_start = std::chrono::high_resolution_clock::now();
                 renderer_context->send_dl(&task_action->task);
-                auto renderer_end = std::chrono::high_resolution_clock::now();
+                [[maybe_unused]] auto renderer_end = std::chrono::high_resolution_clock::now();
                 dp_complete();
                 // printf("Renderer ProcessDList time: %d us\n", static_cast<u32>(std::chrono::duration_cast<std::chrono::microseconds>(renderer_end - renderer_start).count()));
             }
-            else if (const auto* swap_action = std::get_if<SwapBuffersAction>(&action)) {
-                events_context.vi.current_buffer = events_context.vi.next_buffer;
-                renderer_context->update_screen(swap_action->origin);
+            else if (const auto* screen_update_action = std::get_if<ScreenUpdateAction>(&action)) {
+                events_context.vi.update_screen_regs = screen_update_action->regs;
+                renderer_context->update_screen();
                 display_refresh_rate = renderer_context->get_display_framerate();
                 resolution_scale = renderer_context->get_resolution_scale();
             }
             else if (const auto* config_action = std::get_if<UpdateConfigAction>(&action)) {
+                (void)config_action;
                 auto new_config = ultramodern::renderer::get_graphics_config();
                 if (renderer_context->update_config(old_config, new_config)) {
                     old_config = new_config;
@@ -321,79 +390,6 @@ void gfx_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_re
 
     graphics_shutdown_ready.wait();
     renderer_context->shutdown();
-}
-
-extern unsigned int VI_STATUS_REG;
-extern unsigned int VI_ORIGIN_REG;
-extern unsigned int VI_WIDTH_REG;
-extern unsigned int VI_INTR_REG;
-extern unsigned int VI_V_CURRENT_LINE_REG;
-extern unsigned int VI_TIMING_REG;
-extern unsigned int VI_V_SYNC_REG;
-extern unsigned int VI_H_SYNC_REG;
-extern unsigned int VI_LEAP_REG;
-extern unsigned int VI_H_START_REG;
-extern unsigned int VI_V_START_REG;
-extern unsigned int VI_V_BURST_REG;
-extern unsigned int VI_X_SCALE_REG;
-extern unsigned int VI_Y_SCALE_REG;
-
-#define VI_STATE_BLACK 0x20
-#define VI_STATE_REPEATLINE 0x40
-
-uint32_t hstart = 0;
-uint32_t vi_origin_offset = 320 * sizeof(uint16_t);
-static uint16_t vi_state = 0;
-
-void set_dummy_vi() {
-    VI_STATUS_REG = 0x311E;
-    VI_WIDTH_REG = 0x140;
-    VI_V_SYNC_REG = 0x20D;
-    VI_H_SYNC_REG = 0xC15;
-    VI_LEAP_REG = 0x0C150C15;
-    hstart = 0x006C02EC;
-    VI_X_SCALE_REG = 0x200;
-    VI_V_CURRENT_LINE_REG = 0x0;
-    vi_origin_offset = 0x280;
-    VI_Y_SCALE_REG = 0x400;
-    VI_V_START_REG = 0x2501FF;
-    VI_V_BURST_REG = 0xE0204;
-    VI_INTR_REG = 0x2;
-}
-
-extern "C" void osViSwapBuffer(RDRAM_ARG PTR(void) frameBufPtr) {
-    VI_H_START_REG = hstart;
-    if (vi_state & VI_STATE_BLACK) {
-        VI_H_START_REG = 0;
-    }
-
-    if (vi_state & VI_STATE_REPEATLINE) {
-        VI_Y_SCALE_REG = 0;
-        VI_ORIGIN_REG = osVirtualToPhysical(frameBufPtr);
-    }
-    
-    events_context.vi.next_buffer = frameBufPtr;
-    events_context.action_queue.enqueue(SwapBuffersAction{ osVirtualToPhysical(frameBufPtr) + vi_origin_offset });
-}
-
-extern "C" void osViSetMode(RDRAM_ARG PTR(OSViMode) mode_) {
-    OSViMode* mode = TO_PTR(OSViMode, mode_);
-    VI_STATUS_REG = mode->comRegs.ctrl;
-    VI_WIDTH_REG = mode->comRegs.width;
-    // burst
-    VI_V_SYNC_REG = mode->comRegs.vSync;
-    VI_H_SYNC_REG = mode->comRegs.hSync;
-    VI_LEAP_REG = mode->comRegs.leap;
-    hstart = mode->comRegs.hStart;
-    VI_X_SCALE_REG = mode->comRegs.xScale;
-    VI_V_CURRENT_LINE_REG = mode->comRegs.vCurrent;
-
-    // TODO swap these every VI to account for fields changing
-    vi_origin_offset = mode->fldRegs[0].origin;
-    VI_Y_SCALE_REG = mode->fldRegs[0].yScale;
-    VI_V_START_REG = mode->fldRegs[0].vStart;
-    VI_V_BURST_REG = mode->fldRegs[0].vBurst;
-    VI_INTR_REG = mode->fldRegs[0].vIntr;
 }
 
 #define VI_CTRL_TYPE_16             0x00002
@@ -412,6 +408,54 @@ extern "C" void osViSetMode(RDRAM_ARG PTR(OSViMode) mode_) {
 #define VI_CTRL_PIXEL_ADV_3         0x03000
 #define VI_CTRL_DITHER_FILTER_ON    0x10000
 
+static const OSViMode dummy_mode = []() {
+    OSViMode ret{};
+
+    ret.type = 2;
+    ret.comRegs.ctrl = VI_CTRL_TYPE_16 | VI_CTRL_GAMMA_DITHER_ON | VI_CTRL_GAMMA_ON | VI_CTRL_DIVOT_ON | VI_CTRL_ANTIALIAS_MODE_1 | VI_CTRL_PIXEL_ADV_3;
+    ret.comRegs.width = 0x140;
+    ret.comRegs.burst = 0x03E52239;
+    ret.comRegs.vSync = 0x20D;
+    ret.comRegs.hSync = 0xC15;
+    ret.comRegs.leap = 0x0C150C15;
+    ret.comRegs.hStart = 0x006C02EC;
+    ret.comRegs.xScale = 0x200;
+    ret.comRegs.vCurrent = 0x0;
+
+    for (int field = 0; field < 2; field++) {
+        ret.fldRegs[field].origin = 0x280;
+        ret.fldRegs[field].yScale = 0x400;
+        ret.fldRegs[field].vStart = 0x2501FF;
+        ret.fldRegs[field].vBurst = 0xE0204;
+        ret.fldRegs[field].vIntr = 0x2;
+    }
+
+    return ret;
+}();
+
+void set_dummy_vi(bool odd) {
+    ViState* next_state = events_context.vi.get_next_state();
+    next_state->mode = &dummy_mode;
+    // Set up a dummy framebuffer.
+    next_state->framebuffer = 0x80700000;
+    if (odd) {
+        next_state->framebuffer += 0x25800;
+    }
+}
+
+extern "C" void osViSwapBuffer(RDRAM_ARG PTR(void) frameBufPtr) {
+    std::lock_guard lock{ events_context.message_mutex };
+    events_context.vi.get_next_state()->framebuffer = frameBufPtr;
+}
+
+extern "C" void osViSetMode(RDRAM_ARG PTR(OSViMode) mode_) {
+    std::lock_guard lock{ events_context.message_mutex };
+    OSViMode* mode = TO_PTR(OSViMode, mode_);
+    ViState* next_state = events_context.vi.get_next_state();
+    next_state->mode = mode;
+    next_state->control = next_state->mode->comRegs.ctrl;
+}
+
 #define OS_VI_GAMMA_ON          0x0001
 #define OS_VI_GAMMA_OFF         0x0002
 #define OS_VI_GAMMA_DITHER_ON   0x0004
@@ -422,54 +466,63 @@ extern "C" void osViSetMode(RDRAM_ARG PTR(OSViMode) mode_) {
 #define OS_VI_DITHER_FILTER_OFF 0x0080
 
 extern "C" void osViSetSpecialFeatures(uint32_t func) {
+    std::lock_guard lock{ events_context.message_mutex };
+    ViState* next_state = events_context.vi.get_next_state();
+    uint32_t* control_out = &next_state->control;
     if ((func & OS_VI_GAMMA_ON) != 0) {
-        VI_STATUS_REG |= VI_CTRL_GAMMA_ON;
+        *control_out |= VI_CTRL_GAMMA_ON;
     }
 
     if ((func & OS_VI_GAMMA_OFF) != 0) {
-        VI_STATUS_REG &= ~VI_CTRL_GAMMA_ON;
+        *control_out &= ~VI_CTRL_GAMMA_ON;
     }
 
     if ((func & OS_VI_GAMMA_DITHER_ON) != 0) {
-        VI_STATUS_REG |= VI_CTRL_GAMMA_DITHER_ON;
+        *control_out |= VI_CTRL_GAMMA_DITHER_ON;
     }
 
     if ((func & OS_VI_GAMMA_DITHER_OFF) != 0) {
-        VI_STATUS_REG &= ~VI_CTRL_GAMMA_DITHER_ON;
+        *control_out &= ~VI_CTRL_GAMMA_DITHER_ON;
     }
 
     if ((func & OS_VI_DIVOT_ON) != 0) {
-        VI_STATUS_REG |= VI_CTRL_DIVOT_ON;
+        *control_out |= VI_CTRL_DIVOT_ON;
     }
 
     if ((func & OS_VI_DIVOT_OFF) != 0) {
-        VI_STATUS_REG &= ~VI_CTRL_DIVOT_ON;
+        *control_out &= ~VI_CTRL_DIVOT_ON;
     }
 
     if ((func & OS_VI_DITHER_FILTER_ON) != 0) {
-        VI_STATUS_REG |= VI_CTRL_DITHER_FILTER_ON;
-        VI_STATUS_REG &= ~VI_CTRL_ANTIALIAS_MASK;
+        *control_out |= VI_CTRL_DITHER_FILTER_ON;
+        *control_out &= ~VI_CTRL_ANTIALIAS_MASK;
     }
 
     if ((func & OS_VI_DITHER_FILTER_OFF) != 0) {
-        VI_STATUS_REG &= ~VI_CTRL_DITHER_FILTER_ON;
-        //VI_STATUS_REG |= __osViNext->modep->comRegs.ctrl & VI_CTRL_ANTIALIAS_MASK;
+        *control_out &= ~VI_CTRL_DITHER_FILTER_ON;
+        *control_out |= next_state->mode->comRegs.ctrl & VI_CTRL_ANTIALIAS_MASK;
     }
 }
 
 extern "C" void osViBlack(uint8_t active) {
+    std::lock_guard lock{ events_context.message_mutex };
+    ViState* next_state = events_context.vi.get_next_state();
+    uint32_t* state_out = &next_state->state;
     if (active) {
-        vi_state |= VI_STATE_BLACK;
+        *state_out |= VI_STATE_BLACK;
     } else {
-        vi_state &= ~VI_STATE_BLACK;
+        *state_out &= ~VI_STATE_BLACK;
     }
 }
 
 extern "C" void osViRepeatLine(uint8_t active) {
+    std::lock_guard lock{ events_context.message_mutex };
+    ViState* next_state = events_context.vi.get_next_state();
+    uint32_t* state_out = &next_state->state;
     if (active) {
-        vi_state |= VI_STATE_REPEATLINE;
+        *state_out |= VI_STATE_REPEATLINE;
     } else {
-        vi_state &= ~VI_STATE_REPEATLINE;
+        *state_out &= ~VI_STATE_REPEATLINE;
     }
 }
 
@@ -486,11 +539,11 @@ extern "C" void osViSetYScale(float scale) {
 }
 
 extern "C" PTR(void) osViGetNextFramebuffer() {
-    return events_context.vi.next_buffer;
+    return events_context.vi.get_next_state()->framebuffer;
 }
 
 extern "C" PTR(void) osViGetCurrentFramebuffer() {
-    return events_context.vi.current_buffer;
+    return events_context.vi.get_cur_state()->framebuffer;
 }
 
 void ultramodern::submit_rsp_task(RDRAM_ARG PTR(OSTask) task_) {
@@ -523,7 +576,7 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::renderer::WindowHandle wind
     task_thread_ready.wait();
 
     ultramodern::renderer::SetupResult setup_result = renderer_setup_result.load();
-    if (renderer_setup_result != ultramodern::renderer::SetupResult::Success) {
+    if (setup_result != ultramodern::renderer::SetupResult::Success) {
         auto show_renderer_error = [](const std::string& msg) {
             std::string error_msg = "An error has been encountered on startup: " + msg;
 
@@ -531,7 +584,7 @@ void ultramodern::init_events(RDRAM_ARG ultramodern::renderer::WindowHandle wind
         };
 
         const std::string driver_os_suffix = "\nPlease make sure your GPU drivers and your OS are up to date.";
-        switch (renderer_setup_result) {
+        switch (setup_result) {
             case ultramodern::renderer::SetupResult::Success:
                 break;
             case ultramodern::renderer::SetupResult::DynamicLibrariesNotFound:

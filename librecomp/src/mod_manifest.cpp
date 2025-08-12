@@ -181,6 +181,7 @@ const std::string authors_key = "authors";
 const std::string minimum_recomp_version_key = "minimum_recomp_version";
 const std::string enabled_by_default_key = "enabled_by_default";
 const std::string dependencies_key = "dependencies";
+const std::string optional_dependencies_key = "optional_dependencies";
 const std::string native_libraries_key = "native_libraries";
 const std::string config_schema_key = "config_schema";
 
@@ -602,6 +603,26 @@ recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const 
             error_param = dep_string;
             return ModOpenError::InvalidDependencyString;
         }
+        cur_dep.optional = false;
+
+        size_t dependency_index = ret.dependencies.size();
+        ret.dependencies_by_id.emplace(cur_dep.mod_id, dependency_index);
+        ret.dependencies.emplace_back(std::move(cur_dep));
+    }
+
+    // Optional dependencies (optional)
+    std::vector<std::string> optional_dep_strings{};
+    current_error = try_get_vec<json::string_t>(optional_dep_strings, manifest_json, optional_dependencies_key, false, error_param);
+    if (current_error != ModOpenError::Good) {
+        return current_error;
+    }
+    for (const std::string& dep_string : optional_dep_strings) {
+        Dependency cur_dep;
+        if (!parse_dependency(dep_string, cur_dep)) {
+            error_param = dep_string;
+            return ModOpenError::InvalidDependencyString;
+        }
+        cur_dep.optional = true;
 
         size_t dependency_index = ret.dependencies.size();
         ret.dependencies_by_id.emplace(cur_dep.mod_id, dependency_index);

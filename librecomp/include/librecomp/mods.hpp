@@ -93,6 +93,8 @@ namespace recomp {
             MissingDependency,
             WrongDependencyVersion,
             FailedToLoadCode,
+            RomPatchConflict,
+            FailedToLoadPatch,
         };
 
         std::string error_to_string(ModLoadError);
@@ -315,6 +317,7 @@ namespace recomp {
         // This is just a wrapper around a number for type safety purposes.
         struct ModContentTypeId {
             size_t value;
+            bool operator==(const ModContentTypeId& rhs) const = default;
         };
 
         struct ModContainerType {
@@ -439,6 +442,7 @@ namespace recomp {
             std::vector<char> empty_bytes;
             size_t num_events = 0;
             ModContentTypeId code_content_type_id;
+            ModContentTypeId rom_patch_content_type_id;
             size_t active_game = (size_t)-1;
         };
 

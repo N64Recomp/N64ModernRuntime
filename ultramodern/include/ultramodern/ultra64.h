@@ -44,6 +44,8 @@ typedef uint8_t u8;
 #  ifdef __cplusplus
 #    define NULLPTR (PTR(void))0
 #  endif
+#  define PHYS_TO_K1(x)	((x)|0xA0000000)
+#  define IO_READ(addr) (*(volatile uint32_t*)PHYS_TO_K1(addr))
 #endif
 
 #ifndef NULL
@@ -285,6 +287,9 @@ void osViSetMode(RDRAM_ARG PTR(OSViMode));
 void osViSetSpecialFeatures(uint32_t func);
 void osViBlack(uint8_t active);
 void osViRepeatLine(uint8_t active);
+u32 osViGetCurrentLine();
+u32 osViGetCurrentField();
+u32 osViGetStatus();
 void osViSetXScale(float scale);
 void osViSetYScale(float scale);
 PTR(void) osViGetNextFramebuffer();

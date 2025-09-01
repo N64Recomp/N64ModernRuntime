@@ -148,9 +148,6 @@ void Config::add_enum_option(
 
     ConfigOptionEnum option_enum = {{}, default_value};
 
-    // Note: this is a bit too predictive since this calls add_option
-    size_t option_index = schema.options.size();
-
     for (const auto &option : options) {
         assert(option_enum.can_add_option(option.key, option.value) && "Duplicate enum option key or value.");
         option_enum.options.push_back(option);
@@ -338,6 +335,9 @@ nlohmann::json Config::get_storage_json() const {
         }
 
         switch (option.type) {
+        case ConfigOptionType::None: {
+            break;
+        }
         case ConfigOptionType::Enum: {
             auto &option_enum = std::get<ConfigOptionEnum>(option.variant);
             auto found_opt = option_enum.find_option_from_value(std::get<uint32_t>(value));

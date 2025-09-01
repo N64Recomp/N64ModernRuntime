@@ -6,35 +6,6 @@
 #include "librecomp/files.hpp"
 #include "librecomp/mods.hpp"
 
-static bool read_json(std::ifstream input_file, nlohmann::json &json_out) {
-    if (!input_file.good()) {
-        return false;
-    }
-
-    try {
-        input_file >> json_out;
-    }
-    catch (nlohmann::json::parse_error &) {
-        return false;
-    }
-    return true;
-}
-
-static bool read_json_with_backups(const std::filesystem::path &path, nlohmann::json &json_out) {
-    // Try reading and parsing the base file.
-    if (read_json(std::ifstream{ path }, json_out)) {
-        return true;
-    }
-
-    // Try reading and parsing the backup file.
-    if (read_json(recomp::open_input_backup_file(path), json_out)) {
-        return true;
-    }
-
-    // Both reads failed.
-    return false;
-}
-
 recomp::mods::ZipModFileHandle::~ZipModFileHandle() {
     if (file_handle) {
         fclose(file_handle);
@@ -1048,6 +1019,10 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Duplicate mod found";
         case ModOpenError::WrongGame:
             return "Mod is for a different game";
+        case ModOpenError::InvalidDisableOptionDependency:
+            return "Invalid disable option dependency in mod.json";
+        case ModOpenError::InvalidHiddenOptionDependency:
+            return "Invalid hidden option dependency in mod.json";
         case ModOpenError::DuplicateEnumStrings:
             return "Duplicate enum strings found in mod.json (enum strings are case insensitive)";
     }

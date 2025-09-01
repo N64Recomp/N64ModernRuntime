@@ -9,6 +9,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ai.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/cont.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/config_option.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/config.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/dp.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/eep.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/euc-jp.cpp"

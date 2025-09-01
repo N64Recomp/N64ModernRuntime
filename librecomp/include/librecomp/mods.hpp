@@ -27,6 +27,7 @@
 #include "librecomp/game.hpp"
 #include "librecomp/sections.h"
 #include "librecomp/overlays.hpp"
+#include "librecomp/config.hpp"
 
 namespace N64Recomp {
     class Context;
@@ -81,7 +82,10 @@ namespace recomp {
             InvalidDependencyString,
             MissingManifestField,
             DuplicateMod,
-            WrongGame
+            WrongGame,
+            InvalidDisableOptionDependency,
+            InvalidHiddenOptionDependency,
+            DuplicateEnumStrings,
         };
 
         std::string error_to_string(ModOpenError);
@@ -126,14 +130,6 @@ namespace recomp {
 
         std::string error_to_string(CodeModLoadError);
 
-        enum class ConfigOptionType {
-            None,
-            Enum,
-            Number,
-            String,
-            Bool
-        };
-
         struct ModFileHandle {
             virtual ~ModFileHandle() = default;
             virtual std::vector<char> read_file(const std::string& filepath, bool& exists) const = 0;
@@ -174,49 +170,6 @@ namespace recomp {
             Version version;
         };
 
-        struct ConfigOptionEnum {
-            std::vector<std::string> options;
-            uint32_t default_value = 0;
-        };
-
-        struct ConfigOptionNumber {
-            double min = 0.0;
-            double max = 0.0;
-            double step = 0.0;
-            int precision = 0;
-            bool percent = false;
-            double default_value = 0.0;
-        };
-
-        struct ConfigOptionString {
-            std::string default_value;
-        };
-
-        struct ConfigOptionBool {
-            bool default_value;
-        };
-
-        typedef std::variant<ConfigOptionEnum, ConfigOptionNumber, ConfigOptionString, ConfigOptionBool> ConfigOptionVariant;
-
-        struct ConfigOption {
-            std::string id;
-            std::string name;
-            std::string description;
-            ConfigOptionType type;
-            ConfigOptionVariant variant;
-        };
-
-        struct ConfigSchema {
-            std::vector<ConfigOption> options;
-            std::unordered_map<std::string, size_t> options_by_id;
-        };
-
-        typedef std::variant<std::monostate, uint32_t, double, std::string, bool> ConfigValueVariant;
-
-        struct ConfigStorage {
-            std::unordered_map<std::string, ConfigValueVariant> value_map;
-        };
-
         struct ModDetails {
             std::string mod_id;
             std::string display_name;
@@ -240,7 +193,6 @@ namespace recomp {
             std::vector<std::string> authors;
             std::vector<Dependency> dependencies;
             std::unordered_map<std::string, size_t> dependencies_by_id;
-            ConfigSchema config_schema;
             Version minimum_recomp_version;
             Version version;
             bool runtime_toggleable;
@@ -355,12 +307,12 @@ namespace recomp {
             recomp::Version get_mod_version(size_t mod_index);
             std::string get_mod_id(size_t mod_index);
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
-            const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
+            const config::ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
             const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
-            void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
-            void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
-            ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id) const;
-            ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id) const;
+            void set_mod_config_value(size_t mod_index, const std::string &option_id, const config::ConfigValueVariant &value);
+            void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const config::ConfigValueVariant &value);
+            config::ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id) const;
+            config::ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id) const;
             void set_mods_config_path(const std::filesystem::path &path);
             void set_mod_config_directory(const std::filesystem::path &path);
             ModContentTypeId register_content_type(const ModContentType& type);
@@ -376,7 +328,7 @@ namespace recomp {
             CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
             CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
             CodeModLoadError resolve_code_dependencies(ModHandle& mod, size_t mod_index, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
-            void add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail);
+            void add_opened_mod(ModManifest&& manifest, config::Config&& config, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail);
             std::vector<ModLoadErrorDetails> regenerate_with_hooks(
                 const std::vector<std::pair<HookDefinition, size_t>>& sorted_unprocessed_hooks,
                 const std::unordered_map<uint32_t, uint16_t>& section_vrom_map,
@@ -418,7 +370,7 @@ namespace recomp {
             std::vector<bool> processed_hook_slots;
             // Generated shim functions to use for implementing shim exports.
             std::vector<std::unique_ptr<N64Recomp::ShimFunction>> shim_functions;
-            ConfigSchema empty_schema;
+            config::ConfigSchema empty_schema;
             std::vector<char> empty_bytes;
             size_t num_events = 0;
             ModContentTypeId code_content_type_id;
@@ -442,7 +394,7 @@ namespace recomp {
         public:
             // TODO make these private and expose methods for the functionality they're currently used in.
             ModManifest manifest;
-            ConfigStorage config_storage;
+            config::Config config;
             std::unique_ptr<ModCodeHandle> code_handle;
             std::unique_ptr<N64Recomp::Context> recompiler_context;
             std::vector<uint32_t> section_load_addresses;
@@ -450,7 +402,7 @@ namespace recomp {
             std::vector<ModContentTypeId> content_types;
             std::vector<char> thumbnail;
 
-            ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail);
+            ModHandle(const ModContext& context, ModManifest&& manifest, config::Config&& config, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail);
             ModHandle(const ModHandle& rhs) = delete;
             ModHandle& operator=(const ModHandle& rhs) = delete;
             ModHandle(ModHandle&& rhs);
@@ -592,7 +544,7 @@ namespace recomp {
         void reset_hooks();
         void run_hook(uint8_t* rdram, recomp_context* ctx, size_t hook_slot_index);
 
-        ModOpenError parse_manifest(ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param);
+        ModOpenError parse_manifest(ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param, recomp::config::Config *config);
         CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
 
         void initialize_mods();
@@ -607,12 +559,12 @@ namespace recomp {
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);
-        const ConfigSchema &get_mod_config_schema(const std::string &mod_id);
+        const config::ConfigSchema &get_mod_config_schema(const std::string &mod_id);
         const std::vector<char> &get_mod_thumbnail(const std::string &mod_id);
-        void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
-        void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
-        ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
-        ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
+        void set_mod_config_value(size_t mod_index, const std::string &option_id, const config::ConfigValueVariant &value);
+        void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const config::ConfigValueVariant &value);
+        config::ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
+        config::ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
         std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename);
         std::filesystem::path get_mod_filename(const std::string& mod_id);
         size_t get_mod_order_index(const std::string& mod_id);

@@ -717,11 +717,6 @@ recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const 
         return current_error;
     }
 
-    if (config != nullptr) {
-        config->set_id(ret.mod_id);
-        config->set_mod_version(ret.version.to_string());
-    }
-
     // Authors
     current_error = try_get_vec<json::string_t>(ret.authors, manifest_json, authors_key, true, error_param);
     if (current_error != ModOpenError::Good) {
@@ -964,6 +959,8 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_manifest(ModM
         }
     }
 
+    mod_config.set_id(manifest.mod_id);
+    mod_config.set_mod_version(manifest.version.to_string());
     // Read the mod config if it exists.
     parse_mod_config_storage(manifest.mod_id, mod_config);
 

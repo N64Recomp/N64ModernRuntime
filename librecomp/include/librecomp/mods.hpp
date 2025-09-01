@@ -544,7 +544,7 @@ namespace recomp {
         void reset_hooks();
         void run_hook(uint8_t* rdram, recomp_context* ctx, size_t hook_slot_index);
 
-        ModOpenError parse_manifest(ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param, recomp::config::Config *config);
+        ModOpenError parse_manifest(ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param, recomp::config::Config *config = nullptr);
         CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
 
         void initialize_mods();

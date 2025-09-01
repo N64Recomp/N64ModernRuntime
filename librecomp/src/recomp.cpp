@@ -68,6 +68,10 @@ void recomp::register_config_path(std::filesystem::path path) {
     config_path = path;
 }
 
+std::filesystem::path recomp::get_config_path() {
+    return config_path;
+}
+
 bool recomp::register_game(const recomp::GameEntry& entry) {
     // TODO verify that there's no game with this ID already.
     {
@@ -560,7 +564,7 @@ bool recomp::mods::is_mod_auto_enabled(const std::string& mod_id) {
     return mod_context->is_mod_auto_enabled(mod_id);
 }
 
-const recomp::mods::ConfigSchema &recomp::mods::get_mod_config_schema(const std::string &mod_id) {
+const recomp::config::ConfigSchema &recomp::mods::get_mod_config_schema(const std::string &mod_id) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->get_mod_config_schema(mod_id);
 }
@@ -570,22 +574,22 @@ const std::vector<char> &recomp::mods::get_mod_thumbnail(const std::string &mod_
     return mod_context->get_mod_thumbnail(mod_id);
 }
 
-void recomp::mods::set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value) {
+void recomp::mods::set_mod_config_value(size_t mod_index, const std::string &option_id, const recomp::config::ConfigValueVariant &value) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->set_mod_config_value(mod_index, option_id, value);
 }
 
-void recomp::mods::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
+void recomp::mods::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const recomp::config::ConfigValueVariant &value) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->set_mod_config_value(mod_id, option_id, value);
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(size_t mod_index, const std::string &option_id) {
+recomp::config::ConfigValueVariant recomp::mods::get_mod_config_value(size_t mod_index, const std::string &option_id) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->get_mod_config_value(mod_index, option_id);
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
+recomp::config::ConfigValueVariant recomp::mods::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->get_mod_config_value(mod_id, option_id);
 }

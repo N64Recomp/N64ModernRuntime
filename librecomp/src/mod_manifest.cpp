@@ -332,17 +332,20 @@ constexpr std::string_view config_schema_precision_key = "precision";
 constexpr std::string_view config_schema_percent_key = "percent";
 constexpr std::string_view config_schema_options_key = "options";
 constexpr std::string_view config_schema_default_key = "default";
+constexpr std::string_view config_schema_matches_key = "matches";
+constexpr std::string_view config_schema_hidden_from_key = "hidden_from";
+constexpr std::string_view config_schema_disabled_from_key = "disabled_from";
 
-std::unordered_map<std::string, recomp::mods::ConfigOptionType> config_option_map{
-    { "Enum",   recomp::mods::ConfigOptionType::Enum},
-    { "Number", recomp::mods::ConfigOptionType::Number},
-    { "String", recomp::mods::ConfigOptionType::String},
-    { "Bool",   recomp::mods::ConfigOptionType::Bool},
+std::unordered_map<std::string, recomp::config::ConfigOptionType> config_option_map{
+    { "Enum",   recomp::config::ConfigOptionType::Enum},
+    { "Number", recomp::config::ConfigOptionType::Number},
+    { "String", recomp::config::ConfigOptionType::String},
+    { "Bool",   recomp::config::ConfigOptionType::Bool},
 };
 
-recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::json &config_schema_json, recomp::mods::ModManifest &ret, std::string &error_param) {
+recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::json &config_schema_json, recomp::config::Config *ret, std::string &error_param) {
     using json = nlohmann::json;
-    recomp::mods::ConfigOption option;
+    recomp::config::ConfigOption option;
     auto id = config_schema_json.find(config_schema_id_key);
     if (id != config_schema_json.end()) {
         if (!get_to<json::string_t>(*id, option.id)) {
@@ -399,15 +402,24 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
     }
 
     switch (option.type) {
-    case recomp::mods::ConfigOptionType::Enum:
+    case recomp::config::ConfigOptionType::Enum:
         {
-            recomp::mods::ConfigOptionEnum option_enum;
+            recomp::config::ConfigOptionEnum option_enum;
 
             auto options = config_schema_json.find(config_schema_options_key);
             if (options != config_schema_json.end()) {
-                if (!get_to_vec<std::string>(*options, option_enum.options)) {
+                std::vector<std::string> option_key_list;
+                if (!get_to_vec<std::string>(*options, option_key_list)) {
                     error_param = config_schema_options_key;
                     return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
+                }
+
+                for (uint32_t i = 0; i < static_cast<uint32_t>(option_key_list.size()); i++) {
+                    if (!option_enum.can_add_option(option_key_list[i], i)) {
+                        error_param = config_schema_options_key;
+                        return recomp::mods::ModOpenError::DuplicateEnumStrings;
+                    }
+                    option_enum.options.push_back({i, option_key_list[i]});
                 }
             }
 
@@ -415,9 +427,9 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
             if (default_value != config_schema_json.end()) {
                 std::string default_value_string;
                 if (get_to<json::string_t>(*default_value, default_value_string)) {
-                    auto it = std::find(option_enum.options.begin(), option_enum.options.end(), default_value_string);
+                    auto it = option_enum.find_option_from_string(default_value_string);
                     if (it != option_enum.options.end()) {
-                        option_enum.default_value = uint32_t(it - option_enum.options.begin());
+                        option_enum.default_value = it->value;
                     }
                     else {
                         error_param = config_schema_default_key;
@@ -434,9 +446,9 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
 
         }
         break;
-    case recomp::mods::ConfigOptionType::Number:
+    case recomp::config::ConfigOptionType::Number:
         {
-            recomp::mods::ConfigOptionNumber option_number;
+            recomp::config::ConfigOptionNumber option_number;
 
             auto min = config_schema_json.find(config_schema_min_key);
             if (min != config_schema_json.end()) {
@@ -497,9 +509,9 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
             option.variant = option_number;
         }
         break;
-    case recomp::mods::ConfigOptionType::String:
+    case recomp::config::ConfigOptionType::String:
         {
-            recomp::mods::ConfigOptionString option_string;
+            recomp::config::ConfigOptionString option_string;
 
             auto default_value = config_schema_json.find(config_schema_default_key);
             if (default_value != config_schema_json.end()) {
@@ -512,9 +524,9 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
             option.variant = option_string;
         }
         break;
-    case recomp::mods::ConfigOptionType::Bool:
+    case recomp::config::ConfigOptionType::Bool:
         {
-            recomp::mods::ConfigOptionBool option_bool;
+            recomp::config::ConfigOptionBool option_bool;
 
             auto default_value = config_schema_json.find(config_schema_default_key);
             if (default_value != config_schema_json.end()) {
@@ -531,13 +543,129 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
         break;
     }
 
-    ret.config_schema.options_by_id.emplace(option.id, ret.config_schema.options.size());
-    ret.config_schema.options.emplace_back(option);
+    if (ret != nullptr) {
+        ret->add_option(option);
+    }
 
     return recomp::mods::ModOpenError::Good;
 }
 
-recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param) {
+std::vector<recomp::config::ConfigValueVariant> parse_config_option_dependency_matches(const nlohmann::json &matches_object, const recomp::config::ConfigOption &source_option) {
+    std::vector<recomp::config::ConfigValueVariant> matches = {};
+
+    switch (source_option.type) {
+        case recomp::config::ConfigOptionType::None:
+        default:
+            //! ERROR: Source option type is invalid
+            return matches;
+        case recomp::config::ConfigOptionType::Enum: {
+            std::vector<std::string> enum_values = {};
+            if (!get_to_vec<std::string>(matches_object, enum_values)) {
+                //! ERROR: failed to get array of strings in matches
+                return matches;
+            }
+
+            auto &option_enum = get<recomp::config::ConfigOptionEnum>(source_option.variant);
+            for (auto &value_str : enum_values) {
+                auto it = option_enum.find_option_from_string(value_str);
+                if (it == option_enum.options.end()) {
+                    //! ERROR: one of the matches specified doesn't exist in the source enum
+                    return matches;
+                }
+                matches.push_back(it->value);
+            }
+            break;
+        }
+        case recomp::config::ConfigOptionType::String:
+            //! ERROR: string dependencies are unsupported 
+            return matches;
+        case recomp::config::ConfigOptionType::Number:
+            //! ERROR: numerical dependencies are unsupported 
+            return matches;
+        case recomp::config::ConfigOptionType::Bool: {
+            bool bool_condition;
+            if (!get_to<nlohmann::json::boolean_t>(matches_object, bool_condition)) {
+                //! ERROR: Failed to get boolean from dependency matches
+                return matches;
+            }
+            matches.push_back(bool_condition);
+            break;
+        }
+    }
+    return matches;
+}
+
+recomp::mods::ModOpenError parse_config_option_dependencies(const nlohmann::json &config_schema_json, recomp::config::Config &config) {
+    using json = nlohmann::json;
+
+    auto id = config_schema_json.find(config_schema_id_key);
+    std::string option_id;
+    if (id != config_schema_json.end()) {
+        if (!get_to<json::string_t>(*id, option_id)) {
+            return recomp::mods::ModOpenError::Good;
+        }
+    }
+
+    recomp::config::ConfigSchema schema = config.get_config_schema();
+
+    size_t option_index = schema.options_by_id[option_id];
+    recomp::config::ConfigOption &option = schema.options[option_index];
+
+    auto conditional_add_dependency = [config_schema_json, schema, option, option_index](recomp::config::ConfigOptionDependency &dependency, const std::string_view &dep_key) -> bool {
+        auto find_it = config_schema_json.find(dep_key);
+        if (find_it == config_schema_json.end()) {
+            return true;
+        }
+
+        auto& dependency_json = *find_it;
+        if (!dependency_json.is_object()) {
+            //! ERROR: Dependency malformed
+            return false;
+        }
+
+        std::string source_dependency_id;
+        auto find_dep_id = dependency_json.find(config_schema_id_key);
+        if (find_dep_id == dependency_json.end()) {
+            //! ERROR: Could not find source dependency id
+            return false;
+        }
+
+        if (!get_to<json::string_t>(*find_dep_id, source_dependency_id)) {
+            //! ERROR: Failed to get source dependency id
+            return false;
+        }
+        if (schema.options_by_id.contains(source_dependency_id) == false) {
+            //! ERROR: Failed to find specified source dependency in schema
+            return false;
+        }
+
+        size_t source_dependency_index = schema.options_by_id.at(source_dependency_id);
+        auto &source_option = schema.options.at(source_dependency_index);
+
+        auto find_matches = dependency_json.find(config_schema_matches_key);
+        if (find_matches == dependency_json.end()) {
+            //! ERROR: Failed to find matches
+            return false;
+        }
+        auto matches = parse_config_option_dependency_matches(*find_matches, source_option);
+        if (matches.empty()) {
+            //! ERROR: Could not find valid data in matches
+            return false;
+        }
+
+        dependency.add_option_dependency(option_index, source_dependency_index, matches);
+        return true;
+    };
+
+    bool disable_success = conditional_add_dependency(schema.disable_dependencies, config_schema_disabled_from_key);
+    if (!disable_success) return recomp::mods::ModOpenError::InvalidDisableOptionDependency;
+    bool hidden_success = conditional_add_dependency(schema.hidden_dependencies, config_schema_hidden_from_key);
+    if (!hidden_success) return recomp::mods::ModOpenError::InvalidHiddenOptionDependency;
+
+    return recomp::mods::ModOpenError::Good;
+}
+
+recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const std::vector<char>& manifest_data, std::string& error_param, recomp::config::Config *config) {
     using json = nlohmann::json;
     json manifest_json = json::parse(manifest_data.begin(), manifest_data.end(), nullptr, false);
 
@@ -587,6 +715,11 @@ recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const 
     current_error = try_get_version(ret.version, manifest_json, version_key, error_param, ModOpenError::InvalidVersionString);
     if (current_error != ModOpenError::Good) {
         return current_error;
+    }
+
+    if (config != nullptr) {
+        config->set_id(ret.mod_id);
+        config->set_mod_version(ret.version.to_string());
     }
 
     // Authors
@@ -681,9 +814,21 @@ recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const 
             }
 
             for (const json &option : *options) {
-                ModOpenError open_error = parse_manifest_config_schema_option(option, ret, error_param);
+                ModOpenError open_error = parse_manifest_config_schema_option(option, config, error_param);
                 if (open_error != ModOpenError::Good) {
                     return open_error;
+                }
+            }
+
+            // Parse option dependencies after all options have been added
+            // Requires config to not be null
+            if (config != nullptr) {
+                for (const json &option : *options) {
+                    ModOpenError dep_error = parse_config_option_dependencies(option, *config);
+                    if (dep_error != ModOpenError::Good) {
+                        error_param = dep_error == ModOpenError::InvalidDisableOptionDependency ? config_schema_disabled_from_key : config_schema_hidden_from_key;
+                        return dep_error;
+                    }
                 }
             }
         }
@@ -696,93 +841,44 @@ recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const 
     return ModOpenError::Good;
 }
 
-bool parse_mod_config_storage(const std::filesystem::path &path, const std::string &expected_mod_id, recomp::mods::ConfigStorage &config_storage, const recomp::mods::ConfigSchema &config_schema) {
-    using json = nlohmann::json;
-    json config_json;
-    if (!read_json_with_backups(path, config_json)) {
-        return false;
-    }
-
-    auto mod_id = config_json.find("mod_id");
-    if (mod_id != config_json.end()) {
-        std::string mod_id_str;
-        if (get_to<json::string_t>(*mod_id, mod_id_str)) {
-            if (*mod_id != expected_mod_id) {
-                // The mod's ID doesn't match.
+bool parse_mod_config_storage(const std::string &expected_mod_id, recomp::config::Config &config) {
+    return config.load_config([expected_mod_id](nlohmann::json &config_json) {
+        auto mod_id = config_json.find("mod_id");
+        if (mod_id != config_json.end()) {
+            std::string mod_id_str;
+            if (get_to<nlohmann::json::string_t>(*mod_id, mod_id_str)) {
+                if (*mod_id != expected_mod_id) {
+                    // The mod's ID doesn't match.
+                    return false;
+                }
+            }
+            else {
+                // The mod ID is not a string.
                 return false;
             }
         }
         else {
-            // The mod ID is not a string.
+            // The configuration file doesn't have a mod ID.
             return false;
         }
-    }
-    else {
-        // The configuration file doesn't have a mod ID.
-        return false;
-    }
-
-    auto storage_json = config_json.find("storage");
-    if (storage_json == config_json.end()) {
-        // The configuration file doesn't have a storage object.
-        return false;
-    }
-
-    if (!storage_json->is_object()) {
-        // The storage key does not correspond to an object.
-        return false;
-    }
-
-    // Only parse the object for known option types based on the schema.
-    std::string value_str;
-    for (const recomp::mods::ConfigOption &option : config_schema.options) {
-        auto option_json = storage_json->find(option.id);
-        if (option_json == storage_json->end()) {
-            // Option doesn't exist in storage.
-            continue;
+    
+        auto storage_json = config_json.find("storage");
+        if (storage_json == config_json.end()) {
+            // The configuration file doesn't have a storage object.
+            return false;
+        }
+    
+        if (!storage_json->is_object()) {
+            // The storage key does not correspond to an object.
+            return false;
         }
 
-        switch (option.type) {
-        case recomp::mods::ConfigOptionType::Enum:
-            if (get_to<json::string_t>(*option_json, value_str)) {
-                const recomp::mods::ConfigOptionEnum &option_enum = std::get<recomp::mods::ConfigOptionEnum>(option.variant);
-                auto option_it = std::find(option_enum.options.begin(), option_enum.options.end(), value_str);
-                if (option_it != option_enum.options.end()) {
-                    config_storage.value_map[option.id] = uint32_t(option_it - option_enum.options.begin());
-                }
-            }
-
-            break;
-        case recomp::mods::ConfigOptionType::Number:
-            if (option_json->is_number()) {
-                config_storage.value_map[option.id] = option_json->template get<double>();
-            }
-
-            break;
-        case recomp::mods::ConfigOptionType::String: {
-            if (get_to<json::string_t>(*option_json, value_str)) {
-                config_storage.value_map[option.id] = value_str;
-            }
-
-            break;
-        }
-        case recomp::mods::ConfigOptionType::Bool: {
-            if (option_json->is_boolean()) {
-                config_storage.value_map[option.id] = option_json->get<bool>();
-            }
-
-            break;
-        }
-        default:
-            assert(false && "Unknown option type.");
-            break;
-        }
-    }
-
-    return true;
+        return true;
+    });
 }
 
 recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_manifest(ModManifest& manifest, std::string& error_param, const std::vector<ModContentTypeId>& supported_content_types, bool requires_manifest) {
+    recomp::config::Config mod_config;
     {
         bool exists;
         std::vector<char> manifest_data = manifest.file_handle->read_file("mod.json", exists);
@@ -820,7 +916,7 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_manifest(ModM
             }
         }
         else {
-            ModOpenError parse_error = parse_manifest(manifest, manifest_data, error_param);
+            ModOpenError parse_error = parse_manifest(manifest, manifest_data, error_param, &mod_config);
             if (parse_error != ModOpenError::Good) {
                 return parse_error;
             }
@@ -869,9 +965,7 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_manifest(ModM
     }
 
     // Read the mod config if it exists.
-    ConfigStorage config_storage;
-    std::filesystem::path config_path = mod_config_directory / (manifest.mod_id + ".json");
-    parse_mod_config_storage(config_path, manifest.mod_id, config_storage, manifest.config_schema);
+    parse_mod_config_storage(manifest.mod_id, mod_config);
 
     // Read the mod thumbnail if it exists.
     static const std::string thumbnail_dds_name = "thumb.dds";
@@ -883,7 +977,7 @@ recomp::mods::ModOpenError recomp::mods::ModContext::open_mod_from_manifest(ModM
     }
 
     // Store the loaded mod manifest in a new mod handle.
-    add_opened_mod(std::move(manifest), std::move(config_storage), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail_data));
+    add_opened_mod(std::move(manifest), std::move(mod_config), std::move(game_indices), std::move(detected_content_types), std::move(thumbnail_data));
 
     return ModOpenError::Good;
 }
@@ -978,6 +1072,8 @@ std::string recomp::mods::error_to_string(ModOpenError error) {
             return "Duplicate mod found";
         case ModOpenError::WrongGame:
             return "Mod is for a different game";
+        case ModOpenError::DuplicateEnumStrings:
+            return "Duplicate enum strings found in mod.json (enum strings are case insensitive)";
     }
     return "Unknown mod opening error: " + std::to_string((int)error);
 }

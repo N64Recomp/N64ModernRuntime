@@ -282,10 +282,10 @@ void Config::try_call_option_change_callback(const std::string& option_id, Confi
 }
 
 void Config::set_option_value(const std::string& option_id, ConfigValueVariant value) {
-    ConfigStorage &storage = requires_confirmation ? temp_storage : storage;
+    ConfigStorage &conf_storage = requires_confirmation ? temp_storage : storage;
 
-    auto it = storage.value_map.find(option_id);
-    if (it != storage.value_map.end()) {
+    auto it = conf_storage.value_map.find(option_id);
+    if (it != conf_storage.value_map.end()) {
         ConfigValueVariant prev_value = it->second;
         it->second = value;
 
@@ -469,7 +469,10 @@ bool Config::load_config(std::function<bool(nlohmann::json &)> validate_callback
         if (requires_confirmation) {
             revert_temp_config();
         }
-        save_config();
+        if (!is_mod_config) {
+            // Only save default config for non-mod configs
+            save_config();
+        }
         derive_all_config_option_dependencies();
         clear_config_option_updates();
         loaded_config = true;

@@ -185,6 +185,23 @@ void Config::add_number_option(
     add_option(option);
 }
 
+void Config::add_percent_number_option(
+    const std::string &id,
+    const std::string &name,
+    const std::string &description,
+    double default_value,
+    bool hidden
+) {
+    add_option(ConfigOption{
+        .id = id,
+        .name = name,
+        .description = description,
+        .hidden = hidden,
+        .type = ConfigOptionType::Number,
+        .variant = ConfigOptionNumber::create_percent_option(default_value)
+    });
+}
+
 void Config::add_string_option(
     const std::string &id,
     const std::string &name,
@@ -244,6 +261,21 @@ const ConfigValueVariant Config::get_option_default_value(const std::string& opt
     }
 }
 
+const ConfigOption &Config::get_option(size_t option_index) const {
+    if (option_index >= schema.options.size()) {
+        throw std::out_of_range("Option index out of range: " + std::to_string(option_index));
+    }
+    return schema.options[option_index];
+}
+
+const ConfigOption &Config::get_option(const std::string& option_id) const {
+    auto option_by_id_it = schema.options_by_id.find(option_id);
+    if (option_by_id_it == schema.options_by_id.end()) {
+        throw std::out_of_range("Option ID not found: " + option_id);
+    }
+    return schema.options[option_by_id_it->second];
+}
+
 const ConfigValueVariant Config::get_option_value_from_storage(const std::string& option_id, const ConfigStorage& src) const {
     auto it = src.value_map.find(option_id);
     if (it != src.value_map.end()) {
@@ -297,7 +329,7 @@ void Config::set_option_value(const std::string& option_id, ConfigValueVariant v
     }
 }
 
-bool Config::get_enum_option_disabled(size_t option_index, uint32_t enum_index) {
+bool Config::get_enum_option_disabled(size_t option_index, uint32_t enum_index) const {
     auto enum_it = enum_options_disabled.find(option_index);
     if (enum_it != enum_options_disabled.end()) {
         return enum_it->second.contains(enum_index);
@@ -384,10 +416,6 @@ bool Config::save_config() {
             ConfigValueVariant cur_value = get_temp_option_value(option.id);
             storage.value_map[option.id] = cur_value;
             try_call_option_change_callback(option.id, cur_value, prev_value, OptionChangeContext::Permanent);
-        }
-
-        if (apply_callback && is_dirty()) {
-            apply_callback();
         }
 
         modified_options.clear();
@@ -501,6 +529,9 @@ bool Config::load_config(std::function<bool(nlohmann::json &)> validate_callback
     clear_config_option_updates();
 
     loaded_config = true;
+    if (load_callback != nullptr) {
+        load_callback();
+    }
     return true;
 }
 
@@ -517,7 +548,7 @@ void Config::revert_temp_config() {
     derive_all_config_option_dependencies();
 }
 
-bool Config::is_dirty() {
+bool Config::is_dirty() const {
     return !modified_options.empty();
 }
 
@@ -627,14 +658,14 @@ void Config::add_option_hidden_dependency(const std::string& dependent_option_id
     schema.hidden_dependencies.add_option_dependency(dependent_index, source_index, values);
 }
 
-std::string Config::get_enum_option_details(size_t option_index) {
+std::string Config::get_enum_option_details(size_t option_index) const {
     if (!enum_option_details.contains(option_index)) {
         return std::string();
     }
     return enum_option_details[option_index];
 }
 
-bool Config::is_config_option_hidden(size_t option_index) {
+bool Config::is_config_option_hidden(size_t option_index) const {
     return schema.options[option_index].hidden || hidden_options.contains(option_index);
 }
 

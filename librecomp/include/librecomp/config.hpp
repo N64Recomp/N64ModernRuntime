@@ -47,6 +47,13 @@ namespace recomp {
             std::vector<ConfigOptionEnumOption>::const_iterator find_option_from_value(uint32_t value) const;
             // Verify an option has a unique key and a unique value
             bool can_add_option(const std::string& option_key, uint32_t option_value) const;
+
+            ConfigOptionEnum() = default;
+            ConfigOptionEnum(const std::vector<ConfigOptionEnumOption>& options, uint32_t default_value = 0)
+                : options(options), default_value(default_value) {}
+            template <typename ENUM_TYPE = uint32_t>
+            ConfigOptionEnum(const std::vector<ConfigOptionEnumOption>& options, ENUM_TYPE default_value = 0)
+                : options(options), default_value(static_cast<uint32_t>(default_value)) {}
         };
 
         struct ConfigOptionNumber {
@@ -56,6 +63,17 @@ namespace recomp {
             int precision = 0;
             bool percent = false;
             double default_value = 0.0;
+
+            static ConfigOptionNumber create_percent_option(double default_value = 0.0) {
+                return ConfigOptionNumber{
+                    .min = 0.0,
+                    .max = 100.0,
+                    .step = 1.0,
+                    .precision = 0,
+                    .percent = true,
+                    .default_value = default_value
+                };
+            }
         };
 
         struct ConfigOptionString {
@@ -167,6 +185,7 @@ namespace recomp {
                 bool hidden = false
             );
 
+            // Allows you to add an enum option using an enum type instead of uint32_t.
             template <typename ENUM_TYPE>
             void add_enum_option(
                 const std::string &id,
@@ -192,6 +211,15 @@ namespace recomp {
                 bool hidden = false
             );
 
+            // Convenience function for adding a percent number option
+            void add_percent_number_option(
+                const std::string &id,
+                const std::string &name,
+                const std::string &description,
+                double default_value,
+                bool hidden = false
+            );
+
             void add_string_option(
                 const std::string &id,
                 const std::string &name,
@@ -208,15 +236,22 @@ namespace recomp {
                 bool hidden = false
             );
 
+            const ConfigOption &get_option(size_t option_index) const;
+            const ConfigOption &get_option(const std::string& option_id) const;
+            template <typename T = ConfigOptionVariant>
+            const T &get_option_config(size_t option_index) const {
+                return std::get<T>(get_option(option_index).variant);
+            };
+
             const ConfigValueVariant get_option_value(const std::string& option_id) const;
             const ConfigValueVariant get_temp_option_value(const std::string& option_id) const;
             // This should only be used internally to recompui. Other changes to values should be done through update_option_value
             // so rendering can be updated with your new set value.
             void set_option_value(const std::string& option_id, ConfigValueVariant value);
-            bool get_enum_option_disabled(size_t option_index, uint32_t enum_index);
+            bool get_enum_option_disabled(size_t option_index, uint32_t enum_index) const;
             void add_option_change_callback(const std::string& option_id, on_option_change_callback callback);
-            void set_apply_callback(std::function<void()> callback) {
-                apply_callback = callback;
+            void set_load_callback(std::function<void()> callback) {
+                load_callback = callback;
             }
             void set_save_callback(std::function<void()> callback) {
                 save_callback = callback;
@@ -263,17 +298,17 @@ namespace recomp {
             bool save_config_json(nlohmann::json config_json) const;
             nlohmann::json get_json_config() const;
 
-
             void revert_temp_config();
-            bool is_dirty();
+
+            bool is_dirty() const;
 
             std::vector<ConfigOptionUpdateContext> get_config_option_updates() { return config_option_updates; }
-            bool is_config_option_disabled(size_t option_index) { return disabled_options.contains(option_index); }
-            bool is_config_option_hidden(size_t option_index);
+            bool is_config_option_disabled(size_t option_index) const { return disabled_options.contains(option_index); }
+            bool is_config_option_hidden(size_t option_index) const;
             void clear_config_option_updates() {
                 config_option_updates.clear();
             }
-            std::string get_enum_option_details(size_t option_index);
+            std::string get_enum_option_details(size_t option_index) const;
             void on_json_parse_option(const std::string& option_id, parse_option_func callback) {
                 json_parse_option_map[option_id] = callback;
             }
@@ -296,7 +331,7 @@ namespace recomp {
             ConfigStorage temp_storage;
 
             std::unordered_map<size_t, on_option_change_callback> option_change_callbacks = {};
-            std::function<void()> apply_callback = nullptr;
+            std::function<void()> load_callback = nullptr;
             std::function<void()> save_callback = nullptr;
             std::vector<ConfigOptionUpdateContext> config_option_updates = {};
             std::unordered_set<size_t> disabled_options = {};

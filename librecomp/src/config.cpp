@@ -485,6 +485,10 @@ ConfigValueVariant Config::parse_config_option_json_value(const nlohmann::json& 
                 return std::get<ConfigOptionBool>(option.variant).default_value;
                 break;
             }
+            if (json_value.is_string()) {
+                std::string str_val = json_value.get<std::string>();
+                return check_config_option_bool_string(str_val);
+            }
             return json_value.get<bool>();
     }
 }
@@ -662,7 +666,7 @@ std::string Config::get_enum_option_details(size_t option_index) const {
     if (!enum_option_details.contains(option_index)) {
         return std::string();
     }
-    return enum_option_details[option_index];
+    return enum_option_details.at(option_index);
 }
 
 bool Config::is_config_option_hidden(size_t option_index) const {

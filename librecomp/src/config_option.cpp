@@ -20,6 +20,32 @@ static bool case_insensitive_compare(const std::string& a, const std::string& b)
 }
 
 namespace recomp::config {
+    bool check_config_option_bool_string(const std::string& str) {
+        static const std::string false_strings[] = {
+            "false",
+            "off",
+            "no",
+        };
+        static const std::string true_strings[] = {
+            "true",
+            "on",
+            "yes",
+        };
+
+        for (const auto& false_str : false_strings) {
+            if (case_insensitive_compare(str, false_str)) {
+                return false;
+            }
+        }
+
+        for (const auto& true_str : true_strings) {
+            if (case_insensitive_compare(str, true_str)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     // ConfigOptionEnum
     std::vector<ConfigOptionEnumOption>::const_iterator ConfigOptionEnum::find_option_from_string(const std::string& option_key) const {

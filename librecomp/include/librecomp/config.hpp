@@ -15,6 +15,9 @@
 
 namespace recomp {
     namespace config {
+
+        bool check_config_option_bool_string(const std::string& str);
+
         enum class ConfigOptionType {
             None,
             Enum,

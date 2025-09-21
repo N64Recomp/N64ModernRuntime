@@ -1335,6 +1335,17 @@ const recomp::config::ConfigSchema &recomp::mods::ModContext::get_mod_config_sch
     return mod.config.get_config_schema();
 }
 
+recomp::config::Config *recomp::mods::ModContext::get_mod_config(const std::string &mod_id) {
+    // Check that the mod exists.
+    auto find_it = opened_mods_by_id.find(mod_id);
+    if (find_it == opened_mods_by_id.end()) {
+        return nullptr;
+    }
+
+    ModHandle &mod = opened_mods[find_it->second];
+    return &mod.config;
+}
+
 const std::vector<char> &recomp::mods::ModContext::get_mod_thumbnail(const std::string &mod_id) const {
     // Check that the mod exists.
     auto find_it = opened_mods_by_id.find(mod_id);

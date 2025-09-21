@@ -308,6 +308,7 @@ namespace recomp {
             std::string get_mod_id(size_t mod_index);
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
             const config::ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
+            config::Config *get_mod_config(const std::string &mod_id);
             const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
             void set_mod_config_value(size_t mod_index, const std::string &option_id, const config::ConfigValueVariant &value);
             void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const config::ConfigValueVariant &value);
@@ -560,6 +561,7 @@ namespace recomp {
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);
         const config::ConfigSchema &get_mod_config_schema(const std::string &mod_id);
+        config::Config *get_mod_config(const std::string &mod_id);
         const std::vector<char> &get_mod_thumbnail(const std::string &mod_id);
         void set_mod_config_value(size_t mod_index, const std::string &option_id, const config::ConfigValueVariant &value);
         void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const config::ConfigValueVariant &value);

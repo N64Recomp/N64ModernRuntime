@@ -547,8 +547,16 @@ void Config::revert_temp_config() {
     modified_options.clear();
 
     for (const auto& option : schema.options) {
-        temp_storage.value_map[option.id] = get_option_value(option.id);
+        auto temp_value = get_temp_option_value(option.id);
+        auto original_value = get_option_value(option.id);
+        temp_storage.value_map[option.id] = original_value;
+        try_call_option_change_callback(option.id, original_value, temp_value, OptionChangeContext::Temporary);
     }
+
+    for (size_t option_index = 0; option_index < schema.options.size(); option_index++) {
+        report_config_option_update(option_index, ConfigOptionUpdateType::Value);
+    }
+
     derive_all_config_option_dependencies();
 }
 

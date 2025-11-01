@@ -238,8 +238,8 @@ typedef struct {
 typedef struct {
     /* 0x00 */ u32 file_size; /* bytes */
     /* 0x04 */ u32 game_code;
-    /* 0x08 */ u16 company_code;
     /* 0x0A */ char pad_0A[2];
+    /* 0x08 */ u16 company_code;
     /* 0x0C */ char ext_name[4];
     /* 0x10 */ char game_name[16];
 } OSPfsState; // size = 0x20

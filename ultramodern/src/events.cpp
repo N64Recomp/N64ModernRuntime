@@ -226,21 +226,19 @@ void vi_thread_func() {
         if (ultramodern::is_game_started()) {
             remaining_retraces--;
             
-            uint8_t* rdram = events_context.rdram;
             std::lock_guard lock{ events_context.message_mutex };
             ViState* cur_state = events_context.vi.get_cur_state();
             if (remaining_retraces == 0) {
                 if (cur_state->mq != NULLPTR) {
-                    if (osSendMesg(PASS_RDRAM cur_state->mq, cur_state->msg, OS_MESG_NOBLOCK) == -1) {
-                        //printf("Game skipped a VI frame!\n");
-                    }
+                    // Send a message to the VI queue, and do not set it to be requeued if the queue was full.
+                    // The worst case scenario is that the game misses a VI message and has to wait a little longer for the next. 
+                    ultramodern::enqueue_external_message(cur_state->mq, cur_state->msg, false, false);
                 }
                 remaining_retraces = cur_state->retrace_count;
             }
             if (events_context.ai.mq != NULLPTR) {
-                if (osSendMesg(PASS_RDRAM events_context.ai.mq, events_context.ai.msg, OS_MESG_NOBLOCK) == -1) {
-                    //printf("Game skipped a AI frame!\n");
-                }
+                // Send a message to the VI queue, and do not set it to be requeued if the queue was full for the same reason as the VI message above.
+                ultramodern::enqueue_external_message(events_context.ai.mq, events_context.ai.msg, false, false);
             }
         }
 
@@ -253,13 +251,13 @@ void vi_thread_func() {
 void sp_complete() {
     uint8_t* rdram = events_context.rdram;
     std::lock_guard lock{ events_context.message_mutex };
-    osSendMesg(PASS_RDRAM events_context.sp.mq, events_context.sp.msg, OS_MESG_NOBLOCK);
+    ultramodern::enqueue_external_message(events_context.sp.mq, events_context.sp.msg, false, true);
 }
 
 void dp_complete() {
     uint8_t* rdram = events_context.rdram;
     std::lock_guard lock{ events_context.message_mutex };
-    osSendMesg(PASS_RDRAM events_context.dp.mq, events_context.dp.msg, OS_MESG_NOBLOCK);
+    ultramodern::enqueue_external_message(events_context.dp.mq, events_context.dp.msg, false, true);
 }
 
 void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready) {
@@ -559,8 +557,8 @@ void ultramodern::submit_rsp_task(RDRAM_ARG PTR(OSTask) task_) {
     }
 }
 
-void ultramodern::send_si_message(RDRAM_ARG1) {
-    osSendMesg(PASS_RDRAM events_context.si.mq, events_context.si.msg, OS_MESG_NOBLOCK);
+void ultramodern::send_si_message() {
+    ultramodern::enqueue_external_message(events_context.si.mq, events_context.si.msg, false, true);
 }
 
 void ultramodern::init_events(RDRAM_ARG ultramodern::renderer::WindowHandle window_handle) {

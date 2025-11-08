@@ -98,7 +98,7 @@ extern "C" s32 osContReset(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(OSContStatus) data
 }
 
 extern "C" s32 osContStartQuery(RDRAM_ARG PTR(OSMesgQueue) mq) {
-    ultramodern::send_si_message(PASS_RDRAM1);
+    ultramodern::send_si_message();
 
     return 0;
 }
@@ -109,7 +109,7 @@ extern "C" s32 osContStartReadData(RDRAM_ARG PTR(OSMesgQueue) mq) {
     }
     update_poll_time();
 
-    ultramodern::send_si_message(rdram);
+    ultramodern::send_si_message();
 
     return 0;
 }

@@ -9,33 +9,44 @@ struct QueuedMessage {
     PTR(OSMesgQueue) mq;
     OSMesg mesg;
     bool jam;
+    bool requeue_if_blocked;
 };
 
 static moodycamel::BlockingConcurrentQueue<QueuedMessage> external_messages {};
 
-void enqueue_external_message(PTR(OSMesgQueue) mq, OSMesg msg, bool jam) {
-    external_messages.enqueue({mq, msg, jam});
+void ultramodern::enqueue_external_message(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, bool requeue_if_blocked) {
+    external_messages.enqueue({mq, msg, jam, requeue_if_blocked});
 }
 
 bool do_send(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, bool jam, bool block);
 
 void dequeue_external_messages(RDRAM_ARG1) {
     QueuedMessage to_send;
+    std::vector<QueuedMessage> requeued_messages{};
     while (external_messages.try_dequeue(to_send)) {
-        do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false);
+        if (!do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false) && to_send.requeue_if_blocked) {
+            requeued_messages.push_back(to_send);
+        }
+    }
+    for (QueuedMessage& cur_mesg : requeued_messages) {
+        external_messages.enqueue(cur_mesg);
     }
 }
 
 void ultramodern::wait_for_external_message(RDRAM_ARG1) {
     QueuedMessage to_send;
     external_messages.wait_dequeue(to_send);
-    do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false);
+    if (!do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false) && to_send.requeue_if_blocked) {
+        external_messages.enqueue(to_send);
+    }
 }
 
-void ultramodern::wait_for_external_message_timed(RDRAM_ARG1, u32 millis) {
+void ultramodern::wait_for_external_message_timed(RDRAM_ARG u32 millis) {
     QueuedMessage to_send;
     if (external_messages.wait_dequeue_timed(to_send, std::chrono::milliseconds{millis})) {
-        do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false);
+        if (!do_send(PASS_RDRAM to_send.mq, to_send.mesg, to_send.jam, false) && to_send.requeue_if_blocked) {
+            external_messages.enqueue(to_send);
+        }
     }
 }
 
@@ -138,7 +149,7 @@ extern "C" s32 osSendMesg(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, s32 flags)
     
     // Don't directly send to the message queue if this isn't a game thread to avoid contention.
     if (!ultramodern::is_game_thread()) {
-        enqueue_external_message(mq_, msg, jam);
+        ultramodern::enqueue_external_message(mq_, msg, jam, false);
         return 0;
     }
     
@@ -160,7 +171,7 @@ extern "C" s32 osJamMesg(RDRAM_ARG PTR(OSMesgQueue) mq_, OSMesg msg, s32 flags) 
     
     // Don't directly send to the message queue if this isn't a game thread to avoid contention.
     if (!ultramodern::is_game_thread()) {
-        enqueue_external_message(mq_, msg, jam);
+        ultramodern::enqueue_external_message(mq_, msg, jam, false);
         return 0;
     }
     

@@ -973,6 +973,10 @@ std::string recomp::mods::error_to_string(ModLoadError error) {
             return "Wrong dependency version";
         case ModLoadError::FailedToLoadCode:
             return "Failed to load mod code";
+        case ModLoadError::RomPatchConflict:
+            return "ROM patch mod conflict";
+        case ModLoadError::FailedToLoadPatch:
+            return "Invalid ROM patch";
     }
     return "Unknown mod loading error " + std::to_string((int)error);
 }

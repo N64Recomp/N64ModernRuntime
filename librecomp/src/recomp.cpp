@@ -666,7 +666,14 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                         std::ostringstream mod_error_stream;
                         mod_error_stream << "Error loading mods:\n\n";
                         for (const auto& cur_error : mod_load_errors) {
-                            mod_error_stream << cur_error.mod_id.c_str() << ": " << recomp::mods::error_to_string(cur_error.error);
+                            auto mod_details = recomp::mods::get_details_for_mod(cur_error.mod_id);
+                            if (mod_details) {
+                                mod_error_stream << mod_details->display_name;
+                            }
+                            else {
+                                mod_error_stream << cur_error.mod_id.c_str();
+                            }
+                            mod_error_stream << ": " << recomp::mods::error_to_string(cur_error.error);
                             if (!cur_error.error_param.empty()) {
                                 mod_error_stream << " (" << cur_error.error_param.c_str() << ")";
                             }

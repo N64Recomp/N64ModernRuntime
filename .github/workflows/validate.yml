@@ -92,7 +92,7 @@ jobs:
           cmake --build cmake-build --config ${{ matrix.type }} --target librecomp -j $cpuCores
 
   build-macos:
-    runs-on: ${{ matrix.arch == 'x64' && 'macos-13' || 'macos-14' }}
+    runs-on: ${{ matrix.arch == 'x64' && 'macos-15-intel' || 'macos-15' }}
     strategy:
       matrix:
         type: [ Debug, Release ]

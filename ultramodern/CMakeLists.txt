@@ -9,6 +9,7 @@ add_library(ultramodern STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/audio.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/error_handling.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/events.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/extensions.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/input.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/mesgqueue.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/misc_ultra.cpp"

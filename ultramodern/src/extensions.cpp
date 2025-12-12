@@ -27,7 +27,7 @@ extern "C" void osExQueueDisplaylistEvent(PTR(OSMesgQueue) mq, OSMesg mesg, PTR(
         event_type == OS_EX_DISPLAYLIST_EVENT_COMPLETED);
     
     extension_state.dl_events.pending_events.emplace_back(
-        mq, mesg, displaylist, event_type
+        DLEvent{ mq, mesg, displaylist, event_type }
     );
 }
 

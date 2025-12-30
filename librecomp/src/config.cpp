@@ -409,13 +409,25 @@ bool Config::save_config_json(nlohmann::json config_json) const {
     return result;
 }
 
+void Config::apply_option_value(const ConfigOption &option) {
+    ConfigValueVariant prev_value = get_option_value(option.id);
+    ConfigValueVariant cur_value = get_temp_option_value(option.id);
+    storage.value_map[option.id] = cur_value;
+    try_call_option_change_callback(option.id, cur_value, prev_value, OptionChangeContext::Permanent);
+}
+
+void Config::apply_option_value(const std::string &option_id) {
+    auto option_by_id_it = schema.options_by_id.find(option_id);
+    if (option_by_id_it != schema.options_by_id.end()) {
+        apply_option_value(schema.options[option_by_id_it->second]);
+        modified_options.erase(option_by_id_it->second);
+    }
+}
+
 bool Config::save_config() {
     if (requires_confirmation) {
         for (const auto& option : schema.options) {
-            ConfigValueVariant prev_value = get_option_value(option.id);
-            ConfigValueVariant cur_value = get_temp_option_value(option.id);
-            storage.value_map[option.id] = cur_value;
-            try_call_option_change_callback(option.id, cur_value, prev_value, OptionChangeContext::Permanent);
+            apply_option_value(option);
         }
 
         modified_options.clear();

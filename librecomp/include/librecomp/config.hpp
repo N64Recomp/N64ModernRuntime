@@ -296,6 +296,10 @@ namespace recomp {
                 add_option_hidden_dependency(dependent_option_id, source_option_id, values);
             };
 
+            // Apply any temporary values to the option.
+            void apply_option_value(const ConfigOption &option);
+            void apply_option_value(const std::string &option_id);
+
             bool load_config(std::function<bool(nlohmann::json &)> validate_callback = nullptr);
             bool save_config();
             bool save_config_json(nlohmann::json config_json) const;

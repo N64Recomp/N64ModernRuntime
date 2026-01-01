@@ -249,6 +249,7 @@ namespace recomp {
                 return std::get<T>(get_option(option_index).variant);
             };
 
+            bool has_option(const std::string& option_id) const;
             const ConfigValueVariant get_option_value(const std::string& option_id) const;
             const ConfigValueVariant get_temp_option_value(const std::string& option_id) const;
             // This should only be used internally to recompui. Other changes to values should be done through update_option_value

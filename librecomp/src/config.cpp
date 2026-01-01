@@ -276,6 +276,10 @@ const ConfigOption &Config::get_option(const std::string& option_id) const {
     return schema.options[option_by_id_it->second];
 }
 
+bool Config::has_option(const std::string& option_id) const {
+    return schema.options_by_id.contains(option_id);
+}
+
 const ConfigValueVariant Config::get_option_value_from_storage(const std::string& option_id, const ConfigStorage& src) const {
     auto it = src.value_map.find(option_id);
     if (it != src.value_map.end()) {

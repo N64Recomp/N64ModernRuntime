@@ -13,6 +13,9 @@
 
 #include "recomp.h"
 
+// Remove X11 define
+#undef Bool
+
 namespace recomp {
     namespace config {
 

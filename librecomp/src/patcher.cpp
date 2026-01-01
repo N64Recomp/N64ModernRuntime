@@ -40,11 +40,16 @@ bool read_u32(std::span<const uint8_t> patch_data, size_t& offset, uint32_t& num
         return false;
     }
 
+    uint8_t byte0 = patch_data[offset++];
+    uint8_t byte1 = patch_data[offset++];
+    uint8_t byte2 = patch_data[offset++];
+    uint8_t byte3 = patch_data[offset++];
+
     number_out =
-        (uint32_t(patch_data[offset++]) <<  0) |
-        (uint32_t(patch_data[offset++]) <<  8) |
-        (uint32_t(patch_data[offset++]) << 16) |
-        (uint32_t(patch_data[offset++]) << 24);
+        (uint32_t(byte0) <<  0) |
+        (uint32_t(byte1) <<  8) |
+        (uint32_t(byte2) << 16) |
+        (uint32_t(byte3) << 24);
     return true;
 }
 

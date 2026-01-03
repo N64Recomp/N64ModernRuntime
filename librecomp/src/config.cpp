@@ -474,7 +474,7 @@ ConfigValueVariant Config::parse_config_option_json_value(const nlohmann::json& 
             return {};
         }
         case ConfigOptionType::Enum: {
-            if (is_null) {
+            if (is_null || !json_value.is_string()) {
                 return std::get<ConfigOptionEnum>(option.variant).default_value;
             }
             std::string enum_string_value = json_value.get<std::string>();
@@ -487,19 +487,18 @@ ConfigValueVariant Config::parse_config_option_json_value(const nlohmann::json& 
             }
         }
         case ConfigOptionType::Number:
-            if (is_null) {
+            if (is_null || !json_value.is_number()) {
                 return std::get<ConfigOptionNumber>(option.variant).default_value;
             }
             return json_value.get<double>();
         case ConfigOptionType::String:
-            if (is_null) {
+            if (is_null || !json_value.is_string()) {
                 return std::get<ConfigOptionString>(option.variant).default_value;
             }
             return json_value.get<std::string>();
         case ConfigOptionType::Bool:
-            if (is_null) {
+            if (is_null || !json_value.is_boolean()) {
                 return std::get<ConfigOptionBool>(option.variant).default_value;
-                break;
             }
             if (json_value.is_string()) {
                 std::string str_val = json_value.get<std::string>();

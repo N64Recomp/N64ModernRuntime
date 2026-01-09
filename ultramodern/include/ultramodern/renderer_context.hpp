@@ -84,6 +84,7 @@ namespace ultramodern {
 
                 virtual void enable_instant_present() = 0;
                 virtual void send_dl(const OSTask* task) = 0;
+                virtual void send_dummy_workload(uint32_t fb_address) = 0;
                 virtual void update_screen() = 0;
                 virtual void shutdown() = 0;
                 virtual uint32_t get_display_framerate() const = 0;

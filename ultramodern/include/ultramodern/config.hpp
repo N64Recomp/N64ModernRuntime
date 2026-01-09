@@ -57,6 +57,11 @@ namespace ultramodern {
             Off,
             OptionCount
         };
+        enum class PresentationMode {
+            Console,
+            SkipBuffering,
+            PresentEarly
+        };
 
         class GraphicsConfig {
         public:

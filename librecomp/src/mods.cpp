@@ -1127,11 +1127,11 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
     }
 }
 
-bool recomp::mods::ModContext::is_mod_enabled(const std::string& mod_id) {
+bool recomp::mods::ModContext::is_mod_enabled(const std::string& mod_id) const {
     return enabled_mods.contains(mod_id);
 }
 
-bool recomp::mods::ModContext::is_mod_auto_enabled(const std::string& mod_id) {
+bool recomp::mods::ModContext::is_mod_auto_enabled(const std::string& mod_id) const {
     return auto_enabled_mods.contains(mod_id);
 }
 
@@ -1204,6 +1204,29 @@ std::vector<recomp::mods::ModDetails> recomp::mods::ModContext::get_all_mod_deta
             std::vector<Dependency> cur_dependencies{};
 
             ret.emplace_back(mod.get_details());
+        }
+    }
+
+    return ret;
+}
+
+size_t recomp::mods::ModContext::game_mode_count(const std::string& mod_game_id, bool include_disabled) const {
+    size_t ret = 0;
+    bool all_games = mod_game_id.empty();
+    size_t game_index = (size_t)-1;
+
+    auto find_game_it = mod_game_ids.find(mod_game_id);
+    if (find_game_it != mod_game_ids.end()) {
+        game_index = find_game_it->second;
+    }
+
+    for (const ModHandle &mod : opened_mods) {
+        if (all_games || mod.is_for_game(game_index)) {
+            if (include_disabled || is_mod_enabled(mod.manifest.mod_id) || is_mod_auto_enabled(mod.manifest.mod_id)) {
+                if (mod.manifest.custom_gamemode) {
+                    ret++;
+                }
+            }
         }
     }
 
@@ -1484,7 +1507,7 @@ void recomp::mods::ModContext::set_mod_config_directory(const std::filesystem::p
     mod_config_directory = path;
 }
 
-std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
+std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const GameEntry& game_entry, const std::string& game_mode_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {
     std::vector<recomp::mods::ModLoadErrorDetails> ret{};
     ram_used = 0;
     num_events = recomp::overlays::num_base_events();
@@ -1529,15 +1552,18 @@ std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mo
     for (size_t mod_index = 0; mod_index < opened_mods.size(); mod_index++) {
         auto& mod = opened_mods[mod_index];
         if (mod.is_for_game(mod_game_index) && (enabled_mods.contains(mod.manifest.mod_id) || auto_enabled_mods.contains(mod.manifest.mod_id))) {
-            active_mods.push_back(mod_index);
-            loaded_mods_by_id.emplace(mod.manifest.mod_id, mod_index);
+            // Only load gamemode mods if the current gamemode matches the mod id.
+            if (!mod.manifest.custom_gamemode || game_mode_id == mod.manifest.mod_id) {
+                active_mods.push_back(mod_index);
+                loaded_mods_by_id.emplace(mod.manifest.mod_id, mod_index);
 
-            printf("Loading mod %s\n", mod.manifest.mod_id.c_str());
-            std::string load_error_param;
-            ModLoadError load_error = load_mod(mod, load_error_param);
+                printf("Loading mod %s\n", mod.manifest.mod_id.c_str());
+                std::string load_error_param;
+                ModLoadError load_error = load_mod(mod, load_error_param);
 
-            if (load_error != ModLoadError::Good) {
-                ret.emplace_back(mod.manifest.mod_id, load_error, load_error_param);
+                if (load_error != ModLoadError::Good) {
+                    ret.emplace_back(mod.manifest.mod_id, load_error, load_error_param);
+                }
             }
         }
     }

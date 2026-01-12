@@ -204,6 +204,7 @@ namespace recomp {
             std::vector<Dependency> dependencies;
             bool runtime_toggleable;
             bool enabled_by_default;
+            bool custom_gamemode;
         };
 
         struct ModManifest {
@@ -221,6 +222,7 @@ namespace recomp {
             Version version;
             bool runtime_toggleable;
             bool enabled_by_default;
+            bool custom_gamemode;
 
             std::vector<NativeLibraryManifest> native_libraries;
             std::unique_ptr<ModFileHandle> file_handle;
@@ -319,10 +321,10 @@ namespace recomp {
             void close_mods();
             void load_mods_config();
             void enable_mod(const std::string& mod_id, bool enabled, bool trigger_save);
-            bool is_mod_enabled(const std::string& mod_id);
-            bool is_mod_auto_enabled(const std::string& mod_id);
+            bool is_mod_enabled(const std::string& mod_id) const;
+            bool is_mod_auto_enabled(const std::string& mod_id) const;
             size_t num_opened_mods();
-            std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
+            std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, const std::string& game_mode_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename) const;
             std::filesystem::path get_mod_filename(const std::string& mod_id) const;
@@ -330,6 +332,7 @@ namespace recomp {
             size_t get_mod_order_index(size_t mod_index) const;
             std::optional<ModDetails> get_details_for_mod(const std::string& mod_id) const;
             std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
+            size_t game_mode_count(const std::string& mod_game_id, bool include_disabled) const;
             recomp::Version get_mod_version(size_t mod_index);
             std::string get_mod_id(size_t mod_index);
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
@@ -475,7 +478,8 @@ namespace recomp {
                     .authors = manifest.authors,
                     .dependencies = manifest.dependencies,
                     .runtime_toggleable = is_runtime_toggleable(),
-                    .enabled_by_default = manifest.enabled_by_default
+                    .enabled_by_default = manifest.enabled_by_default,
+                    .custom_gamemode = manifest.custom_gamemode
                 };
             }
         private:
@@ -592,6 +596,7 @@ namespace recomp {
         std::filesystem::path get_mods_directory();
         std::optional<ModDetails> get_details_for_mod(const std::string& mod_id);
         std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
+        size_t game_mode_count(const std::string& mod_game_id, bool include_disabled);
         recomp::Version get_mod_version(size_t mod_index);
         std::string get_mod_id(size_t mod_index);
         void enable_mod(const std::string& mod_id, bool enabled);

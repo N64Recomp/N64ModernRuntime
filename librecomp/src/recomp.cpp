@@ -461,6 +461,7 @@ extern "C" void do_break(uint32_t vram) {
     exit(EXIT_FAILURE);
 }
 
+std::string current_game_mode_id;
 std::optional<std::u8string> current_game = std::nullopt;
 std::atomic<GameStatus> game_status = GameStatus::None;
 
@@ -526,8 +527,9 @@ std::string recomp::current_mod_game_id() {
     return game_entry.mod_game_id;
 }
 
-void recomp::start_game(const std::u8string& game_id) {
+void recomp::start_game(const std::u8string& game_id, const std::string& game_mode_id) {
     std::lock_guard<std::mutex> lock(current_game_mutex);
+    current_game_mode_id = game_mode_id;
     current_game = game_id;
     game_status.store(GameStatus::Running);
     game_status.notify_all();
@@ -629,6 +631,11 @@ std::vector<recomp::mods::ModDetails> recomp::mods::get_all_mod_details(const st
     return mod_context->get_all_mod_details(mod_game_id);
 }
 
+size_t recomp::mods::game_mode_count(const std::string& mod_game_id, bool include_disabled) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->game_mode_count(mod_game_id, include_disabled);
+}
+
 recomp::Version recomp::mods::get_mod_version(size_t mod_index) {
     std::lock_guard lock { mod_context_mutex };
     return mod_context->get_mod_version(mod_index);
@@ -668,7 +675,7 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                     std::vector<recomp::mods::ModLoadErrorDetails> mod_load_errors;
                     {
                         std::lock_guard lock { mod_context_mutex };
-                        mod_load_errors = mod_context->load_mods(game_entry, rdram, recomp::mod_rdram_start, mod_ram_used);
+                        mod_load_errors = mod_context->load_mods(game_entry, current_game_mode_id, rdram, recomp::mod_rdram_start, mod_ram_used);
                     }
 
                     if (!mod_load_errors.empty()) {

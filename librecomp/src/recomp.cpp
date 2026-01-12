@@ -533,6 +533,7 @@ void recomp::start_game(const std::u8string& game_id, const std::string& game_mo
     current_game = game_id;
     game_status.store(GameStatus::Running);
     game_status.notify_all();
+    mods::set_latest_game_mode_id(game_mode_id);
 }
 
 bool ultramodern::is_game_started() {
@@ -599,6 +600,16 @@ recomp::config::ConfigValueVariant recomp::mods::get_mod_config_value(size_t mod
 recomp::config::ConfigValueVariant recomp::mods::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->get_mod_config_value(mod_id, option_id);
+}
+
+std::string recomp::mods::get_latest_game_mode_id() {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_latest_game_mode_id();
+}
+
+void recomp::mods::set_latest_game_mode_id(const std::string& game_mode_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    mod_context->set_latest_game_mode_id(game_mode_id);
 }
 
 std::string recomp::mods::get_mod_id_from_filename(const std::filesystem::path& mod_filename) {

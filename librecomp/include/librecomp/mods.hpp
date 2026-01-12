@@ -307,7 +307,11 @@ namespace recomp {
             uint32_t pad;
         };
 
-        typedef std::variant<ModConfigQueueSaveMod, ModConfigQueueSave, ModConfigQueueEnd> ModConfigQueueVariant;
+        struct ModConfigSetLatestGamemode {
+            uint32_t pad;
+        };
+
+        typedef std::variant<ModConfigQueueSaveMod, ModConfigQueueSave, ModConfigQueueEnd, ModConfigSetLatestGamemode> ModConfigQueueVariant;
 
         class LiveRecompilerCodeHandle;
         class ModContext {
@@ -345,6 +349,8 @@ namespace recomp {
             config::ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id) const;
             void set_mods_config_path(const std::filesystem::path &path);
             void set_mod_config_directory(const std::filesystem::path &path);
+            std::string get_latest_game_mode_id() const;
+            void set_latest_game_mode_id(const std::string& game_mode_id);
             ModContentTypeId register_content_type(const ModContentType& type);
             bool register_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
             ModContentTypeId get_code_content_type() const { return code_content_type_id; }
@@ -412,6 +418,7 @@ namespace recomp {
             ModContentTypeId code_content_type_id;
             ModContentTypeId rom_patch_content_type_id;
             size_t active_game = (size_t)-1;
+            std::string latest_game_mode;
         };
 
         class ModCodeHandle {
@@ -609,6 +616,8 @@ namespace recomp {
         void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const config::ConfigValueVariant &value);
         config::ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
         config::ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
+        std::string get_latest_game_mode_id();
+        void set_latest_game_mode_id(const std::string& game_mode_id);
         std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename);
         std::filesystem::path get_mod_filename(const std::string& mod_id);
         size_t get_mod_order_index(const std::string& mod_id);

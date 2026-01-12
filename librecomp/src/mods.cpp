@@ -658,7 +658,7 @@ bool save_mod_config_storage(const std::string &mod_id, const recomp::Version &m
     return config->save_config_json(config_json);
 }
 
-bool parse_mods_config(const std::filesystem::path &path, std::unordered_set<std::string> &enabled_mods, std::vector<std::string> &mod_order) {
+bool parse_mods_config(const std::filesystem::path &path, std::string& latest_game_mode, std::unordered_set<std::string> &enabled_mods, std::vector<std::string> &mod_order) {
     using json = nlohmann::json;
     json config_json;
     if (!read_json_with_backups(path, config_json)) {
@@ -680,13 +680,25 @@ bool parse_mods_config(const std::filesystem::path &path, std::unordered_set<std
         get_to_vec<std::string>(*mod_order_json, mod_order);
     }
 
+    auto latest_game_mode_json = config_json.find("latest_game_mode");
+    if (latest_game_mode_json != config_json.end()) {
+        const std::string* temp_ptr = latest_game_mode_json->get_ptr<const std::string*>();
+        if (temp_ptr == nullptr) {
+            latest_game_mode = {};
+        }
+        else {
+            latest_game_mode = *temp_ptr;
+        }
+    }
+
     return true;
 }
 
-bool save_mods_config(const std::filesystem::path &path, const std::unordered_set<std::string> &enabled_mods, const std::vector<std::string> &mod_order) {
+bool save_mods_config(const std::filesystem::path &path, const std::string& latest_game_mode, const std::unordered_set<std::string> &enabled_mods, const std::vector<std::string> &mod_order) {
     nlohmann::json config_json;
     config_json["enabled_mods"] = enabled_mods;
     config_json["mod_order"] = mod_order;
+    config_json["latest_game_mode"] = latest_game_mode;
 
     std::ofstream output_file = recomp::open_output_file_with_backup(path);
     if (!output_file.good()) {
@@ -722,6 +734,9 @@ void recomp::mods::ModContext::dirty_mod_configuration_thread_process() {
         }
         else if (const ModConfigQueueSaveMod* queue_save_mod = std::get_if<ModConfigQueueSaveMod>(&variant)) {
             pending_mods.emplace(queue_save_mod->mod_id);
+        }
+        else if (const ModConfigSetLatestGamemode* set_latest_game_mode = std::get_if<ModConfigSetLatestGamemode>(&variant)) {
+            pending_config_save = true;
         }
     };
 
@@ -768,7 +783,7 @@ void recomp::mods::ModContext::dirty_mod_configuration_thread_process() {
                 }
             }
 
-            save_mods_config(mods_config_path, config_enabled_mods, config_mod_order);
+            save_mods_config(mods_config_path, latest_game_mode, config_enabled_mods, config_mod_order);
             pending_config_save = false;
         }
     }
@@ -828,7 +843,7 @@ void recomp::mods::ModContext::load_mods_config() {
     std::unordered_set<std::string> config_enabled_mods;
     std::vector<std::string> config_mod_order;
     std::vector<bool> opened_mod_is_known;
-    parse_mods_config(mods_config_path, config_enabled_mods, config_mod_order);
+    parse_mods_config(mods_config_path, latest_game_mode, config_enabled_mods, config_mod_order);
 
     // Fill a vector with the relative order of the mods. Existing mods will get ordered below new mods.
     std::vector<size_t> sort_order;
@@ -1505,6 +1520,15 @@ void recomp::mods::ModContext::set_mods_config_path(const std::filesystem::path 
 
 void recomp::mods::ModContext::set_mod_config_directory(const std::filesystem::path &path) {
     mod_config_directory = path;
+}
+
+std::string recomp::mods::ModContext::get_latest_game_mode_id() const {
+    return latest_game_mode;
+}
+
+void recomp::mods::ModContext::set_latest_game_mode_id(const std::string& game_mode_id) {
+    latest_game_mode = game_mode_id;
+    mod_configuration_thread_queue.enqueue(ModConfigSetLatestGamemode());
 }
 
 std::vector<recomp::mods::ModLoadErrorDetails> recomp::mods::ModContext::load_mods(const GameEntry& game_entry, const std::string& game_mode_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used) {

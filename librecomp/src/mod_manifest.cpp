@@ -151,6 +151,7 @@ const std::string version_key = "version";
 const std::string authors_key = "authors";
 const std::string minimum_recomp_version_key = "minimum_recomp_version";
 const std::string enabled_by_default_key = "enabled_by_default";
+const std::string custom_gamemode_key = "custom_gamemode";
 const std::string dependencies_key = "dependencies";
 const std::string optional_dependencies_key = "optional_dependencies";
 const std::string native_libraries_key = "native_libraries";
@@ -702,6 +703,12 @@ recomp::mods::ModOpenError recomp::mods::parse_manifest(ModManifest& ret, const 
 
     // Enabled by default (optional, true if not present)
     current_error = try_get<json::boolean_t>(ret.enabled_by_default, manifest_json, enabled_by_default_key, false, error_param, true);
+    if (current_error != ModOpenError::Good) {
+        return current_error;
+    }
+
+    // Custom gamemode (optional, false if not present)
+    current_error = try_get<json::boolean_t>(ret.custom_gamemode, manifest_json, custom_gamemode_key, false, error_param, false);
     if (current_error != ModOpenError::Good) {
         return current_error;
     }

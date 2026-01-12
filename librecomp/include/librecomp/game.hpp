@@ -108,7 +108,7 @@ namespace recomp {
     bool sram_allowed();
     bool flashram_allowed();
 
-    void start_game(const std::u8string& game_id);
+    void start_game(const std::u8string& game_id, const std::string& game_mode_id);
     std::u8string current_game_id();
     std::string current_mod_game_id();
 }

@@ -52,6 +52,17 @@ bool thread_queue_empty(RDRAM_ARG PTR(PTR(OSThread)) queue);
 PTR(OSThread) thread_queue_peek(RDRAM_ARG PTR(PTR(OSThread)) queue);
 
 // Message queues.
+struct MessageQueueControl {
+    bool requeue_counter{true};
+    bool requeue_sp{true};
+    bool requeue_si{true};
+    bool requeue_ai{false};
+    bool requeue_vi{false};
+    bool requeue_pi{true};
+    bool requeue_dp{true};
+};
+void set_message_queue_control(const MessageQueueControl& mqc);
+void enqueue_external_message_type(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, OSEvent event_type);
 void enqueue_external_message(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, bool requeue_if_blocked);
 void wait_for_external_message(RDRAM_ARG1);
 void wait_for_external_message_timed(RDRAM_ARG1, u32 millis);

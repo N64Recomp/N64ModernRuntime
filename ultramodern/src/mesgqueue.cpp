@@ -13,6 +13,28 @@ struct QueuedMessage {
 };
 
 static moodycamel::BlockingConcurrentQueue<QueuedMessage> external_messages {};
+static ultramodern::MessageQueueControl message_queue_control;
+
+void ultramodern::set_message_queue_control(const ultramodern::MessageQueueControl& mqc) {
+    message_queue_control = mqc;
+}
+
+void ultramodern::enqueue_external_message_type(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, OSEvent event_type) {
+    bool requeue_if_blocked = false;
+    switch (event_type) {
+    case OS_EVENT_COUNTER: requeue_if_blocked = message_queue_control.requeue_counter; break;
+    case OS_EVENT_SP:      requeue_if_blocked = message_queue_control.requeue_sp; break;
+    case OS_EVENT_SI:      requeue_if_blocked = message_queue_control.requeue_si; break;
+    case OS_EVENT_AI:      requeue_if_blocked = message_queue_control.requeue_ai; break;
+    case OS_EVENT_VI:      requeue_if_blocked = message_queue_control.requeue_vi; break;
+    case OS_EVENT_PI:      requeue_if_blocked = message_queue_control.requeue_pi; break;
+    case OS_EVENT_DP:      requeue_if_blocked = message_queue_control.requeue_dp; break;
+    default:
+        assert(!"unhandled OSEvent type");
+        break;
+    }
+    external_messages.enqueue({mq, msg, jam, requeue_if_blocked});
+}
 
 void ultramodern::enqueue_external_message(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, bool requeue_if_blocked) {
     external_messages.enqueue({mq, msg, jam, requeue_if_blocked});

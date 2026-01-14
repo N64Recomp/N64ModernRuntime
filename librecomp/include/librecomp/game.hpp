@@ -82,25 +82,32 @@ namespace recomp {
     void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
     const Version& get_project_version();
 
-    /**
-     * The following arguments contain mandatory callbacks that need to be registered (i.e., can't be `nullptr`):
-     * - `rsp_callbacks`
-     * - `renderer_callbacks`
-     *
-     * It must be called only once and it must be called before `ultramodern::preinit`.
-     */
-    void start(
-        const Version& project_version,
-        ultramodern::renderer::WindowHandle window_handle,
-        const recomp::rsp::callbacks_t& rsp_callbacks,
-        const ultramodern::renderer::callbacks_t& renderer_callbacks,
-        const ultramodern::audio_callbacks_t& audio_callbacks,
-        const ultramodern::input::callbacks_t& input_callbacks,
-        const ultramodern::gfx_callbacks_t& gfx_callbacks,
-        const ultramodern::events::callbacks_t& events_callbacks,
-        const ultramodern::error_handling::callbacks_t& error_handling_callbacks,
-        const ultramodern::threads::callbacks_t& threads_callbacks
-    );
+    /// Specify the input configuration to the recomp runtime.
+    /// 
+    /// The following callback fields are mandatory (i.e., fail on empty()):
+    /// - `rsp_callbacks`
+    /// - `renderer_callbacks`
+    /// 
+    struct Configuration {
+        Version project_version;
+        ultramodern::renderer::WindowHandle window_handle;
+        recomp::rsp::callbacks_t rsp_callbacks;
+        ultramodern::renderer::callbacks_t renderer_callbacks;
+        ultramodern::audio_callbacks_t audio_callbacks;
+        ultramodern::input::callbacks_t input_callbacks;
+        ultramodern::gfx_callbacks_t gfx_callbacks;
+        ultramodern::events::callbacks_t events_callbacks;
+        ultramodern::error_handling::callbacks_t error_handling_callbacks;
+        ultramodern::threads::callbacks_t threads_callbacks;
+        ultramodern::MessageQueueControl message_queue_control;
+    };
+
+    /// Start the recomp runtime.
+    /// 
+    /// This routine must be called only once and it must be called before
+    /// `ultramodern::preinit`.
+    /// 
+    void start(const Configuration& cfg);
 
     SaveType get_save_type();
     bool eeprom_allowed();

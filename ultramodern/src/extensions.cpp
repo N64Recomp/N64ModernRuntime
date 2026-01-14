@@ -38,7 +38,7 @@ void dispatch_displaylist_events(PTR(void) displaylist, u32 event_type) {
     for (auto iter = extension_state.dl_events.pending_events.begin(); iter != extension_state.dl_events.pending_events.end(); ) {
         if (iter->displaylist == displaylist && iter->event_type == event_type) {
             // Send the provided message to the corresponding message queue for this event, then remove this event from the queue.
-            ultramodern::enqueue_external_message(iter->mq, iter->mesg, false, true);
+            ultramodern::enqueue_external_message_type(iter->mq, iter->mesg, false, OS_EVENT_SP);
             iter = extension_state.dl_events.pending_events.erase(iter);
         }
         else {

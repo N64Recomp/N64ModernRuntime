@@ -179,7 +179,7 @@ s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(OSPfs) pfs_, int channel) {
     if (device_info.connected_device != ultramodern::input::Device::Controller) {
         return PFS_ERR_CONTRFAIL;
     }
-    if (device_info.connected_pak != ultramodern::input::Pak::None) {
+    if (device_info.connected_pak == ultramodern::input::Pak::None) {
         return PFS_ERR_NOPACK;
     }
     if (device_info.connected_pak != ultramodern::input::Pak::RumblePak) {

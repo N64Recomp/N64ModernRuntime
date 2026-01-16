@@ -233,13 +233,13 @@ void vi_thread_func() {
                 if (cur_state->mq != NULLPTR) {
                     // Send a message to the VI queue, and do not set it to be requeued if the queue was full.
                     // The worst case scenario is that the game misses a VI message and has to wait a little longer for the next. 
-                    ultramodern::enqueue_external_message(cur_state->mq, cur_state->msg, false, false);
+                    ultramodern::enqueue_external_message_src(cur_state->mq, cur_state->msg, false, ultramodern::EventMessageSource::Vi);
                 }
                 remaining_retraces = cur_state->retrace_count;
             }
             if (events_context.ai.mq != NULLPTR) {
                 // Send a message to the VI queue, and do not set it to be requeued if the queue was full for the same reason as the VI message above.
-                ultramodern::enqueue_external_message(events_context.ai.mq, events_context.ai.msg, false, false);
+                ultramodern::enqueue_external_message_src(events_context.ai.mq, events_context.ai.msg, false, ultramodern::EventMessageSource::Ai);
             }
         }
 
@@ -252,13 +252,13 @@ void vi_thread_func() {
 void sp_complete() {
     uint8_t* rdram = events_context.rdram;
     std::lock_guard lock{ events_context.message_mutex };
-    ultramodern::enqueue_external_message(events_context.sp.mq, events_context.sp.msg, false, true);
+    ultramodern::enqueue_external_message_src(events_context.sp.mq, events_context.sp.msg, false, ultramodern::EventMessageSource::Sp);
 }
 
 void dp_complete() {
     uint8_t* rdram = events_context.rdram;
     std::lock_guard lock{ events_context.message_mutex };
-    ultramodern::enqueue_external_message(events_context.dp.mq, events_context.dp.msg, false, true);
+    ultramodern::enqueue_external_message_src(events_context.dp.mq, events_context.dp.msg, false, ultramodern::EventMessageSource::Dp);
 }
 
 void task_thread_func(uint8_t* rdram, moodycamel::LightweightSemaphore* thread_ready) {
@@ -566,7 +566,7 @@ void ultramodern::submit_rsp_task(RDRAM_ARG PTR(OSTask) task_) {
 }
 
 void ultramodern::send_si_message() {
-    ultramodern::enqueue_external_message(events_context.si.mq, events_context.si.msg, false, true);
+    ultramodern::enqueue_external_message_src(events_context.si.mq, events_context.si.msg, false, ultramodern::EventMessageSource::Si);
 }
 
 void ultramodern::init_events(RDRAM_ARG ultramodern::renderer::WindowHandle window_handle) {

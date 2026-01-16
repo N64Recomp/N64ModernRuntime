@@ -63,13 +63,13 @@ enum class EventMessageSource : int {
 };
 
 struct MessageQueueControl {
-    bool requeue_timer{true};
-    bool requeue_sp{true};
-    bool requeue_si{true};
-    bool requeue_ai{false};
-    bool requeue_vi{false};
-    bool requeue_pi{true};
-    bool requeue_dp{true};
+    bool requeue_timer = true;
+    bool requeue_sp = true;
+    bool requeue_si = true;
+    bool requeue_ai = false;
+    bool requeue_vi = false;
+    bool requeue_pi = true;
+    bool requeue_dp = true;
 };
 void set_message_queue_control(const MessageQueueControl& mqc);
 void enqueue_external_message_type(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, EventMessageSource src);

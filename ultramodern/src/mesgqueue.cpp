@@ -1,3 +1,4 @@
+#include <bitset>
 #include <thread>
 
 #include "blockingconcurrentqueue.h"
@@ -13,6 +14,22 @@ struct QueuedMessage {
 };
 
 static moodycamel::BlockingConcurrentQueue<QueuedMessage> external_messages {};
+std::bitset<32> requeue_enabled;
+
+void ultramodern::set_message_queue_control(const ultramodern::MessageQueueControl& mqc) {
+    requeue_enabled.reset();
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Timer), mqc.requeue_timer);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Sp), mqc.requeue_sp);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Si), mqc.requeue_si);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Ai), mqc.requeue_ai);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Vi), mqc.requeue_vi);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Pi), mqc.requeue_pi);
+    requeue_enabled.set(static_cast<int>(EventMessageSource::Dp), mqc.requeue_dp);
+}
+
+void ultramodern::enqueue_external_message_src(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, EventMessageSource src) {
+    external_messages.enqueue({mq, msg, jam, requeue_enabled[static_cast<int>(src)]});
+}
 
 void ultramodern::enqueue_external_message(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, bool requeue_if_blocked) {
     external_messages.enqueue({mq, msg, jam, requeue_if_blocked});

@@ -130,7 +130,7 @@ void timer_thread(RDRAM_ARG1) {
         }
         else {
             // Waiting for the timer completed, so send the timer's message to its message queue
-            ultramodern::enqueue_external_message(cur_timer->mq, cur_timer->msg, false, true);
+            ultramodern::enqueue_external_message_src(cur_timer->mq, cur_timer->msg, false, ultramodern::EventMessageSource::Timer);
             // If the timer has a specified interval then reload it with that value
             if (cur_timer->interval != 0) {
                 cur_timer->timestamp = cur_timer->interval + time_now();

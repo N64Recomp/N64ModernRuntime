@@ -11,6 +11,12 @@
 #define ARRAY_COUNT(arr) (s32)(sizeof(arr) / sizeof(arr[0]))
 #define MAX_FILES 16
 
+#if PAK_DEBUG
+#define TRACE_ENTRY()   fprintf(stderr, "PAK_ENTRY(%s)\n", __func__);
+#else
+#define TRACE_ENTRY()   
+#endif
+
 typedef struct ControllerPak {
     std::fstream header;
     std::fstream file;
@@ -110,12 +116,24 @@ void ByteSwapCopy(uint8_t* dst, uint8_t* src, size_t size_bytes) {
     }
 }
 
-extern "C" void osPfsIsPlug_recomp(uint8_t* rdram, recomp_context* ctx) {
-    MEM_B(0, ctx->r5) = 0b0001; // *pattern = 1;
+extern "C" void osPfsGetLabel_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     ctx->r2 = 0;                // PFS_NO_ERROR
 }
 
+extern "C" void osPfsIsPlug_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
+
+    PTR(OSMesgQueue) mq = _arg<0, PTR(OSMesgQueue)>(rdram, ctx);
+    PTR(u8) bitpattern = _arg<1, PTR(u8)>(rdram, ctx);
+
+    MEM_B(0, bitpattern) = 0b0001;
+
+    _return<s32>(ctx, 0);
+}
+
 extern "C" void osPfsInit_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     int32_t queue = _arg<0, int32_t>(rdram, ctx);
     OSPfs* pfs = _arg<1, OSPfs*>(rdram, ctx);
     s32 channel = _arg<2, s32>(rdram, ctx);
@@ -136,6 +154,7 @@ extern "C" void osPfsInit_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsInitPak_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     int32_t queue = _arg<0, int32_t>(rdram, ctx);
     OSPfs* pfs = _arg<1, OSPfs*>(rdram, ctx);
     s32 channel = _arg<2, s32>(rdram, ctx);
@@ -186,6 +205,7 @@ extern "C" void osPfsInitPak_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsFreeBlocks_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     s32* bytes_not_used = _arg<1, s32*>(rdram, ctx);
 
     s32 usedSpace = 0;
@@ -211,6 +231,7 @@ extern "C" void osPfsFreeBlocks_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     u16 company_code = _arg<1, u16>(rdram, ctx);
     u32 game_code = _arg<2, u32>(rdram, ctx);
     u8* game_name = _arg<3, u8*>(rdram, ctx);
@@ -273,6 +294,7 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     s32 file_no = _arg<1, s32>(rdram, ctx);
     OSPfsState* state = _arg<2, OSPfsState*>(rdram, ctx);
 
@@ -362,6 +384,7 @@ extern "C" void osPfsFileState_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     u16 company_code = _arg<1, u16>(rdram, ctx);
     u32 game_code = _arg<2, u32>(rdram, ctx);
     u8* game_name = _arg<3, u8*>(rdram, ctx);
@@ -404,6 +427,7 @@ extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsReadWriteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     s32 file_no = _arg<1, s32>(rdram, ctx);
     u8 flag = _arg<2, u8>(rdram, ctx);
     s32 offset = _arg<3, s32>(rdram, ctx);
@@ -447,10 +471,12 @@ extern "C" void osPfsReadWriteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsChecker_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     ctx->r2 = 0; // PFS_NO_ERROR
 }
 
 extern "C" void osPfsNumFiles_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     s32* max_files = _arg<1, s32*>(rdram, ctx);
     s32* files_used = _arg<2, s32*>(rdram, ctx);
 
@@ -476,6 +502,7 @@ extern "C" void osPfsNumFiles_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsDeleteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     u16 company_code = _arg<1, u16>(rdram, ctx);
     u32 game_code = _arg<2, u32>(rdram, ctx);
     u8* game_name = _arg<3, u8*>(rdram, ctx);
@@ -597,5 +624,7 @@ extern "C" void osPfsDeleteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osPfsRepairId_recomp(uint8_t* rdram, recomp_context* ctx) {
+    TRACE_ENTRY()
     _return<s32>(ctx, 0); // PFS_NO_ERROR
 }
+

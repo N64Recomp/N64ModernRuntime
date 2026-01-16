@@ -27,7 +27,7 @@ void ultramodern::set_message_queue_control(const ultramodern::MessageQueueContr
     requeue_enabled.set(static_cast<int>(EventMessageSource::Dp), mqc.requeue_dp);
 }
 
-void ultramodern::enqueue_external_message_type(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, EventMessageSource src) {
+void ultramodern::enqueue_external_message_src(PTR(OSMesgQueue) mq, OSMesg msg, bool jam, EventMessageSource src) {
     external_messages.enqueue({mq, msg, jam, requeue_enabled[static_cast<int>(src)]});
 }
 

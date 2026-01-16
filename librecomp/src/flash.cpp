@@ -154,7 +154,7 @@ extern "C" void osFlashWriteBuffer_recomp(uint8_t * rdram, recomp_context * ctx)
     }
 
     // Send the message indicating write completion
-    ultramodern::enqueue_external_message_type(mq, 0, false, ultramodern::EventMessageSource::Pi);
+    ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
 
     ctx->r2 = 0;
 }
@@ -193,7 +193,7 @@ extern "C" void osFlashReadArray_recomp(uint8_t * rdram, recomp_context * ctx) {
     save_read(PASS_RDRAM dramAddr, offset, count);
 
     // Send the message indicating read completion
-    ultramodern::enqueue_external_message_type(mq, 0, false, ultramodern::EventMessageSource::Pi);
+    ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
 
     ctx->r2 = 0;
 }

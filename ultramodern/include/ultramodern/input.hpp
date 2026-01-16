@@ -15,7 +15,7 @@ namespace ultramodern {
         enum class Pak {
             None,
             RumblePak,
-            // ControllerPak,
+            ControllerPak,
             // TransferPak
         };
 

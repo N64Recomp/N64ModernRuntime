@@ -4,6 +4,17 @@
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
 
+#define PFS_ERR_NOPACK          1   // no device inserted
+#define PFS_ERR_CONTRFAIL       4   // data transmission failure
+#define PFS_ERR_INVALID         5   // invalid parameter or invalid file
+#define PFS_ERR_DEVICE          11  // different type of device inserted
+
+#define PFS_INITIALIZED         1
+#define PFS_CORRUPTED           2
+#define PFS_ID_BROKEN           4
+#define PFS_MOTOR_INITIALIZED   8
+#define PFS_GBPAK_INITIALIZED   16
+
 static ultramodern::input::callbacks_t input_callbacks {};
 
 void ultramodern::input::set_callbacks(const callbacks_t& callbacks) {
@@ -154,8 +165,28 @@ extern "C" void osContGetReadData(OSContPad *data) {
 s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(OSPfs) pfs_, int channel) {
     OSPfs *pfs = TO_PTR(OSPfs, pfs_);
 
+    // basic initialization performed regardless of connected/disconnected status
+    pfs->queue = mq;
     pfs->channel = channel;
+    pfs->activebank = 0xFF;
+    pfs->status = 0;
 
+    ultramodern::input::connected_device_info_t device_info{};
+    if (input_callbacks.get_connected_device_info != nullptr) {
+        device_info = input_callbacks.get_connected_device_info(channel);
+    }
+
+    if (device_info.connected_device != ultramodern::input::Device::Controller) {
+        return PFS_ERR_CONTRFAIL;
+    }
+    if (device_info.connected_pak != ultramodern::input::Pak::None) {
+        return PFS_ERR_NOPACK;
+    }
+    if (device_info.connected_pak != ultramodern::input::Pak::RumblePak) {
+        return PFS_ERR_DEVICE;
+    }
+
+    pfs->status = PFS_MOTOR_INITIALIZED;
     return 0;
 }
 
@@ -170,10 +201,14 @@ s32 osMotorStart(RDRAM_ARG PTR(OSPfs) pfs) {
 s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs) pfs_, s32 flag) {
     OSPfs *pfs = TO_PTR(OSPfs, pfs_);
 
+    if (!(pfs->status & PFS_MOTOR_INITIALIZED)) {
+        return PFS_ERR_INVALID;
+    }
+
     if (input_callbacks.set_rumble != nullptr) {
-        // TODO: Should we check if the Rumble Pak is connected? Or just rumble regardless of the connected Pak?
         input_callbacks.set_rumble(pfs->channel, flag);
     }
 
     return 0;
 }
+

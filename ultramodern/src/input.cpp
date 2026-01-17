@@ -82,7 +82,7 @@ static void __osContGetInitData(u8* pattern, OSContStatus *data) {
             data[controller].status = device_info.connected_pak != ultramodern::input::Pak::None;
             data[controller].err_no = 0x00;
 
-            *pattern = 1 << controller;
+            *pattern |= 1 << controller;
         }
         else {
             // Mark controller as not connected

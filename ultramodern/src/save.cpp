@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <mutex>
 #include <thread>
 #include <vector>
 #include <ultramodern/files.hpp>

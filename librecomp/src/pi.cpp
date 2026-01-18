@@ -95,7 +95,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             // Send a message to the mq to indicate that the transfer completed
             ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
         } else if (physical_addr >= recomp::sram_base) {
-            if (!recomp::sram_allowed()) {
+            if (!ultramodern::sram_allowed()) {
                 ultramodern::error_handling::message_box("Attempted to use SRAM saving with other save type");
                 ULTRAMODERN_QUICK_EXIT();
             }
@@ -112,7 +112,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
             // write cart rom
             throw std::runtime_error("ROM DMA write unimplemented");
         } else if (physical_addr >= recomp::sram_base) {
-            if (!recomp::sram_allowed()) {
+            if (!ultramodern::sram_allowed()) {
                 ultramodern::error_handling::message_box("Attempted to use SRAM saving with other save type");
                 ULTRAMODERN_QUICK_EXIT();
             }

@@ -189,8 +189,8 @@ void read_save_file() {
     }
 }
 
-void ultramodern::init_saving(RDRAM_ARG1) {
-    set_save_file_path(u8"", ultramodern::current_game_id());
+void ultramodern::init_saving(RDRAM_ARG const std::u8string& name) {
+    set_save_file_path(u8"", name);
 
     save_context.save_buffer.resize(get_save_size(ultramodern::get_save_type()));
 

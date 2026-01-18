@@ -18,7 +18,7 @@ namespace ultramodern {
 
     void set_save_file_path(const std::u8string& subfolder, const std::u8string& name);
 
-    void init_saving(RDRAM_ARG1);
+    void init_saving(RDRAM_ARG const std::u8string& name);
 
     void change_save_file(const std::u8string& subfolder, const std::u8string& name);
 

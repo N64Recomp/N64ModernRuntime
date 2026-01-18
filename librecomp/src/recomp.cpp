@@ -687,7 +687,7 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                 recomp::init_heap(rdram, recomp::mod_rdram_start + mod_ram_used);
 
                 ultramodern::set_save_type(game_entry.save_type);
-                ultramodern::init_saving(rdram);
+                ultramodern::init_saving(rdram, recomp::current_game_id());
 
                 try {
                     game_entry.entrypoint(rdram, context);

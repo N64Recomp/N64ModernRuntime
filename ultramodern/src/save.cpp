@@ -26,6 +26,10 @@ extern std::filesystem::path config_path;
 // The current game's save type.
 ultramodern::SaveType save_type = ultramodern::SaveType::None;
 
+void ultramodern::set_save_type(ultramodern::SaveType type) {
+    save_type = type;
+}
+
 ultramodern::SaveType ultramodern::get_save_type() {
     return save_type;
 }

@@ -21,6 +21,7 @@
 #include "xxHash/xxh3.h"
 #include "ultramodern/ultramodern.hpp"
 #include "ultramodern/error_handling.hpp"
+#include "ultramodern/save.hpp"
 #include "librecomp/addresses.hpp"
 #include "librecomp/mods.hpp"
 #include "recompiler/live_recompiler.h"
@@ -57,8 +58,6 @@ std::unordered_map<std::u8string, recomp::GameEntry> game_roms {};
 std::unique_ptr<recomp::mods::ModContext> mod_context = std::make_unique<recomp::mods::ModContext>();
 // The project's version.
 recomp::Version project_version;
-// The current game's save type.
-recomp::SaveType save_type = recomp::SaveType::None;
 
 std::u8string recomp::GameEntry::stored_filename() const {
     return game_id + u8".z64";
@@ -687,7 +686,7 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
 
                 recomp::init_heap(rdram, recomp::mod_rdram_start + mod_ram_used);
 
-                save_type = game_entry.save_type;
+                ultramodern::set_save_type(game_entry.save_type);
                 ultramodern::init_saving(rdram);
 
                 try {
@@ -704,29 +703,6 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
         case GameStatus::None:
             return true;
     }
-}
-
-recomp::SaveType recomp::get_save_type() {
-    return save_type;
-}
-
-bool recomp::eeprom_allowed() {
-    return
-        save_type == SaveType::Eep4k || 
-        save_type == SaveType::Eep16k ||
-        save_type == SaveType::AllowAll;
-}
-
-bool recomp::sram_allowed() {
-    return
-        save_type == SaveType::Sram || 
-        save_type == SaveType::AllowAll;
-}
-
-bool recomp::flashram_allowed() {
-    return
-        save_type == SaveType::Flashram || 
-        save_type == SaveType::AllowAll;
 }
 
 void recomp::start(const recomp::Configuration& cfg) {

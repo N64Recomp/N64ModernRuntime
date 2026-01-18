@@ -7,6 +7,7 @@
 #include "recomp.h"
 #include "rsp.hpp"
 #include <ultramodern/ultramodern.hpp>
+#include <ultramodern/save.hpp>
 
 namespace recomp {
     struct GameEntry {

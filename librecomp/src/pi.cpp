@@ -7,7 +7,7 @@
 #include "recomp.h"
 #include "librecomp/addresses.hpp"
 #include "librecomp/game.hpp"
-#include "librecomp/files.hpp"
+#include <ultramodern/files.hpp>
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
 
@@ -100,7 +100,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
                 ULTRAMODERN_QUICK_EXIT();
             }
             // read sram
-            save_read(rdram, rdram_address, physical_addr - recomp::sram_base, size);
+            ultramodern::save_read(rdram, rdram_address, physical_addr - recomp::sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
             ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
@@ -117,7 +117,7 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
                 ULTRAMODERN_QUICK_EXIT();
             }
             // write sram
-            save_write(rdram, rdram_address, physical_addr - recomp::sram_base, size);
+            ultramodern::save_write(rdram, rdram_address, physical_addr - recomp::sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
             ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);

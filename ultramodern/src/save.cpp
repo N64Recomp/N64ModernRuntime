@@ -1,4 +1,9 @@
+#include <filesystem>
+#include <thread>
+#include <vector>
+#include <ultramodern/files.hpp>
 #include <ultramodern/save.hpp>
+#include <ultramodern/ultramodern.hpp>
 
 struct {
     std::vector<char> save_buffer;
@@ -12,15 +17,43 @@ struct {
     std::mutex save_buffer_mutex;
 } save_context;
 
+// The current game's save directory within the config path.
 const std::u8string save_folder = u8"saves";
 
+// The current game's config directory path.
 extern std::filesystem::path config_path;
+
+// The current game's save type.
+ultramodern::SaveType save_type = ultramodern::SaveType::None;
+
+ultramodern::SaveType ultramodern::get_save_type() {
+    return save_type;
+}
+
+bool ultramodern::eeprom_allowed() {
+    return
+        save_type == SaveType::Eep4k || 
+        save_type == SaveType::Eep16k ||
+        save_type == SaveType::AllowAll;
+}
+
+bool ultramodern::sram_allowed() {
+    return
+        save_type == SaveType::Sram || 
+        save_type == SaveType::AllowAll;
+}
+
+bool ultramodern::flashram_allowed() {
+    return
+        save_type == SaveType::Flashram || 
+        save_type == SaveType::AllowAll;
+}
 
 std::filesystem::path ultramodern::get_save_file_path() {
     return save_context.save_file_path;
 }
 
-void set_save_file_path(const std::u8string& subfolder, const std::u8string& name) {
+void ultramodern::set_save_file_path(const std::u8string& subfolder, const std::u8string& name) {
     std::filesystem::path save_folder_path = config_path / save_folder;
     if (!subfolder.empty()) {
         save_folder_path = save_folder_path / subfolder;
@@ -31,7 +64,7 @@ void set_save_file_path(const std::u8string& subfolder, const std::u8string& nam
 void update_save_file() {
     bool saving_failed = false;
     {
-        std::ofstream save_file = recomp::open_output_file_with_backup(ultramodern::get_save_file_path(), std::ios_base::binary);
+        std::ofstream save_file = ultramodern::open_output_file_with_backup(ultramodern::get_save_file_path(), std::ios_base::binary);
 
         if (save_file.good()) {
             std::lock_guard lock{ save_context.save_buffer_mutex };
@@ -42,7 +75,7 @@ void update_save_file() {
         }
     }
     if (!saving_failed) {
-        saving_failed = !recomp::finalize_output_file_with_backup(ultramodern::get_save_file_path());
+        saving_failed = !ultramodern::finalize_output_file_with_backup(ultramodern::get_save_file_path());
     }
     if (saving_failed) {
         ultramodern::error_handling::message_box("Failed to write to the save file. Check your file permissions and whether the save folder has been moved to Dropbox or similar, as this can cause issues.");
@@ -78,7 +111,7 @@ void saving_thread_func(RDRAM_ARG1) {
     }
 }
 
-void save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
+void ultramodern::save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
     assert(offset + count <= save_context.save_buffer.size());
 
     {
@@ -89,12 +122,12 @@ void save_write_ptr(const void* in, uint32_t offset, uint32_t count) {
     save_context.write_sempahore.signal();
 }
 
-void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
+void ultramodern::save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
     assert(offset + count <= save_context.save_buffer.size());
 
     {
         std::lock_guard lock { save_context.save_buffer_mutex };
-        for (gpr i = 0; i < count; i++) {
+        for (uint32_t i = 0; i < count; i++) {
             save_context.save_buffer[offset + i] = MEM_B(i, rdram_address);
         }
     }
@@ -102,16 +135,16 @@ void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t cou
     save_context.write_sempahore.signal();
 }
 
-void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
+void ultramodern::save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count) {
     assert(offset + count <= save_context.save_buffer.size());
 
     std::lock_guard lock { save_context.save_buffer_mutex };
-    for (gpr i = 0; i < count; i++) {
+    for (uint32_t i = 0; i < count; i++) {
         MEM_B(i, rdram_address) = save_context.save_buffer[offset + i];
     }
 }
 
-void save_clear(uint32_t start, uint32_t size, char value) {
+void ultramodern::save_clear(uint32_t start, uint32_t size, char value) {
     assert(start + size < save_context.save_buffer.size());
 
     {
@@ -122,18 +155,18 @@ void save_clear(uint32_t start, uint32_t size, char value) {
     save_context.write_sempahore.signal();
 }
 
-size_t get_save_size(recomp::SaveType save_type) {
+size_t ultramodern::get_save_size(ultramodern::SaveType save_type) {
     switch (save_type) {
-        case recomp::SaveType::AllowAll:
-        case recomp::SaveType::Flashram:
+        case ultramodern::SaveType::AllowAll:
+        case ultramodern::SaveType::Flashram:
             return 0x20000;
-        case recomp::SaveType::Sram:
+        case ultramodern::SaveType::Sram:
             return 0x8000;
-        case recomp::SaveType::Eep16k:
+        case ultramodern::SaveType::Eep16k:
             return 0x800;
-        case recomp::SaveType::Eep4k:
+        case ultramodern::SaveType::Eep4k:
             return 0x200;
-        case recomp::SaveType::None:
+        case ultramodern::SaveType::None:
             return 0;
     }
     return 0;
@@ -146,7 +179,7 @@ void read_save_file() {
     std::filesystem::create_directories(save_file_path.parent_path());
 
     // Read the save file if it exists.
-    std::ifstream save_file = recomp::open_input_file_with_backup(save_file_path, std::ios_base::binary);
+    std::ifstream save_file = ultramodern::open_input_file_with_backup(save_file_path, std::ios_base::binary);
     if (save_file.good()) {
         save_file.read(save_context.save_buffer.data(), save_context.save_buffer.size());
     }
@@ -157,9 +190,9 @@ void read_save_file() {
 }
 
 void ultramodern::init_saving(RDRAM_ARG1) {
-    set_save_file_path(u8"", recomp::current_game_id());
+    set_save_file_path(u8"", ultramodern::current_game_id());
 
-    save_context.save_buffer.resize(get_save_size(recomp::get_save_type()));
+    save_context.save_buffer.resize(get_save_size(ultramodern::get_save_type()));
 
     read_save_file();
 

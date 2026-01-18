@@ -13,7 +13,6 @@ add_library(librecomp STATIC
     "${CMAKE_CURRENT_SOURCE_DIR}/src/eep.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/euc-jp.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/extensions.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/files.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/flash.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/heap.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/math_routines.cpp"

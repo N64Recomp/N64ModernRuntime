@@ -17,6 +17,7 @@ constexpr uint32_t sector_size = page_size * pages_per_sector;
 constexpr uint32_t sector_count = flash_size / sector_size;
 
 std::array<char, page_size> write_buffer;
+std::vector<uint8_t> save_buffer;
 
 extern "C" void osFlashInit_recomp(uint8_t * rdram, recomp_context * ctx) {
     if (!ultramodern::flashram_allowed()) {
@@ -186,7 +187,11 @@ extern "C" void osFlashReadArray_recomp(uint8_t * rdram, recomp_context * ctx) {
     uint32_t count = n_pages * page_size;
 
     // Read from the save file into the provided buffer
-    ultramodern::save_read(PASS_RDRAM dramAddr, offset, count);
+    save_buffer.resize(count);
+    ultramodern::save_read_ptr(save_buffer.data(), offset, count);
+    for (uint32_t i = 0; i < count; i++) {
+        MEM_B(i, dramAddr) = save_buffer[i];
+    }
 
     // Send the message indicating read completion
     ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);

@@ -5,6 +5,7 @@
 #include <ultramodern/ultra64.h>
 
 constexpr int eeprom_block_size = 8;
+static std::vector<uint8_t> save_buffer;
 
 extern "C" void osEepromProbe_recomp(uint8_t* rdram, recomp_context* ctx) {
     switch (ultramodern::get_save_type()) {
@@ -31,7 +32,11 @@ extern "C" void osEepromWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
     gpr buffer = ctx->r6;
     int32_t nbytes = eeprom_block_size;
 
-    ultramodern::save_write(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+    save_buffer.resize(nbytes);
+    for (uint32_t i = 0; i < nbytes; i++) {
+        save_buffer[i] = MEM_B(i, buffer);
+    }
+    ultramodern::save_write_ptr(save_buffer.data(), eep_address * eeprom_block_size, nbytes);
 
     ctx->r2 = 0;
 }
@@ -48,7 +53,11 @@ extern "C" void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     assert((nbytes % eeprom_block_size) == 0);
 
-    ultramodern::save_write(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+    save_buffer.resize(nbytes);
+    for (uint32_t i = 0; i < nbytes; i++) {
+        save_buffer[i] = MEM_B(i, buffer);
+    }
+    ultramodern::save_write_ptr(save_buffer.data(), eep_address * eeprom_block_size, nbytes);
 
     ctx->r2 = 0;
 }
@@ -63,7 +72,11 @@ extern "C" void osEepromRead_recomp(uint8_t* rdram, recomp_context* ctx) {
     gpr buffer = ctx->r6;
     int32_t nbytes = eeprom_block_size;
 
-    ultramodern::save_read(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+    save_buffer.resize(nbytes);
+    ultramodern::save_read_ptr(save_buffer.data(), eep_address * eeprom_block_size, nbytes);
+    for (uint32_t i = 0; i < nbytes; i++) {
+        MEM_B(i, buffer) = save_buffer[i];
+    }
 
     ctx->r2 = 0;
 }
@@ -80,7 +93,11 @@ extern "C" void osEepromLongRead_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     assert((nbytes % eeprom_block_size) == 0);
 
-    ultramodern::save_read(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+    save_buffer.resize(nbytes);
+    ultramodern::save_read_ptr(save_buffer.data(), eep_address * eeprom_block_size, nbytes);
+    for (uint32_t i = 0; i < nbytes; i++) {
+        MEM_B(i, buffer) = save_buffer[i];
+    }
 
     ctx->r2 = 0;
 }

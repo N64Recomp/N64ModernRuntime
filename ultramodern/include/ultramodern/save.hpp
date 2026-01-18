@@ -26,9 +26,7 @@ namespace ultramodern {
 
     void save_write_ptr(const void* in, uint32_t offset, uint32_t count);
 
-    void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count);
-
-    void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count);
+    void save_read_ptr(void *out, uint32_t offset, uint32_t count);
 
     void save_clear(uint32_t start, uint32_t size, char value);
 

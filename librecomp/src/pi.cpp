@@ -12,6 +12,7 @@
 #include <ultramodern/ultramodern.hpp>
 
 static std::vector<uint8_t> rom;
+static std::vector<uint8_t> save_buffer;
 
 bool recomp::is_rom_loaded() {
     return !rom.empty();
@@ -100,7 +101,11 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
                 ULTRAMODERN_QUICK_EXIT();
             }
             // read sram
-            ultramodern::save_read(rdram, rdram_address, physical_addr - recomp::sram_base, size);
+            save_buffer.resize(size);
+            ultramodern::save_read_ptr(save_buffer.data(), physical_addr - recomp::sram_base, size);
+            for (uint32_t i = 0; i < size; i++) {
+                MEM_B(i, rdram_address) = save_buffer[i];
+            }
 
             // Send a message to the mq to indicate that the transfer completed
             ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
@@ -117,7 +122,11 @@ void do_dma(RDRAM_ARG PTR(OSMesgQueue) mq, gpr rdram_address, uint32_t physical_
                 ULTRAMODERN_QUICK_EXIT();
             }
             // write sram
-            ultramodern::save_write(rdram, rdram_address, physical_addr - recomp::sram_base, size);
+            save_buffer.resize(size);
+            for (uint32_t i = 0; i < size; i++) {
+                save_buffer[i] = MEM_B(i, rdram_address);
+            }
+            ultramodern::save_write_ptr(save_buffer.data(), physical_addr - recomp::sram_base, size);
 
             // Send a message to the mq to indicate that the transfer completed
             ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);

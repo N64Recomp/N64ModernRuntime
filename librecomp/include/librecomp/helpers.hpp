@@ -7,8 +7,7 @@
 #include <ultramodern/ultra64.h>
 
 template<int index, typename T>
-T _arg(uint8_t* rdram, recomp_context* ctx) {
-    static_assert(index < 4, "Only args 0 through 3 supported");
+T _arg(uint8_t* rdram, recomp_context* ctx) requires(index < 4) {
     gpr raw_arg = (&ctx->r4)[index];
     if constexpr (std::is_same_v<T, float>) {
         if constexpr (index < 2) {
@@ -23,6 +22,25 @@ T _arg(uint8_t* rdram, recomp_context* ctx) {
         }
     }
     else if constexpr (std::is_pointer_v<T>) {
+        static_assert (!std::is_pointer_v<std::remove_pointer_t<T>>, "Double pointers not supported");
+        return TO_PTR(std::remove_pointer_t<T>, raw_arg);
+    }
+    else if constexpr (std::is_integral_v<T>) {
+        static_assert(sizeof(T) <= 4, "64-bit args not supported");
+        return static_cast<T>(raw_arg);
+    }
+    else {
+        // static_assert in else workaround
+        [] <bool flag = false>() {
+            static_assert(flag, "Unsupported type");
+        }();
+    }
+}
+
+template<int index, typename T>
+T _arg(uint8_t* rdram, recomp_context* ctx) requires(index >= 4) {
+    const auto raw_arg = MEM_W(index * 4, ctx->r29);
+    if constexpr (std::is_pointer_v<T>) {
         static_assert (!std::is_pointer_v<std::remove_pointer_t<T>>, "Double pointers not supported");
         return TO_PTR(std::remove_pointer_t<T>, raw_arg);
     }

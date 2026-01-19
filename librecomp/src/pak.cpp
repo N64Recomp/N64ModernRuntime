@@ -49,7 +49,7 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     u32 game_code = _arg<2, u32>(rdram, ctx);
     PTR(u8) game_name = _arg<3, PTR(u8)>(rdram, ctx);
     PTR(u8) ext_name = _arg<4, PTR(u8)>(rdram, ctx);
-    int file_size = _arg<5, int>(rdram, ctx);
+    int nbytes = _arg<5, int>(rdram, ctx);
     PTR(s32) file_no = _arg<6, PTR(s32)>(rdram, ctx);
     u8 game_name_proxy[PFS_FILE_NAME_LEN];
     u8 ext_name_proxy[PFS_FILE_EXT_LEN];
@@ -60,7 +60,7 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     for (uint32_t i = 0; i < PFS_FILE_EXT_LEN; i++) {
         ext_name_proxy[i] = MEM_B(i, ext_name);
     }
-    s32 ret = osPfsAllocateFile(PASS_RDRAM pfs, company_code, game_code, game_name_proxy, ext_name_proxy, file_size, file_no);
+    s32 ret = osPfsAllocateFile(PASS_RDRAM pfs, company_code, game_code, game_name_proxy, ext_name_proxy, nbytes, file_no);
     _return<s32>(ctx, ret);
 }
 

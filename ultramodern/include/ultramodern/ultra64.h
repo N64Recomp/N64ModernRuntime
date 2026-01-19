@@ -74,6 +74,17 @@ typedef u64	OSTime;
 #define OS_EVENT_THREADSTATUS     13    /* CPU thread status: used by rmon */
 #define OS_EVENT_PRENMI           14    /* Pre NMI interrupt */
 
+#define PFS_INODE_SIZE_PER_PAGE 128
+#define PFS_FILE_NAME_LEN       16
+#define PFS_FILE_EXT_LEN        4
+#define PFS_BLOCKSIZE           32  /* bytes */
+#define PFS_ONE_PAGE            8   /* blocks */
+#define PFS_MAX_BANKS           62
+
+#define PFS_READ                0
+#define PFS_WRITE               1
+#define PFS_CREATE              2
+
 #define	M_GFXTASK	1
 #define	M_AUDTASK	2
 #define	M_VIDTASK	3
@@ -321,6 +332,24 @@ s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue), PTR(OSPfs), int);
 s32 osMotorStop(RDRAM_ARG PTR(OSPfs));
 s32 osMotorStart(RDRAM_ARG PTR(OSPfs));
 s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs), s32);
+
+/* Controller PAK interface */
+
+s32 osPfsInitPak(RDRAM_ARG PTR(OSMesgQueue) queue, PTR(OSPfs) pfs, int channel);
+s32 osPfsRepairId(RDRAM_ARG PTR(OSPfs) pfs);
+s32 osPfsInit(RDRAM_ARG PTR(OSMesgQueue) queue, PTR(OSPfs) pfs, int channel);
+s32 osPfsReFormat(RDRAM_ARG PTR(OSPfs) pfs, PTR(OSMesgQueue) queue, int channel);
+s32 osPfsChecker(RDRAM_ARG PTR(OSPfs) pfs);
+s32 osPfsAllocateFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name, int file_size_in_bytes, PTR(s32) file_no);
+s32 osPfsFindFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name, PTR(s32) file_no);
+s32 osPfsDeleteFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name);
+s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs) pfs, s32 file_no, u8 flag, int offset, int size_in_bytes, u8* data_buffer);
+s32 osPfsFileState(RDRAM_ARG PTR(OSPfs) pfs, s32 file_no, PTR(OSPfsState) state);
+s32 osPfsGetLabel(RDRAM_ARG PTR(OSPfs) pfs, u8* label, PTR(int) len);
+s32 osPfsSetLabel(RDRAM_ARG PTR(OSPfs) pfs, u8* label);
+s32 osPfsIsPlug(RDRAM_ARG PTR(OSMesgQueue) mq, u8* pattern);
+s32 osPfsFreeBlocks(RDRAM_ARG PTR(OSPfs) pfs, PTR(s32) bytes_not_used);
+s32 osPfsNumFiles(RDRAM_ARG PTR(OSPfs) pfs, PTR(s32) max_files, PTR(s32) files_used);
 
 #ifdef __cplusplus
 } // extern "C"

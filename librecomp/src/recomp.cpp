@@ -73,6 +73,10 @@ std::filesystem::path recomp::get_config_path() {
 }
 
 bool recomp::register_game(const recomp::GameEntry& entry) {
+    if (entry.display_name.empty()) {
+        ultramodern::error_handling::message_box("Game display name was not set.");
+        ULTRAMODERN_QUICK_EXIT();
+    }
     // TODO verify that there's no game with this ID already.
     {
         std::lock_guard<std::mutex> lock(game_roms_mutex);
@@ -82,7 +86,6 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
         std::lock_guard<std::mutex> lock(mod_context_mutex);
         mod_context->register_game(entry.mod_game_id);
     }
-
     return true;
 }
 

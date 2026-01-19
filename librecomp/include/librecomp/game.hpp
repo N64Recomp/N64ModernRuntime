@@ -21,9 +21,11 @@ namespace recomp {
     struct GameEntry {
         uint64_t rom_hash;
         std::string internal_name;
+        std::string display_name;
         std::u8string game_id;
         std::string mod_game_id;
         SaveType save_type = SaveType::None;
+        std::span<const char> thumbnail_bytes;
         bool is_enabled;
         // Only needed for mod function hooking support, not needed if `has_compressed_code` is false.
         std::vector<uint8_t> (*decompression_routine)(std::span<const uint8_t> compressed_rom) = nullptr;

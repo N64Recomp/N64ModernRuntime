@@ -55,10 +55,10 @@ extern "C" void osPfsAllocateFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     u8 ext_name_proxy[PFS_FILE_EXT_LEN];
 
     for (uint32_t i = 0; i < PFS_FILE_NAME_LEN; i++) {
-        game_name_proxy[i] = MEM_B(i, game_name);
+        game_name_proxy[i] = MEM_B(i, (gpr)game_name);
     }
     for (uint32_t i = 0; i < PFS_FILE_EXT_LEN; i++) {
-        ext_name_proxy[i] = MEM_B(i, ext_name);
+        ext_name_proxy[i] = MEM_B(i, (gpr)ext_name);
     }
     s32 ret = osPfsAllocateFile(PASS_RDRAM pfs, company_code, game_code, game_name_proxy, ext_name_proxy, nbytes, file_no);
     _return<s32>(ctx, ret);
@@ -75,10 +75,10 @@ extern "C" void osPfsFindFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     u8 ext_name_proxy[PFS_FILE_EXT_LEN];
 
     for (uint32_t i = 0; i < PFS_FILE_NAME_LEN; i++) {
-        game_name_proxy[i] = MEM_B(i, game_name);
+        game_name_proxy[i] = MEM_B(i, (gpr)game_name);
     }
     for (uint32_t i = 0; i < PFS_FILE_EXT_LEN; i++) {
-        ext_name_proxy[i] = MEM_B(i, ext_name);
+        ext_name_proxy[i] = MEM_B(i, (gpr)ext_name);
     }
     s32 ret = osPfsFindFile(PASS_RDRAM pfs, company_code, game_code, game_name_proxy, ext_name_proxy, file_no);
     _return<s32>(ctx, ret);
@@ -94,10 +94,10 @@ extern "C" void osPfsDeleteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
     u8 ext_name_proxy[PFS_FILE_EXT_LEN];
 
     for (uint32_t i = 0; i < PFS_FILE_NAME_LEN; i++) {
-        game_name_proxy[i] = MEM_B(i, game_name);
+        game_name_proxy[i] = MEM_B(i, (gpr)game_name);
     }
     for (uint32_t i = 0; i < PFS_FILE_EXT_LEN; i++) {
-        ext_name_proxy[i] = MEM_B(i, ext_name);
+        ext_name_proxy[i] = MEM_B(i, (gpr)ext_name);
     }
     s32 ret = osPfsDeleteFile(PASS_RDRAM pfs, company_code, game_code, game_name_proxy, ext_name_proxy);
     _return<s32>(ctx, ret);
@@ -114,13 +114,13 @@ extern "C" void osPfsReadWriteFile_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     if (flag == PFS_WRITE) {
         for (uint32_t i = 0; i < nbytes; i++) {
-            data_buffer_proxy[i] = MEM_B(i, data_buffer);
+            data_buffer_proxy[i] = MEM_B(i, (gpr)data_buffer);
         }
     }
     s32 ret = osPfsReadWriteFile(PASS_RDRAM pfs, file_no, flag, offset, nbytes, data_buffer_proxy.data());
     if (flag == PFS_READ) {
         for (uint32_t i = 0; i < nbytes; i++) {
-            MEM_B(i, data_buffer) = data_buffer_proxy[i];
+            MEM_B(i, (gpr)data_buffer) = data_buffer_proxy[i];
         }
     }
     _return<s32>(ctx, ret);
@@ -143,7 +143,7 @@ extern "C" void osPfsGetLabel_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     s32 ret = osPfsGetLabel(PASS_RDRAM pfs, label_proxy, len);
     for (uint32_t i = 0; i < 32; i++) {
-        MEM_B(i, label) = label_proxy[i];
+        MEM_B(i, (gpr)label) = label_proxy[i];
     }
     _return<s32>(ctx, ret);
 }
@@ -154,7 +154,7 @@ extern "C" void osPfsSetLabel_recomp(uint8_t* rdram, recomp_context* ctx) {
     u8 label_proxy[32];
 
     for (uint32_t i = 0; i < 32; i++) {
-        label_proxy[i] = MEM_B(i, label);
+        label_proxy[i] = MEM_B(i, (gpr)label);
     }
     s32 ret = osPfsSetLabel(PASS_RDRAM pfs, label_proxy);
     _return<s32>(ctx, ret);
@@ -166,7 +166,7 @@ extern "C" void osPfsIsPlug_recomp(uint8_t* rdram, recomp_context* ctx) {
     u8 pattern_proxy = 0;
 
     s32 ret = osPfsIsPlug(PASS_RDRAM mq, &pattern_proxy);
-    MEM_B(0, pattern) = pattern_proxy;
+    MEM_B(0, (gpr)pattern) = pattern_proxy;
     _return<s32>(ctx, ret);
 }
 

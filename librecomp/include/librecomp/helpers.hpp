@@ -39,7 +39,7 @@ T _arg(uint8_t* rdram, recomp_context* ctx) requires(index < 4) {
 
 template<int index, typename T>
 T _arg(uint8_t* rdram, recomp_context* ctx) requires(index >= 4) {
-    const auto raw_arg = MEM_W(0x10 + index * 4, ctx->r29);
+    const auto raw_arg = MEM_W(index * 4, ctx->r29);
     if constexpr (std::is_pointer_v<T>) {
         static_assert (!std::is_pointer_v<std::remove_pointer_t<T>>, "Double pointers not supported");
         return TO_PTR(std::remove_pointer_t<T>, raw_arg);

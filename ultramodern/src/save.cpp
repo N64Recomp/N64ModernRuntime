@@ -9,6 +9,7 @@
 struct {
     std::vector<char> save_buffer;
     std::thread saving_thread;
+    std::filesystem::path save_base_path;
     std::filesystem::path save_file_path;
     moodycamel::LightweightSemaphore write_sempahore;
     // Used to tell the saving thread that a file swap is pending.
@@ -54,16 +55,20 @@ bool ultramodern::flashram_allowed() {
         save_type == SaveType::AllowAll;
 }
 
+std::filesystem::path ultramodern::get_save_base_path() {
+    return save_context.save_base_path;
+}
+
 std::filesystem::path ultramodern::get_save_file_path() {
     return save_context.save_file_path;
 }
 
 void ultramodern::set_save_file_path(const std::u8string& subfolder, const std::u8string& name) {
-    std::filesystem::path save_folder_path = config_path / save_folder;
+    save_context.save_base_path = config_path / save_folder;
     if (!subfolder.empty()) {
-        save_folder_path = save_folder_path / subfolder;
+        save_context.save_base_path = save_context.save_base_path / subfolder;
     }
-    save_context.save_file_path = save_folder_path / (name + u8".bin");
+    save_context.save_file_path = save_context.save_base_path / (name + u8".bin");
 }
 
 void update_save_file() {

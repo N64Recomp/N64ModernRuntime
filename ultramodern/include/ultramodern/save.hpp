@@ -34,6 +34,8 @@ namespace ultramodern {
 
     size_t get_save_size(SaveType save_type);
 
+    std::filesystem::path get_save_base_path();
+
     std::filesystem::path get_save_file_path();
 
     bool eeprom_allowed();

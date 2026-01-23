@@ -2,27 +2,42 @@
 #define __ULTRAMODERN_PFS_HPP__
 
 #include <fstream>
+#include <ultramodern/save.hpp>
 
-typedef struct ControllerPak {
+typedef struct pfs_state {
     std::fstream header;
     std::fstream file;
-} ControllerPak;
+} pfs_state_t;
 
-typedef struct ControllerPakHdr {
+typedef struct pfs_header {
     int file_size;
     u32 game_code;
     u16 company_code;
     u8 ext_name[4];
     u8 game_name[16];
-} ControllerPakHdr;
+} pfs_header_t;
 
-// extern std::filesystem::path config_path;
-// const std::u8string save_folder = u8"saves";
-// std::filesystem::path save_folder_path = config_path / save_folder;
+inline std::filesystem::path pfs_header_path() {
+    const auto filename = "controllerpak_header.bin";
+    return ultramodern::get_save_base_path() / filename;
+}
 
-void Pfs_PakHeader_Write(int file_size, u32 game_code, u16 company_code, const u8* ext_name, const u8* game_name, u8 file_index) {
-    ControllerPak pak;
-    pak.header.open("controllerPak_header.sav", std::ios::binary | std::ios::in | std::ios::out);
+inline std::filesystem::path pfs_file_path(size_t fileno) {
+    const auto filename = std::format("controllerpak_file_{}.bin", fileno);
+    return ultramodern::get_save_base_path() / filename;
+}
+
+void pfs_header_alloc() {
+    pfs_state_t pak;
+    if (!std::filesystem::exists(pfs_header_path())) {
+        pak.header.open(pfs_header_path(), std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
+        pak.header.close();
+    }
+}
+
+void pfs_header_write(int file_size, u32 game_code, u16 company_code, const u8* ext_name, const u8* game_name, u8 file_index) {
+    pfs_state_t pak;
+    pak.header.open(pfs_header_path(), std::ios::binary | std::ios::out);
 
     if (!pak.header.good()) {
         assert(false);
@@ -53,13 +68,13 @@ void Pfs_PakHeader_Write(int file_size, u32 game_code, u16 company_code, const u
     pak.header.close();
 }
 
-void Pfs_PakHeader_Write(const ControllerPakHdr& hdr, u8 file_index) {
-    Pfs_PakHeader_Write(hdr.file_size, hdr.game_code, hdr.company_code, hdr.ext_name, hdr.game_name, file_index);
+void pfs_header_write(const pfs_header_t& hdr, u8 file_index) {
+    pfs_header_write(hdr.file_size, hdr.game_code, hdr.company_code, hdr.ext_name, hdr.game_name, file_index);
 }
 
-void Pfs_PakHeader_Read(ControllerPakHdr& hdr, u8 file_index) {
-    ControllerPak pak;
-    pak.header.open("controllerPak_header.sav", std::ios::binary | std::ios::in | std::ios::out);
+void pfs_header_read(pfs_header_t& hdr, u8 file_index) {
+    pfs_state_t pak;
+    pak.header.open(pfs_header_path(), std::ios::binary | std::ios::in);
 
     if (!pak.header.good()) {
         assert(false);
@@ -106,8 +121,8 @@ void Pfs_ByteSwapFile(u8* buffer, size_t size) {
     }
 }
 
-void ByteSwapCopy(uint8_t* dst, uint8_t* src, size_t size_bytes) {
-    for (size_t i = 0; i < size_bytes; i++) {
+void ByteSwapCopy(uint8_t* dst, const uint8_t* src, size_t nbytes) {
+    for (size_t i = 0; i < nbytes; i++) {
         dst[i] = src[i ^ 3];
     }
 }

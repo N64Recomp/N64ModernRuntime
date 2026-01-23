@@ -105,27 +105,5 @@ void pfs_header_read(pfs_header_t& hdr, u8 file_index) {
     pak.header.close();
 }
 
-void Pfs_ByteSwapFile(u8* buffer, size_t size) {
-    uint8_t c0, c1, c2, c3;
-
-    for (size_t i = 0; i < size; i += 4) {
-        c0 = buffer[i + 0];
-        c1 = buffer[i + 1];
-        c2 = buffer[i + 2];
-        c3 = buffer[i + 3];
-
-        buffer[i + 3] = c0;
-        buffer[i + 2] = c1;
-        buffer[i + 1] = c2;
-        buffer[i + 0] = c3;
-    }
-}
-
-void ByteSwapCopy(uint8_t* dst, const uint8_t* src, size_t nbytes) {
-    for (size_t i = 0; i < nbytes; i++) {
-        dst[i] = src[i ^ 3];
-    }
-}
-
 #endif // __ULTRAMODERN_PFS_HPP__
 

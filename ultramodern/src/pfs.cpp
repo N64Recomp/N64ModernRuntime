@@ -227,7 +227,7 @@ extern "C" s32 osPfsDeleteFile(RDRAM_ARG PTR(OSPfs) pfs_, u16 company_code, u32 
     return PFS_ERR_INVALID;
 }
 
-extern "C" s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, u8 flag, int offset, int size_in_bytes, u8* data_buffer) {
+extern "C" s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, u8 flag, int offset, int nbytes, u8* data_buffer) {
     pfs_state_t pak;
 
     const auto filename = pfs_file_path(file_no);
@@ -243,15 +243,12 @@ extern "C" s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, u8 fla
         return PFS_ERR_INVALID;
     }
 
-    std::vector<u8> swap_buffer(size_in_bytes);
-    if (flag == 0) {
+    if (flag == PFS_READ) {
         pak.file.seekg(offset, std::ios::beg);
-        pak.file.read((char*)swap_buffer.data(), size_in_bytes);
-        ByteSwapCopy(data_buffer, swap_buffer.data(), size_in_bytes);
+        pak.file.read((char*)data_buffer, nbytes);
     } else {
-        ByteSwapCopy(swap_buffer.data(), data_buffer, size_in_bytes);
         pak.file.seekp(offset, std::ios::beg);
-        pak.file.write((char*)swap_buffer.data(), size_in_bytes);
+        pak.file.write((const char*)data_buffer, nbytes);
     }
 
     pak.file.close();

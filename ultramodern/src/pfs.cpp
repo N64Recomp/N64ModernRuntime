@@ -6,6 +6,7 @@
 #include "pfs.hpp"
 
 #define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
+#define DEF_DIR_PAGES 2
 #define MAX_FILES 16
 
 /* ControllerPak */
@@ -26,6 +27,24 @@ static s32 __osPfsGetStatus(RDRAM_ARG PTR(OSMesgQueue) queue, int channel) {
     return 0;
 }
 
+static s32 __osGetId(RDRAM_ARG PTR(OSPfs) pfs_) {
+    OSPfs* pfs = TO_PTR(OSPfs, pfs_);
+
+    // we don't implement the real filesystem, so just mimic initialization
+    pfs->version = 0;
+    pfs->banks = 1;
+    pfs->activebank = 0;
+    pfs->inode_start_page = 1 + DEF_DIR_PAGES + (2 * pfs->banks);
+    pfs->dir_size = DEF_DIR_PAGES * PFS_ONE_PAGE;
+    pfs->inode_table = 1 * PFS_ONE_PAGE;
+    pfs->minode_table = (1 + pfs->banks) * PFS_ONE_PAGE;
+    pfs->dir_table = pfs->minode_table + (pfs->banks * PFS_ONE_PAGE);
+
+    std::memset(pfs->id, 0, ARRLEN(pfs->id));
+    std::memset(pfs->label, 0, ARRLEN(pfs->label));
+    return 0;
+}
+
 extern "C" s32 osPfsInitPak(RDRAM_ARG PTR(OSMesgQueue) mq_, PTR(OSPfs) pfs_, int channel) {
     OSPfs* pfs = TO_PTR(OSPfs, pfs_);
 
@@ -37,10 +56,11 @@ extern "C" s32 osPfsInitPak(RDRAM_ARG PTR(OSMesgQueue) mq_, PTR(OSPfs) pfs_, int
     pfs->queue = mq_;
     pfs->channel = channel;
     pfs->status = 0;
+    __osGetId(PASS_RDRAM pfs_);
 
     const s32 ret = osPfsChecker(PASS_RDRAM pfs_);
     pfs->status |= PFS_INITIALIZED;
-    return 0;
+    return ret;
 }
 
 extern "C" s32 osPfsRepairId(RDRAM_ARG PTR(OSPfs) pfs) {
@@ -59,10 +79,11 @@ extern "C" s32 osPfsInit(RDRAM_ARG PTR(OSMesgQueue) mq_, PTR(OSPfs) pfs_, int ch
     pfs->channel = channel;
     pfs->status = 0;
     pfs->activebank = -1;
+    __osGetId(PASS_RDRAM pfs_);
 
     const s32 ret = osPfsChecker(PASS_RDRAM pfs_);
     pfs->status |= PFS_INITIALIZED;
-    return 0;
+    return ret;
 }
 
 extern "C" s32 osPfsReFormat(RDRAM_ARG PTR(OSPfs) pfs, PTR(OSMesgQueue) mq_, int channel) {

@@ -1,13 +1,92 @@
-#include <cassert>
-#include <cstdlib>
+#include <filesystem>
 #include <format>
-
+#include <fstream>
+#include <ultramodern/save.hpp>
 #include <ultramodern/ultra64.h>
-#include "pfs.hpp"
 
 #define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 #define DEF_DIR_PAGES 2
 #define MAX_FILES 16
+
+/* PFS Context */
+
+inline std::filesystem::path pfs_header_path() {
+    const auto filename = "controllerpak_header.bin";
+    return ultramodern::get_save_base_path() / filename;
+}
+
+inline std::filesystem::path pfs_file_path(size_t file_no) {
+    const auto filename = std::format("controllerpak_file_{}.bin", file_no);
+    return ultramodern::get_save_base_path() / filename;
+}
+
+inline bool pfs_header_alloc() {
+    if (!std::filesystem::exists(pfs_header_path())) {
+        std::ofstream out(pfs_header_path(), std::ios::binary | std::ios::out | std::ios::trunc);
+        return out.good();
+    }
+    return true;
+}
+
+inline bool pfs_header_write(int file_no, u32 file_size, u32 game_code, u16 company_code, u8* ext_name, u8* game_name) {
+    std::ofstream out(pfs_header_path(), std::ios::binary | std::ios::in);
+    if (out.is_open() && out.good()) {
+        u16 padding = 0;
+        out.seekp(file_no * sizeof(OSPfsState), std::ios::beg);
+        out.write((const char*)&file_size, 4);
+        out.write((const char*)&game_code, 4);
+        out.write((const char*)&company_code, 2);
+        out.write((const char*)&padding, 2);
+        out.write((const char*)ext_name, 4);
+        out.write((const char*)game_name, 16);
+    }
+    return out.good();
+}
+
+inline bool pfs_header_write(int file_no, const OSPfsState& hdr) {
+    return pfs_header_write(file_no, hdr.file_size, hdr.game_code, hdr.company_code, (u8*)hdr.ext_name, (u8*)hdr.game_name);
+}
+
+inline bool pfs_header_read(int file_no, OSPfsState& hdr) {
+    std::ifstream in(pfs_header_path(), std::ios::binary | std::ios::in);
+    if (in.is_open() && in.good()) {
+        in.seekg(file_no * sizeof(OSPfsState), std::ios::beg);
+        in.read((char*)&hdr.file_size, 4);
+        in.read((char*)&hdr.game_code, 4);
+        in.read((char*)&hdr.company_code, 2);
+        in.read((char*)&hdr.pad_0A, 2);
+        in.read((char*)&hdr.ext_name[0], 4);
+        in.read((char*)&hdr.game_name[0], 16);
+    }
+    return in.good();
+}
+
+inline bool pfs_file_alloc(int file_no, int nbytes) {
+    std::vector<char> zero_block((nbytes + 31) & ~31, 0);
+    std::ofstream out(pfs_file_path(file_no), std::ios::binary | std::ios::out | std::ios::trunc);
+    if (out.is_open() && out.good()) {
+        out.write((const char*)zero_block.data(), zero_block.size());
+    }
+    return out.good();
+}
+
+inline bool pfs_file_write(int file_no, int offset, const char* data_buffer, int nbytes) {
+    std::ofstream out(pfs_file_path(file_no), std::ios::binary | std::ios::out);
+    if (out.is_open() && out.good()) {
+        out.seekp(offset, std::ios::beg);
+        out.write((const char*)data_buffer, nbytes);
+    }
+    return out.good();
+}
+
+inline bool pfs_file_read(int file_no, int offset, char* data_buffer, int nbytes) {
+    std::ifstream in(pfs_file_path(file_no), std::ios::binary | std::ios::in);
+    if (in.is_open() && in.good()) {
+        in.seekg(offset, std::ios::beg);
+        in.read((char*)data_buffer, nbytes);
+    }
+    return in.good();
+}
 
 /* ControllerPak */
 
@@ -101,11 +180,10 @@ extern "C" s32 osPfsAllocateFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32
         return PFS_ERR_INVALID;
     }
 
-    /* Search for a free slot */
     u8 free_file_index = 0;
     for (size_t i = 0; i < MAX_FILES; i++) {
-        pfs_header_t hdr{};
-        pfs_header_read(hdr, i);
+        OSPfsState hdr{};
+        pfs_header_read(i, hdr);
 
         if ((hdr.company_code == 0) || (hdr.game_code == 0)) {
             free_file_index = i;
@@ -116,23 +194,12 @@ extern "C" s32 osPfsAllocateFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32
     if (free_file_index == MAX_FILES) {
         return PFS_DIR_FULL;
     }
-
-    pfs_header_write(nbytes, game_code, company_code, ext_name, game_name, free_file_index);
-
-    /* Create empty file */
-
-    pfs_state_t pak;
-
-    const auto filename = pfs_file_path(free_file_index);
-    pak.file.open(filename, std::ios::binary | std::ios::out | std::ios::trunc);
-
-    nbytes = (nbytes + 31) & ~31;
-
-    std::vector<u8> zero_block(nbytes, 0);
-    pak.file.seekp(0, std::ios::beg);
-    pak.file.write((char*)zero_block.data(), nbytes);
-    pak.file.close();
-
+    if (!pfs_header_write(free_file_index, nbytes, game_code, company_code, ext_name, game_name)) {
+        return PFS_ERR_INVALID;
+    }
+    if (!pfs_file_alloc(free_file_index, nbytes)) {
+        return PFS_ERR_INVALID;
+    }
     *file_no = free_file_index;
     return 0;
 }
@@ -141,31 +208,23 @@ extern "C" s32 osPfsFindFile(RDRAM_ARG PTR(OSPfs) pfs_, u16 company_code, u32 ga
     OSPfs* pfs = TO_PTR(OSPfs, pfs_);
     s32* file_no = TO_PTR(s32, file_no_);
 
-    for (size_t i = 0; i < MAX_FILES; i++) {
-        pfs_header_t hdr{};
-        pfs_header_read(hdr, i);
+    if (company_code == 0 || game_code == 0) {
+        return PFS_ERR_INVALID;
+    }
 
-        if ((hdr.company_code == 0) || (hdr.game_code == 0)) {
-            continue;
-        } else {
-            if ((game_code == hdr.game_code) && (company_code == hdr.company_code)) {
-                for (size_t i = 0; i < ARRLEN(hdr.game_name); i++) {
-                    if (game_name[i] != hdr.game_name[i]) {
-                        break;
-                    }
-                }
-                for (size_t i = 0; i < ARRLEN(hdr.ext_name); i++) {
-                    if (ext_name[i] != hdr.ext_name[i]) {
-                        break;
-                    }
-                }
-                //  File found
+    for (size_t i = 0; i < MAX_FILES; i++) {
+        OSPfsState hdr{};
+        pfs_header_read(i, hdr);
+
+        if ((game_code == hdr.game_code) && (company_code == hdr.company_code)) {
+            const auto gn_match = !std::memcmp(game_name, hdr.game_name, sizeof(hdr.game_name));
+            const auto en_match = !std::memcmp(ext_name, hdr.ext_name, sizeof(hdr.ext_name));
+            if (gn_match && en_match) {
                 *file_no = i;
                 return 0;
             }
         }
     }
-
     return PFS_ERR_INVALID;
 }
 
@@ -174,114 +233,51 @@ extern "C" s32 osPfsDeleteFile(RDRAM_ARG PTR(OSPfs) pfs_, u16 company_code, u32 
         return PFS_ERR_INVALID;
     }
 
-    pfs_state_t pak;
     for (int i = 0; i < MAX_FILES; i++) {
-        pfs_header_t hdr{};
-        pfs_header_read(hdr, i);
+        OSPfsState hdr{};
+        pfs_header_read(i, hdr);
 
-        if ((hdr.company_code == 0) || (hdr.game_code == 0)) {
-            continue;
-        } else {
-            if ((game_code == hdr.game_code) && (company_code == hdr.company_code)) {
-                int gncount = 0;
-                int encount = 0;
-
-                for (size_t i = 0; i < ARRLEN(hdr.game_name); i++) {
-                    if (game_name[i] == hdr.game_name[i]) {
-                        gncount++;
-                    }
-                }
-                for (size_t i = 0; i < ARRLEN(hdr.ext_name); i++) {
-                    if (ext_name[i] == hdr.ext_name[i]) {
-                        encount++;
-                    }
-                }
-                if ((gncount != 16) || encount != 4) {
-                    continue;
-                }
-
-                // File found
-                pak.header.open(pfs_header_path(), std::ios::binary | std::ios::in | std::ios::out);
-
-                if (!pak.header.good()) {
-                    assert(false);
-                }
-                if (!pak.header.is_open()) {
-                    assert(false);
-                }
-
-                u32 seek = i * sizeof(OSPfsState);
-
-                // Zero out the header for this file.
-                std::vector<u8> zero_block(sizeof(OSPfsState), 0);
-                pak.header.seekp(seek + 0x0, std::ios::beg);
-                pak.header.write((char*)zero_block.data(), sizeof(OSPfsState));
-                pak.header.close();
-
+        if ((game_code == hdr.game_code) && (company_code == hdr.company_code)) {
+            const auto gn_match = !std::memcmp(game_name, hdr.game_name, sizeof(hdr.game_name));
+            const auto en_match = !std::memcmp(ext_name, hdr.ext_name, sizeof(hdr.ext_name));
+            if (gn_match && en_match) {
+                pfs_header_write(i, OSPfsState{});
                 std::filesystem::remove(pfs_file_path(i));
                 return 0;
             }
         }
     }
-
     return PFS_ERR_INVALID;
 }
 
 extern "C" s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, u8 flag, int offset, int nbytes, u8* data_buffer) {
-    pfs_state_t pak;
-
-    const auto filename = pfs_file_path(file_no);
-    pak.file.open(filename, std::ios::binary | std::ios::in | std::ios::out);
-
-    if (!std::filesystem::exists(filename)) {
+    if (!std::filesystem::exists(pfs_file_path(file_no))) {
         return PFS_ERR_INVALID;
     }
-    if (!pak.file.good()) {
+    else if ((flag == PFS_READ) && !pfs_file_read(file_no, offset, (char*)data_buffer, nbytes)) {
         return PFS_ERR_INVALID;
     }
-    if (!pak.file.is_open()) {
+    else if ((flag == PFS_WRITE) && !pfs_file_write(file_no, offset, (const char*)data_buffer, nbytes)) {
         return PFS_ERR_INVALID;
     }
-
-    if (flag == PFS_READ) {
-        pak.file.seekg(offset, std::ios::beg);
-        pak.file.read((char*)data_buffer, nbytes);
-    } else {
-        pak.file.seekp(offset, std::ios::beg);
-        pak.file.write((const char*)data_buffer, nbytes);
-    }
-
-    pak.file.close();
     return 0;
 }
 
 extern "C" s32 osPfsFileState(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, PTR(OSPfsState) state_) {
     OSPfsState *state = TO_PTR(OSPfsState, state_);
 
-    // should pass the state of the requested file_no to the incoming state pointer,
-    // games call this function 16 times, once per file
-    // fills the incoming state with the information inside the header of the pak.
-
-    const auto filename = pfs_file_path(file_no);
-    if (!std::filesystem::exists(filename)) {
+    if (!std::filesystem::exists(pfs_file_path(file_no))) {
         return PFS_ERR_INVALID;
     }
 
-    /* Read game info from pak */
-    pfs_header_t hdr{};
-    pfs_header_read(hdr, file_no);
+    OSPfsState hdr{};
+    pfs_header_read(file_no, hdr);
 
     state->file_size = hdr.file_size;
     state->company_code = hdr.company_code;
     state->game_code = hdr.game_code;
-
-    for (size_t i = 0; i < ARRLEN(hdr.game_name); i++) {
-        state->game_name[i] = hdr.game_name[i];
-    }
-    for (size_t i = 0; i < ARRLEN(hdr.ext_name); i++) {
-        state->ext_name[i] = hdr.ext_name[i];
-    }
-
+    std::memcpy(state->game_name, hdr.game_name, sizeof(hdr.game_name));
+    std::memcpy(state->ext_name, hdr.ext_name, sizeof(hdr.ext_name));
     return 0;
 }
 
@@ -339,8 +335,8 @@ extern "C" s32 osPfsFreeBlocks(RDRAM_ARG PTR(OSPfs) pfs_, PTR(s32) bytes_not_use
 
     s32 bytes_used = 0;
     for (size_t i = 0; i < MAX_FILES; i++) {
-        pfs_header_t hdr{};
-        pfs_header_read(hdr, i);
+        OSPfsState hdr{};
+        pfs_header_read(i, hdr);
 
         if ((hdr.company_code != 0) && (hdr.game_code != 0)) {
             bytes_used += hdr.file_size >> 8;
@@ -358,8 +354,8 @@ extern "C" s32 osPfsNumFiles(RDRAM_ARG PTR(OSPfs) pfs_, PTR(s32) max_files_, PTR
 
     u8 num_files = 0;
     for (size_t i = 0; i < MAX_FILES; i++) {
-        pfs_header_t hdr{};
-        pfs_header_read(hdr, i);
+        OSPfsState hdr{};
+        pfs_header_read(i, hdr);
 
         if ((hdr.company_code != 0) && (hdr.game_code != 0)) {
             num_files++;

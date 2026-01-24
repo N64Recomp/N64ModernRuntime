@@ -1,5 +1,4 @@
 #include <filesystem>
-#include <format>
 #include <fstream>
 #include <ultramodern/save.hpp>
 #include <ultramodern/ultra64.h>
@@ -16,7 +15,7 @@ inline std::filesystem::path pfs_header_path() {
 }
 
 inline std::filesystem::path pfs_file_path(size_t file_no) {
-    const auto filename = std::format("controllerpak_file_{}.bin", file_no);
+    const auto filename = "controllerpak_file_" + std::to_string(file_no) + ".bin", file_no);
     return ultramodern::get_save_base_path() / filename;
 }
 

@@ -1,3 +1,4 @@
+#include <array>
 #include <filesystem>
 #include <fstream>
 #include <ultramodern/save.hpp>
@@ -8,6 +9,30 @@
 #define MAX_FILES 16
 
 /* PFS Context */
+
+struct pfs_header_t { // same layout as OSPfsState, but non-byteswapped
+    uint32_t file_size;
+    uint32_t game_code;
+    uint16_t company_code;
+    std::array<char, 4> ext_name;
+    std::array<char, 16> game_name;
+    uint16_t padding;
+
+    pfs_header_t() = default;
+    pfs_header_t(uint32_t fs, uint32_t gc, uint16_t cc, const char* en, const char* gn)
+    : file_size{fs}, game_code{gc}, company_code{cc} {
+        std::memcpy(ext_name.data(), en, 4);
+        std::memcpy(game_name.data(), gn, 16);
+    }
+    inline bool valid() const {
+        return game_code != 0 && company_code != 0;
+    }
+    inline bool compare(uint32_t gcode, uint16_t ccode, const char* ename, const char* gname) const {
+        return game_code == gcode && company_code == ccode &&
+            std::memcmp(ext_name.data(), ename, 4) == 0 &&
+            std::memcmp(game_name.data(), gname, 14) == 0;
+    }
+};
 
 inline std::filesystem::path pfs_header_path() {
     const auto filename = "controllerpak_header.bin";
@@ -27,35 +52,30 @@ inline bool pfs_header_alloc() {
     return true;
 }
 
-inline bool pfs_header_write(int file_no, u32 file_size, u32 game_code, u16 company_code, u8* ext_name, u8* game_name) {
+inline bool pfs_header_write(int file_no, const pfs_header_t& hdr) {
     std::ofstream out(pfs_header_path(), std::ios::binary | std::ios::in);
     if (out.is_open() && out.good()) {
-        u16 padding = 0;
-        out.seekp(file_no * sizeof(OSPfsState), std::ios::beg);
-        out.write((const char*)&file_size, 4);
-        out.write((const char*)&game_code, 4);
-        out.write((const char*)&company_code, 2);
-        out.write((const char*)&padding, 2);
-        out.write((const char*)ext_name, 4);
-        out.write((const char*)game_name, 16);
+        out.seekp(file_no * sizeof(pfs_header_t), std::ios::beg);
+        out.write((const char*)&hdr.file_size, sizeof(hdr.file_size));
+        out.write((const char*)&hdr.game_code, sizeof(hdr.game_code));
+        out.write((const char*)&hdr.company_code, sizeof(hdr.company_code));
+        out.write((const char*)&hdr.ext_name[0], hdr.ext_name.size());
+        out.write((const char*)&hdr.game_name[0], hdr.game_name.size());
+        out.write((const char*)&hdr.padding, sizeof(hdr.padding));
     }
     return out.good();
 }
 
-inline bool pfs_header_write(int file_no, const OSPfsState& hdr) {
-    return pfs_header_write(file_no, hdr.file_size, hdr.game_code, hdr.company_code, (u8*)hdr.ext_name, (u8*)hdr.game_name);
-}
-
-inline bool pfs_header_read(int file_no, OSPfsState& hdr) {
+inline bool pfs_header_read(int file_no, pfs_header_t& hdr) {
     std::ifstream in(pfs_header_path(), std::ios::binary | std::ios::in);
     if (in.is_open() && in.good()) {
-        in.seekg(file_no * sizeof(OSPfsState), std::ios::beg);
-        in.read((char*)&hdr.file_size, 4);
-        in.read((char*)&hdr.game_code, 4);
-        in.read((char*)&hdr.company_code, 2);
-        in.read((char*)&hdr.pad_0A, 2);
-        in.read((char*)&hdr.ext_name[0], 4);
-        in.read((char*)&hdr.game_name[0], 16);
+        in.seekg(file_no * sizeof(pfs_header_t), std::ios::beg);
+        in.read((char*)&hdr.file_size, sizeof(hdr.file_size));
+        in.read((char*)&hdr.game_code, sizeof(hdr.game_code));
+        in.read((char*)&hdr.company_code, sizeof(hdr.company_code));
+        in.read((char*)&hdr.ext_name[0], hdr.ext_name.size());
+        in.read((char*)&hdr.game_name[0], hdr.game_name.size());
+        in.read((char*)&hdr.padding, sizeof(hdr.padding));
     }
     return in.good();
 }
@@ -175,16 +195,15 @@ extern "C" s32 osPfsChecker(RDRAM_ARG PTR(OSPfs) pfs) {
 extern "C" s32 osPfsAllocateFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name, int nbytes, PTR(s32) file_no_) {
     s32* file_no = TO_PTR(s32, file_no_);
 
-    if ((company_code == 0) || (game_code == 0)) {
+    if (company_code == 0 || game_code == 0) {
         return PFS_ERR_INVALID;
     }
 
+    pfs_header_t hdr{};
     u8 free_file_index = 0;
     for (size_t i = 0; i < MAX_FILES; i++) {
-        OSPfsState hdr{};
         pfs_header_read(i, hdr);
-
-        if ((hdr.company_code == 0) || (hdr.game_code == 0)) {
+        if (!hdr.valid()) {
             free_file_index = i;
             break;
         }
@@ -193,7 +212,7 @@ extern "C" s32 osPfsAllocateFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32
     if (free_file_index == MAX_FILES) {
         return PFS_DIR_FULL;
     }
-    if (!pfs_header_write(free_file_index, nbytes, game_code, company_code, ext_name, game_name)) {
+    if (!pfs_header_write(free_file_index, pfs_header_t{(uint32_t)nbytes, game_code, company_code, (char*)ext_name, (char*)game_name})) {
         return PFS_ERR_INVALID;
     }
     if (!pfs_file_alloc(free_file_index, nbytes)) {
@@ -204,24 +223,18 @@ extern "C" s32 osPfsAllocateFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32
 }
 
 extern "C" s32 osPfsFindFile(RDRAM_ARG PTR(OSPfs) pfs_, u16 company_code, u32 game_code, u8* game_name, u8* ext_name, PTR(s32) file_no_) {
-    OSPfs* pfs = TO_PTR(OSPfs, pfs_);
     s32* file_no = TO_PTR(s32, file_no_);
 
     if (company_code == 0 || game_code == 0) {
         return PFS_ERR_INVALID;
     }
 
+    pfs_header_t hdr{};
     for (size_t i = 0; i < MAX_FILES; i++) {
-        OSPfsState hdr{};
         pfs_header_read(i, hdr);
-
-        if ((game_code == hdr.game_code) && (company_code == hdr.company_code)) {
-            const auto gn_match = !std::memcmp(game_name, hdr.game_name, sizeof(hdr.game_name));
-            const auto en_match = !std::memcmp(ext_name, hdr.ext_name, sizeof(hdr.ext_name));
-            if (gn_match && en_match) {
-                *file_no = i;
-                return 0;
-            }
+        if (hdr.compare(game_code, company_code, (char*)ext_name, (char*)game_name)) {
+            *file_no = i;
+            return 0;
         }
     }
     return PFS_ERR_INVALID;
@@ -232,18 +245,13 @@ extern "C" s32 osPfsDeleteFile(RDRAM_ARG PTR(OSPfs) pfs_, u16 company_code, u32 
         return PFS_ERR_INVALID;
     }
 
+    pfs_header_t hdr{};
     for (int i = 0; i < MAX_FILES; i++) {
-        OSPfsState hdr{};
         pfs_header_read(i, hdr);
-
-        if ((game_code == hdr.game_code) && (company_code == hdr.company_code)) {
-            const auto gn_match = !std::memcmp(game_name, hdr.game_name, sizeof(hdr.game_name));
-            const auto en_match = !std::memcmp(ext_name, hdr.ext_name, sizeof(hdr.ext_name));
-            if (gn_match && en_match) {
-                pfs_header_write(i, OSPfsState{});
-                std::filesystem::remove(pfs_file_path(i));
-                return 0;
-            }
+        if (hdr.compare(game_code, company_code, (char*)ext_name, (char*)game_name)) {
+            pfs_header_write(i, pfs_header_t{});
+            std::filesystem::remove(pfs_file_path(i));
+            return 0;
         }
     }
     return PFS_ERR_INVALID;
@@ -262,6 +270,10 @@ extern "C" s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, u8 fla
     return 0;
 }
 
+inline void bswap_copy(char* dst, const char* src, int offset, int n) {
+    for (int i = 0; i < n; i++) { dst[(i + offset) ^ 3] = src[i + offset]; }
+}
+
 extern "C" s32 osPfsFileState(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, PTR(OSPfsState) state_) {
     OSPfsState *state = TO_PTR(OSPfsState, state_);
 
@@ -269,14 +281,15 @@ extern "C" s32 osPfsFileState(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, PTR(OSPfsS
         return PFS_ERR_INVALID;
     }
 
-    OSPfsState hdr{};
+    pfs_header_t hdr{};
     pfs_header_read(file_no, hdr);
 
     state->file_size = hdr.file_size;
     state->company_code = hdr.company_code;
     state->game_code = hdr.game_code;
-    std::memcpy(state->game_name, hdr.game_name, sizeof(hdr.game_name));
-    std::memcpy(state->ext_name, hdr.ext_name, sizeof(hdr.ext_name));
+
+    // FIXME OSPfsState layout is an absoute mess. giving up and byte swapping
+    bswap_copy((char*)state, (char*)&hdr, 10, 20);
     return 0;
 }
 
@@ -333,11 +346,10 @@ extern "C" s32 osPfsFreeBlocks(RDRAM_ARG PTR(OSPfs) pfs_, PTR(s32) bytes_not_use
     s32 *bytes_not_used = TO_PTR(s32, bytes_not_used_);
 
     s32 bytes_used = 0;
+    pfs_header_t hdr{};
     for (size_t i = 0; i < MAX_FILES; i++) {
-        OSPfsState hdr{};
         pfs_header_read(i, hdr);
-
-        if ((hdr.company_code != 0) && (hdr.game_code != 0)) {
+        if (hdr.valid()) {
             bytes_used += hdr.file_size >> 8;
         }
     }
@@ -352,11 +364,10 @@ extern "C" s32 osPfsNumFiles(RDRAM_ARG PTR(OSPfs) pfs_, PTR(s32) max_files_, PTR
     s32 *files_used = TO_PTR(s32, files_used_);
 
     u8 num_files = 0;
+    pfs_header_t hdr{};
     for (size_t i = 0; i < MAX_FILES; i++) {
-        OSPfsState hdr{};
         pfs_header_read(i, hdr);
-
-        if ((hdr.company_code != 0) && (hdr.game_code != 0)) {
+        if (hdr.valid()) {
             num_files++;
         }
     }

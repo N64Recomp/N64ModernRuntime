@@ -289,12 +289,15 @@ typedef struct {
 } OSPfs;
 
 typedef struct {
-    /* 0x00 */ u32 file_size; /* bytes */
-    /* 0x04 */ u32 game_code;
-    /* 0x0A */ char pad_0A[2];
-    /* 0x08 */ u16 company_code;
-    /* 0x0C */ char ext_name[4];
-    /* 0x10 */ char game_name[16];
+    u32 file_size;
+    u32 game_code;
+    char ext_name_0[2]; // insane layout due to ext_name starting on halfword boundary
+    u16 company_code;
+    char game_name_0[2];
+    char ext_name_1[2];
+    char game_name_1[12];
+    char padding[2];
+    char game_name_2[2];
 } OSPfsState; // size = 0x20
 
 // Controller

@@ -74,6 +74,59 @@ typedef u64	OSTime;
 #define OS_EVENT_THREADSTATUS     13    /* CPU thread status: used by rmon */
 #define OS_EVENT_PRENMI           14    /* Pre NMI interrupt */
 
+/* Controller errors */
+
+#define CONT_NO_RESPONSE_ERROR          0x8
+#define CONT_OVERRUN_ERROR              0x4
+#define CONT_RANGE_ERROR               -1
+#define CONT_FRAME_ERROR                0x2
+#define CONT_COLLISION_ERROR            0x1
+
+/* Controller type */
+
+#define CONT_TYPE_NORMAL 0x0005
+#define CONT_TYPE_MOUSE  0x0002
+#define CONT_TYPE_VOICE  0x0100
+
+/* File System error number */
+
+#define PFS_ERR_NOPACK          1   /* no memory card is plugged or */
+#define PFS_ERR_NEW_PACK        2   /* ram pack has been changed to a different one */
+#define PFS_ERR_INCONSISTENT    3   /* need to run Pfschecker*/
+#define PFS_ERR_CONTRFAIL       CONT_OVERRUN_ERROR              
+#define PFS_ERR_INVALID         5   /* invalid parameter or file not exist*/
+#define PFS_ERR_BAD_DATA        6   /* the data read from pack are bad*/
+#define PFS_DATA_FULL           7   /* no free pages on ram pack*/
+#define PFS_DIR_FULL            8   /* no free directories on ram pack*/
+#define PFS_ERR_EXIST           9   /* file exists*/
+#define PFS_ERR_ID_FATAL        10  /* dead ram pack */
+#define PFS_ERR_DEVICE          11  /* wrong device type*/
+#define PFS_ERR_NO_GBCART       12  /* no gb cartridge (64GB-PAK) */
+#define PFS_ERR_NEW_GBCART      13  /* gb cartridge may be changed */
+
+/* File System size */
+
+#define PFS_INODE_SIZE_PER_PAGE 128
+#define PFS_FILE_NAME_LEN       16
+#define PFS_FILE_EXT_LEN        4
+#define PFS_BLOCKSIZE           32  /* bytes */
+#define PFS_ONE_PAGE            8   /* blocks */
+#define PFS_MAX_BANKS           62
+
+/* File System flag */
+
+#define PFS_READ                0
+#define PFS_WRITE               1
+#define PFS_CREATE              2
+
+/* File System status */
+
+#define PFS_INITIALIZED         0x1
+#define PFS_CORRUPTED           0x2
+#define PFS_ID_BROKEN           0x4
+#define PFS_MOTOR_INITIALIZED   0x8
+#define PFS_GBPAK_INITIALIZED   0x10
+
 #define	M_GFXTASK	1
 #define	M_AUDTASK	2
 #define	M_VIDTASK	3
@@ -235,6 +288,17 @@ typedef struct {
     u8 banks;
 } OSPfs;
 
+typedef struct {
+    u32 file_size;
+    u32 game_code;
+    char ext_name_0[2]; // insane layout due to ext_name starting on halfword boundary
+    u16 company_code;
+    char game_name_0[2];
+    char ext_name_1[2];
+    char game_name_1[12];
+    char padding[2];
+    char game_name_2[2];
+} OSPfsState; // size = 0x20
 
 // Controller
 
@@ -313,6 +377,24 @@ s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue), PTR(OSPfs), int);
 s32 osMotorStop(RDRAM_ARG PTR(OSPfs));
 s32 osMotorStart(RDRAM_ARG PTR(OSPfs));
 s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs), s32);
+
+/* Controller PAK interface */
+
+s32 osPfsInitPak(RDRAM_ARG PTR(OSMesgQueue) queue, PTR(OSPfs) pfs, int channel);
+s32 osPfsRepairId(RDRAM_ARG PTR(OSPfs) pfs);
+s32 osPfsInit(RDRAM_ARG PTR(OSMesgQueue) queue, PTR(OSPfs) pfs, int channel);
+s32 osPfsReFormat(RDRAM_ARG PTR(OSPfs) pfs, PTR(OSMesgQueue) queue, int channel);
+s32 osPfsChecker(RDRAM_ARG PTR(OSPfs) pfs);
+s32 osPfsAllocateFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name, int nbytes, PTR(s32) file_no);
+s32 osPfsFindFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name, PTR(s32) file_no);
+s32 osPfsDeleteFile(RDRAM_ARG PTR(OSPfs) pfs, u16 company_code, u32 game_code, u8* game_name, u8* ext_name);
+s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs) pfs, s32 file_no, u8 flag, int offset, int nbytes, u8* data_buffer);
+s32 osPfsFileState(RDRAM_ARG PTR(OSPfs) pfs, s32 file_no, PTR(OSPfsState) state);
+s32 osPfsGetLabel(RDRAM_ARG PTR(OSPfs) pfs, u8* label, PTR(int) len);
+s32 osPfsSetLabel(RDRAM_ARG PTR(OSPfs) pfs, u8* label);
+s32 osPfsIsPlug(RDRAM_ARG PTR(OSMesgQueue) mq, u8* pattern);
+s32 osPfsFreeBlocks(RDRAM_ARG PTR(OSPfs) pfs, PTR(s32) bytes_not_used);
+s32 osPfsNumFiles(RDRAM_ARG PTR(OSPfs) pfs, PTR(s32) max_files, PTR(s32) files_used);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -4,21 +4,26 @@
 #include "ultramodern/ultra64.h"
 #include "ultramodern/ultramodern.hpp"
 
-#define PFS_ERR_NOPACK          1   // no device inserted
-#define PFS_ERR_CONTRFAIL       4   // data transmission failure
-#define PFS_ERR_INVALID         5   // invalid parameter or invalid file
-#define PFS_ERR_DEVICE          11  // different type of device inserted
+#define MAXCONTROLLERS 4
 
-#define PFS_INITIALIZED         1
-#define PFS_CORRUPTED           2
-#define PFS_ID_BROKEN           4
-#define PFS_MOTOR_INITIALIZED   8
-#define PFS_GBPAK_INITIALIZED   16
+static int max_controllers = 0;
 
 static ultramodern::input::callbacks_t input_callbacks {};
 
+int ultramodern::get_max_controllers() {
+    return max_controllers;
+}
+
 void ultramodern::input::set_callbacks(const callbacks_t& callbacks) {
     input_callbacks = callbacks;
+}
+
+ultramodern::input::connected_device_info_t ultramodern::get_connected_device_info(int channel) {
+    ultramodern::input::connected_device_info_t device_info{};
+    if (input_callbacks.get_connected_device_info != nullptr) {
+        device_info = input_callbacks.get_connected_device_info(channel);
+    }
+    return device_info;
 }
 
 static std::chrono::high_resolution_clock::time_point input_poll_time;
@@ -32,16 +37,6 @@ void ultramodern::measure_input_latency() {
     printf("Delta: %ld micros\n", std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::high_resolution_clock::now() - input_poll_time));
 #endif
 }
-
-#define MAXCONTROLLERS 4
-
-#define CONT_NO_RESPONSE_ERROR 0x8
-
-#define CONT_TYPE_NORMAL 0x0005
-#define CONT_TYPE_MOUSE  0x0002
-#define CONT_TYPE_VOICE  0x0100
-
-static int max_controllers = 0;
 
 /* Plain controller */
 
@@ -69,12 +64,7 @@ static void __osContGetInitData(u8* pattern, OSContStatus *data) {
     *pattern = 0x00;
 
     for (int controller = 0; controller < max_controllers; controller++) {
-        ultramodern::input::connected_device_info_t device_info{};
-
-        if (input_callbacks.get_connected_device_info != nullptr) {
-            device_info = input_callbacks.get_connected_device_info(controller);
-        }
-
+        const auto device_info = ultramodern::get_connected_device_info(controller);
         if (device_info.connected_device != ultramodern::input::Device::None) {
             // Mark controller as present
 
@@ -160,22 +150,18 @@ extern "C" void osContGetReadData(OSContPad *data) {
     }
 }
 
-/* Rumble */
+/* RumblePak */
 
-s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(OSPfs) pfs_, int channel) {
+extern "C" s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue) mq_, PTR(OSPfs) pfs_, int channel) {
     OSPfs *pfs = TO_PTR(OSPfs, pfs_);
 
     // basic initialization performed regardless of connected/disconnected status
-    pfs->queue = mq;
+    pfs->queue = mq_;
     pfs->channel = channel;
     pfs->activebank = 0xFF;
     pfs->status = 0;
 
-    ultramodern::input::connected_device_info_t device_info{};
-    if (input_callbacks.get_connected_device_info != nullptr) {
-        device_info = input_callbacks.get_connected_device_info(channel);
-    }
-
+    const auto device_info = ultramodern::get_connected_device_info(channel);
     if (device_info.connected_device != ultramodern::input::Device::Controller) {
         return PFS_ERR_CONTRFAIL;
     }
@@ -190,15 +176,15 @@ s32 osMotorInit(RDRAM_ARG PTR(OSMesgQueue) mq, PTR(OSPfs) pfs_, int channel) {
     return 0;
 }
 
-s32 osMotorStop(RDRAM_ARG PTR(OSPfs) pfs) {
+extern "C" s32 osMotorStop(RDRAM_ARG PTR(OSPfs) pfs) {
     return __osMotorAccess(PASS_RDRAM pfs, false);
 }
 
-s32 osMotorStart(RDRAM_ARG PTR(OSPfs) pfs) {
+extern "C" s32 osMotorStart(RDRAM_ARG PTR(OSPfs) pfs) {
     return __osMotorAccess(PASS_RDRAM pfs, true);
 }
 
-s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs) pfs_, s32 flag) {
+extern "C" s32 __osMotorAccess(RDRAM_ARG PTR(OSPfs) pfs_, s32 flag) {
     OSPfs *pfs = TO_PTR(OSPfs, pfs_);
 
     if (!(pfs->status & PFS_MOTOR_INITIALIZED)) {

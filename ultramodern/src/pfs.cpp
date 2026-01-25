@@ -4,6 +4,7 @@
 #include <ultramodern/save.hpp>
 #include <ultramodern/ultra64.h>
 
+#define ALIGN_UP(x, align) (((x) + ((align) - 1)) & ~((align) - 1))
 #define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 #define DEF_DIR_PAGES 2
 #define MAX_FILES 16
@@ -21,16 +22,16 @@ struct pfs_header_t { // same layout as OSPfsState, but non-byteswapped
     pfs_header_t() = default;
     pfs_header_t(uint32_t fs, uint32_t gc, uint16_t cc, const char* en, const char* gn)
     : file_size{fs}, game_code{gc}, company_code{cc} {
-        std::memcpy(ext_name.data(), en, 4);
-        std::memcpy(game_name.data(), gn, 16);
+        std::memcpy(ext_name.data(), en, sizeof(ext_name));
+        std::memcpy(game_name.data(), gn, sizeof(game_name));
     }
     inline bool valid() const {
         return game_code != 0 && company_code != 0;
     }
     inline bool compare(uint32_t gcode, uint16_t ccode, const char* ename, const char* gname) const {
         return game_code == gcode && company_code == ccode &&
-            std::memcmp(ext_name.data(), ename, 4) == 0 &&
-            std::memcmp(game_name.data(), gname, 14) == 0;
+            std::memcmp(ext_name.data(), ename, sizeof(ext_name)) == 0 &&
+            std::memcmp(game_name.data(), gname, sizeof(game_name)) == 0;
     }
 };
 
@@ -46,14 +47,16 @@ inline std::filesystem::path pfs_file_path(size_t file_no) {
 
 inline bool pfs_header_alloc() {
     if (!std::filesystem::exists(pfs_header_path())) {
+        std::vector<char> zero_block(MAX_FILES * sizeof(pfs_header_t));
         std::ofstream out(pfs_header_path(), std::ios::binary | std::ios::out | std::ios::trunc);
+        out.write(zero_block.data(), zero_block.size());
         return out.good();
     }
     return true;
 }
 
 inline bool pfs_header_write(int file_no, const pfs_header_t& hdr) {
-    std::ofstream out(pfs_header_path(), std::ios::binary | std::ios::in);
+    std::fstream out(pfs_header_path(), std::ios::binary | std::ios::out | std::ios::in);
     if (out.is_open() && out.good()) {
         out.seekp(file_no * sizeof(pfs_header_t), std::ios::beg);
         out.write((const char*)&hdr.file_size, sizeof(hdr.file_size));
@@ -67,6 +70,7 @@ inline bool pfs_header_write(int file_no, const pfs_header_t& hdr) {
 }
 
 inline bool pfs_header_read(int file_no, pfs_header_t& hdr) {
+    hdr = {}; // reset
     std::ifstream in(pfs_header_path(), std::ios::binary | std::ios::in);
     if (in.is_open() && in.good()) {
         in.seekg(file_no * sizeof(pfs_header_t), std::ios::beg);
@@ -81,16 +85,16 @@ inline bool pfs_header_read(int file_no, pfs_header_t& hdr) {
 }
 
 inline bool pfs_file_alloc(int file_no, int nbytes) {
-    std::vector<char> zero_block((nbytes + 31) & ~31, 0);
+    std::vector<char> zero_block(ALIGN_UP(nbytes, PFS_ONE_PAGE * PFS_BLOCKSIZE));
     std::ofstream out(pfs_file_path(file_no), std::ios::binary | std::ios::out | std::ios::trunc);
     if (out.is_open() && out.good()) {
-        out.write((const char*)zero_block.data(), zero_block.size());
+        out.write(zero_block.data(), zero_block.size());
     }
     return out.good();
 }
 
 inline bool pfs_file_write(int file_no, int offset, const char* data_buffer, int nbytes) {
-    std::ofstream out(pfs_file_path(file_no), std::ios::binary | std::ios::out);
+    std::fstream out(pfs_file_path(file_no), std::ios::binary | std::ios::out | std::ios::in);
     if (out.is_open() && out.good()) {
         out.seekp(offset, std::ios::beg);
         out.write((const char*)data_buffer, nbytes);
@@ -259,6 +263,11 @@ extern "C" s32 osPfsDeleteFile(RDRAM_ARG PTR(OSPfs) pfs_, u16 company_code, u32 
 
 extern "C" s32 osPfsReadWriteFile(RDRAM_ARG PTR(OSPfs) pfs_, s32 file_no, u8 flag, int offset, int nbytes, u8* data_buffer) {
     if (!std::filesystem::exists(pfs_file_path(file_no))) {
+        return PFS_ERR_INVALID;
+    }
+
+    const auto file_size = std::filesystem::file_size(pfs_file_path(file_no));
+    if (offset % PFS_BLOCKSIZE || nbytes % PFS_BLOCKSIZE || (offset + nbytes) > file_size) {
         return PFS_ERR_INVALID;
     }
     else if ((flag == PFS_READ) && !pfs_file_read(file_no, offset, (char*)data_buffer, nbytes)) {

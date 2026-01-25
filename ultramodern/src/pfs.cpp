@@ -8,6 +8,7 @@
 #define ARRLEN(x) (sizeof(x) / sizeof((x)[0]))
 #define DEF_DIR_PAGES 2
 #define MAX_FILES 16
+#define MAX_PAGES 123 // 128 total, 5 reserved for filesystem
 
 /* PFS Context */
 
@@ -15,8 +16,8 @@ struct pfs_header_t { // same layout as OSPfsState, but non-byteswapped
     uint32_t file_size;
     uint32_t game_code;
     uint16_t company_code;
-    std::array<char, 4> ext_name;
-    std::array<char, 16> game_name;
+    std::array<char, PFS_FILE_EXT_LEN> ext_name;
+    std::array<char, PFS_FILE_NAME_LEN> game_name;
     uint16_t padding;
 
     pfs_header_t() = default;
@@ -354,16 +355,16 @@ extern "C" s32 osPfsFreeBlocks(RDRAM_ARG PTR(OSPfs) pfs_, PTR(s32) bytes_not_use
     OSPfs *pfs = TO_PTR(OSPfs, pfs_);
     s32 *bytes_not_used = TO_PTR(s32, bytes_not_used_);
 
-    s32 bytes_used = 0;
+    s32 pages_used = 0;
     pfs_header_t hdr{};
     for (size_t i = 0; i < MAX_FILES; i++) {
         pfs_header_read(i, hdr);
         if (hdr.valid()) {
-            bytes_used += hdr.file_size >> 8;
+            pages_used += hdr.file_size >> 8;
         }
     }
 
-    *bytes_not_used = (123 - bytes_used) << 8;
+    *bytes_not_used = (MAX_PAGES - pages_used) << 8;
     return 0;
 }
 

@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cmath>
 
 #include "ultramodern/input.hpp"
 #include "ultramodern/ultra64.h"
@@ -127,6 +128,28 @@ extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
     __osContGetInitData(&pattern, data);
 }
 
+void convert_to_n64_range(float& x, float& y, int8_t& stick_x, int8_t& stick_y) {
+    constexpr float PI = 3.14159265358979323846f;
+    float magnitude = sqrtf(x * x + y * y);
+    if (magnitude > 1.0f) {
+        magnitude = 1.0f;
+    }
+
+    float angle = atan2f(y, x);
+    float angle_modulo = fmodf(angle + 2.0f * PI, PI / 2.0f);
+    if (angle_modulo > PI / 4.0f) {
+        angle_modulo = PI / 2.0f - angle_modulo;
+    }
+
+    constexpr float r0 = 82.0f;
+    constexpr float alpha = 1.39414574f;
+    float square_radius = 1.0f;
+    float n64_radius = r0 * sin(alpha) / (sin(PI - angle_modulo - alpha));
+    float output_magnitude = magnitude * n64_radius / square_radius;
+    stick_x = (int8_t)(cosf(angle) * output_magnitude);
+    stick_y = (int8_t)(sinf(angle) * output_magnitude);
+}
+
 extern "C" void osContGetReadData(OSContPad *data) {
     for (int controller = 0; controller < max_controllers; controller++) {
         uint16_t buttons = 0;
@@ -139,9 +162,9 @@ extern "C" void osContGetReadData(OSContPad *data) {
         }
 
         if (got_response) {
+            convert_to_n64_range(x, y, data[controller].stick_x, data[controller].stick_y);
+
             data[controller].button = buttons;
-            data[controller].stick_x = (int8_t)(127 * x);
-            data[controller].stick_y = (int8_t)(127 * y);
             data[controller].err_no = 0;
         } else {
             data[controller].err_no =  CONT_NO_RESPONSE_ERROR; // CHNL_ERR_NORESP >> 4

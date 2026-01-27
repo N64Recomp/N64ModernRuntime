@@ -128,7 +128,7 @@ extern "C" void osContGetQuery(RDRAM_ARG PTR(OSContStatus) data_) {
     __osContGetInitData(&pattern, data);
 }
 
-void convert_to_n64_range(float& x, float& y, int8_t& stick_x, int8_t& stick_y) {
+void convert_to_n64_range(float x, float y, int8_t& stick_x, int8_t& stick_y) {
     constexpr float PI = 3.14159265358979323846f;
     float magnitude = sqrtf(x * x + y * y);
     if (magnitude > 1.0f) {

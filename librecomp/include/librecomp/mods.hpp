@@ -158,7 +158,18 @@ namespace recomp {
             Unknown,
 
             // The mod was integrated as part of the project.
-            Integrated
+            Integrated,
+
+            // The mod is known to have a game breaking issue, but can be fixed by updating it.
+            BrokenVersion,
+
+            // The mod is known to have a game breaking issue that is not fixable.
+            BrokenPermanent
+        };
+
+        struct DeprecatedMod {
+            DeprecationStatus status;
+            Version maximum_version;
         };
 
         struct ModFileHandle {
@@ -329,15 +340,16 @@ namespace recomp {
 
             void register_game(const std::string& mod_game_id);
             void register_embedded_mod(const std::string& mod_id, std::span<const uint8_t> mod_bytes);
-            void register_deprecated_mod(const std::string& mod_id, DeprecationStatus deprecation_status);
+            void register_deprecated_mod(const std::string& mod_id, DeprecationStatus deprecation_status, const Version& maximum_version);
             std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
             void close_mods();
             void load_mods_config();
             void enable_mod(const std::string& mod_id, bool enabled, bool trigger_save);
             bool is_mod_enabled(const std::string& mod_id) const;
             bool is_mod_auto_enabled(const std::string& mod_id) const;
-            bool is_mod_deprecated(const std::string& mod_id) const;
+            bool is_mod_deprecated(const std::string& mod_id, const Version& mod_version) const;
             DeprecationStatus get_mod_deprecation_status(const std::string& mod_id) const;
+            Version get_mod_deprecation_version(const std::string& mod_id) const;
             size_t num_opened_mods();
             std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, const std::string& game_mode_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
@@ -404,7 +416,7 @@ namespace recomp {
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
             std::unordered_set<std::string> auto_enabled_mods;
-            std::unordered_map<std::string, DeprecationStatus> deprecated_mods;
+            std::unordered_map<std::string, DeprecatedMod> deprecated_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
             std::unique_ptr<std::thread> mod_configuration_thread;
@@ -610,7 +622,7 @@ namespace recomp {
 
         void initialize_mods();
         void register_embedded_mod(const std::string& mod_id, std::span<const uint8_t> mod_bytes);
-        void register_deprecated_mod(const std::string &mod_id, recomp::mods::DeprecationStatus deprecation_status);
+        void register_deprecated_mod(const std::string& mod_id, DeprecationStatus deprecation_status, const Version &maximum_version);
         void scan_mods();
         void close_mods();
         std::filesystem::path get_mods_directory();
@@ -622,8 +634,9 @@ namespace recomp {
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);
-        bool is_mod_deprecated(const std::string& mod_id);
+        bool is_mod_deprecated(const std::string& mod_id, const Version& mod_version);
         DeprecationStatus get_mod_deprecation_status(const std::string& mod_id);
+        Version get_mod_deprecation_version(const std::string& mod_id);
         std::string deprecation_status_to_message(DeprecationStatus deprecation_status);
         const config::ConfigSchema &get_mod_config_schema(const std::string &mod_id);
         config::Config *get_mod_config(const std::string &mod_id);

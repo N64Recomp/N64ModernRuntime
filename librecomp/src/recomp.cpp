@@ -102,9 +102,9 @@ void recomp::mods::register_embedded_mod(const std::string &mod_id, std::span<co
     mod_context->register_embedded_mod(mod_id, mod_bytes);
 }
 
-void recomp::mods::register_deprecated_mod(const std::string& mod_id, recomp::mods::DeprecationStatus deprecation_status) {
+void recomp::mods::register_deprecated_mod(const std::string& mod_id, recomp::mods::DeprecationStatus deprecation_status, const Version& maximum_version) {
     std::lock_guard<std::mutex> lock(mod_context_mutex);
-    mod_context->register_deprecated_mod(mod_id, deprecation_status);
+    mod_context->register_deprecated_mod(mod_id, deprecation_status, maximum_version);
 }
 
 void recomp::mods::scan_mods() {
@@ -575,9 +575,9 @@ bool recomp::mods::is_mod_auto_enabled(const std::string& mod_id) {
     return mod_context->is_mod_auto_enabled(mod_id);
 }
 
-bool recomp::mods::is_mod_deprecated(const std::string& mod_id) {
+bool recomp::mods::is_mod_deprecated(const std::string& mod_id, const recomp::Version& mod_version) {
     std::lock_guard lock{ mod_context_mutex };
-    return mod_context->is_mod_deprecated(mod_id);
+    return mod_context->is_mod_deprecated(mod_id, mod_version);
 }
 
 recomp::mods::DeprecationStatus recomp::mods::get_mod_deprecation_status(const std::string& mod_id) {
@@ -585,10 +585,19 @@ recomp::mods::DeprecationStatus recomp::mods::get_mod_deprecation_status(const s
     return mod_context->get_mod_deprecation_status(mod_id);
 }
 
+recomp::Version recomp::mods::get_mod_deprecation_version(const std::string& mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_deprecation_version(mod_id);
+}
+
 std::string recomp::mods::deprecation_status_to_message(DeprecationStatus deprecation_status) {
     switch (deprecation_status) {
     case DeprecationStatus::Integrated:
         return "This mod has already been integrated into the game";
+    case DeprecationStatus::BrokenVersion:
+        return "This version of the mod is known to cause issues. Please update it";
+    case DeprecationStatus::BrokenPermanent:
+        return "This mod is known to cause issues. Please uninstall it";
     default:
         return "Reason is unknown";
     }

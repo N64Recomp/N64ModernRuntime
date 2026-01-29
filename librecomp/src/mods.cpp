@@ -636,8 +636,9 @@ void recomp::mods::ModContext::register_embedded_mod(const std::string &mod_id, 
     embedded_mod_bytes.emplace(mod_id, mod_bytes);
 }
 
-void recomp::mods::ModContext::register_deprecated_mod(const std::string& mod_id, DeprecationStatus deprecation_status) {
-    deprecated_mods[mod_id] = deprecation_status;
+void recomp::mods::ModContext::register_deprecated_mod(const std::string& mod_id, DeprecationStatus deprecation_status, const Version &maximum_version) {
+    deprecated_mods[mod_id].status = deprecation_status;
+    deprecated_mods[mod_id].maximum_version = maximum_version;
 }
 
 void recomp::mods::ModContext::close_mods() {
@@ -1042,7 +1043,7 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
     }
 
     // Do nothing if this mod was deprecated.
-    if (is_mod_deprecated(mod_id)) {
+    if (is_mod_deprecated(mod.manifest.mod_id, mod.manifest.version)) {
         return;
     }
 
@@ -1070,7 +1071,7 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
                 if (mod_from_stack_it != opened_mods_by_id.end()) {
                     const ModHandle &mod_from_stack_handle = opened_mods[mod_from_stack_it->second];
                     for (const Dependency &dependency : mod_from_stack_handle.manifest.dependencies) {
-                        if (!dependency.optional && !auto_enabled_mods.contains(dependency.mod_id) && !is_mod_deprecated(dependency.mod_id)) {
+                        if (!dependency.optional && !auto_enabled_mods.contains(dependency.mod_id) && !is_mod_deprecated(dependency.mod_id, dependency.version)) {
                             auto_enabled_mods.emplace(dependency.mod_id);
                             mod_stack.emplace_back(dependency.mod_id);
 
@@ -1115,7 +1116,7 @@ void recomp::mods::ModContext::enable_mod(const std::string& mod_id, bool enable
                     if (mod_from_stack_it != opened_mods_by_id.end()) {
                         const ModHandle &mod_from_stack_handle = opened_mods[mod_from_stack_it->second];
                         for (const Dependency &dependency : mod_from_stack_handle.manifest.dependencies) {
-                            if (!dependency.optional && !new_auto_enabled_mods.contains(dependency.mod_id) && !is_mod_deprecated(dependency.mod_id)) {
+                            if (!dependency.optional && !new_auto_enabled_mods.contains(dependency.mod_id) && !is_mod_deprecated(dependency.mod_id, dependency.version)) {
                                 new_auto_enabled_mods.emplace(dependency.mod_id);
                                 mod_stack.emplace_back(dependency.mod_id);
                             }
@@ -1159,17 +1160,33 @@ bool recomp::mods::ModContext::is_mod_auto_enabled(const std::string& mod_id) co
     return auto_enabled_mods.contains(mod_id);
 }
 
-bool recomp::mods::ModContext::is_mod_deprecated(const std::string& mod_id) const {
-    return get_mod_deprecation_status(mod_id) != DeprecationStatus::Unknown;
+bool recomp::mods::ModContext::is_mod_deprecated(const std::string& mod_id, const Version& mod_version) const {
+    auto it = deprecated_mods.find(mod_id);
+    if (it != deprecated_mods.end()) {
+        return (it->second.status != recomp::mods::DeprecationStatus::Unknown) && (it->second.maximum_version.is_null() || (mod_version <= it->second.maximum_version));
+    }
+    else {
+        return false;
+    }
 }
 
 recomp::mods::DeprecationStatus recomp::mods::ModContext::get_mod_deprecation_status(const std::string& mod_id) const {
     auto it = deprecated_mods.find(mod_id);
     if (it != deprecated_mods.end()) {
-        return it->second;
+        return it->second.status;
     }
     else {
         return recomp::mods::DeprecationStatus::Unknown;
+    }
+}
+
+recomp::Version recomp::mods::ModContext::get_mod_deprecation_version(const std::string& mod_id) const {
+    auto it = deprecated_mods.find(mod_id);
+    if (it != deprecated_mods.end()) {
+        return it->second.maximum_version;
+    }
+    else {
+        return Version();
     }
 }
 

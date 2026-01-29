@@ -46,6 +46,14 @@ namespace recomp {
         int patch = -1;
         std::string suffix;
 
+        Version() = default;
+        Version(int major, int minor, int patch, std::string suffix = std::string()) {
+            this->major = major;
+            this->minor = minor;
+            this->patch = patch;
+            this->suffix = suffix;
+        }
+
         std::string to_string() const {
             return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch) + suffix;
         }
@@ -60,7 +68,11 @@ namespace recomp {
                 return minor <=> rhs.minor;
             }
             return patch <=> rhs.patch;
-        } 
+        }
+
+        bool is_null() const {
+            return (major == -1) && (minor == -1) && (patch == -1) && suffix.empty();
+        }
     };
     enum class RomValidationError {
         Good,

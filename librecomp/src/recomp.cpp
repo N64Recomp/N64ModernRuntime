@@ -102,6 +102,11 @@ void recomp::mods::register_embedded_mod(const std::string &mod_id, std::span<co
     mod_context->register_embedded_mod(mod_id, mod_bytes);
 }
 
+void recomp::mods::register_deprecated_mod(const std::string& mod_id, recomp::mods::DeprecationStatus deprecation_status) {
+    std::lock_guard<std::mutex> lock(mod_context_mutex);
+    mod_context->register_deprecated_mod(mod_id, deprecation_status);
+}
+
 void recomp::mods::scan_mods() {
     std::vector<recomp::mods::ModOpenErrorDetails> mod_open_errors;
     {
@@ -568,6 +573,25 @@ bool recomp::mods::is_mod_enabled(const std::string& mod_id) {
 bool recomp::mods::is_mod_auto_enabled(const std::string& mod_id) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->is_mod_auto_enabled(mod_id);
+}
+
+bool recomp::mods::is_mod_deprecated(const std::string& mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->is_mod_deprecated(mod_id);
+}
+
+recomp::mods::DeprecationStatus recomp::mods::get_mod_deprecation_status(const std::string& mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_deprecation_status(mod_id);
+}
+
+std::string recomp::mods::deprecation_status_to_message(DeprecationStatus deprecation_status) {
+    switch (deprecation_status) {
+    case DeprecationStatus::Integrated:
+        return "This mod has already been integrated into the game";
+    default:
+        return "Reason is unknown";
+    }
 }
 
 const recomp::config::ConfigSchema &recomp::mods::get_mod_config_schema(const std::string &mod_id) {

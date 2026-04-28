@@ -91,8 +91,27 @@ static inline void RSP_MEM_H_STORE(uint32_t offset, uint32_t addr, uint32_t val)
 
 #define SET_DMA_MEM(mem_addr) dma_mem_address = (mem_addr)
 #define SET_DMA_DRAM(dram_addr) dma_dram_address = (dram_addr)
-#define DO_DMA_READ(rd_len) dma_rdram_to_dmem(rdram, dma_mem_address, dma_dram_address, (rd_len))
-#define DO_DMA_WRITE(wr_len) dma_dmem_to_rdram(rdram, dma_mem_address, dma_dram_address, (wr_len))
+// Real RSP DMA hardware auto-increments SP_MEM_ADDR and SP_DRAM_ADDR
+// by (length + 1) after each transfer. Tight loops like aspMain's
+// L_10EC <-> L_11B4 DMA pump (and any other ucode that fires DMAs in a
+// loop without re-writing SP_MEM_ADDR / SP_DRAM_ADDR each iteration)
+// rely on this to walk through the audio command stream chunk by
+// chunk. Without the increment the same DMEM region gets reloaded
+// forever — observed as Stadium's aspMain hanging in the dispatch
+// loop on a never-advancing command word. Verified against Ares'
+// rsp/dma.cpp (pbusAddress += 8 / dramAddress += 8 per 8-byte chunk).
+#define DO_DMA_READ(rd_len) do { \
+    uint32_t _rsp_dma_inc = (uint32_t)(rd_len) + 1; \
+    dma_rdram_to_dmem(rdram, dma_mem_address, dma_dram_address, (rd_len)); \
+    dma_mem_address  += _rsp_dma_inc; \
+    dma_dram_address += _rsp_dma_inc; \
+} while (0)
+#define DO_DMA_WRITE(wr_len) do { \
+    uint32_t _rsp_dma_inc = (uint32_t)(wr_len) + 1; \
+    dma_dmem_to_rdram(rdram, dma_mem_address, dma_dram_address, (wr_len)); \
+    dma_mem_address  += _rsp_dma_inc; \
+    dma_dram_address += _rsp_dma_inc; \
+} while (0)
 
 static inline void dma_rdram_to_dmem(uint8_t* rdram, uint32_t dmem_addr, uint32_t dram_addr, uint32_t rd_len) {
     rd_len += 1; // Read length is inclusive

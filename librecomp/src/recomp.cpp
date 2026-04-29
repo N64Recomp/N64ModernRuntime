@@ -646,6 +646,16 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                     ultramodern::error_handling::message_box("Error opening stored ROM! Please restart this program.");
                 }
 
+                // Mirror ROM into the kseg1 region of rdram so direct
+                // MIPS reads of cart vaddrs (e.g. CIC-checksum /
+                // copy-protection code reading *(u32*)0xB000XXXX)
+                // return the expected bytes. Without this, MEM_W of
+                // a cart vaddr lands on never-written rdram bytes
+                // and games with ROM-magic checks (e.g. Pokemon
+                // Stadium's Game_DoCopyProtection at *(u32*)0xB0000E38)
+                // trip and fall into error paths.
+                recomp::mirror_rom_to_kseg1(rdram);
+
                 auto find_it = game_roms.find(current_game.value());
                 const recomp::GameEntry& game_entry = find_it->second;
 

@@ -21,6 +21,44 @@ void recomp::set_rom_contents(std::vector<uint8_t>&& new_rom) {
     rom = std::move(new_rom);
 }
 
+// Mirror ROM into the kseg1 region of rdram so that direct MIPS
+// reads of cart vaddrs (e.g. `lw $t1, 0xB0000E38`) return the
+// correct ROM bytes. Some games read ROM via cart vaddrs without
+// going through osPiStartDma — most notably copy-protection /
+// CIC-checksum routines that read a known ROM word and compare
+// against an expected value (e.g. Pokemon Stadium's
+// Game_DoCopyProtection at *(u32*)0xB0000E38).
+//
+// Without this mirror, MEM_W of a cart vaddr reads rdram bytes
+// that were never written, returning garbage. The check trips
+// and the game falls into a copy-protection error path
+// (e.g. state = -0x10 in Stadium, which then bypasses the
+// state-machine switch and the game appears to "stutter back to
+// intro").
+//
+// MEM_W formula: rdram + (vaddr - 0xFFFFFFFF80000000). For
+// kseg1 cart base 0xB0000000, that's rdram + 0x30000000.
+// We use the recompiler's BE-byte-swapped storage convention
+// (XOR-3 byte index) so that a host-native int32_t read of the
+// mirrored bytes returns the BE word that Stadium expects.
+//
+// Cost: one-time copy at startup, ~32 MiB worst case (size of
+// the ROM image). Negligible vs. the rest of the recompile.
+void recomp::mirror_rom_to_kseg1(uint8_t* rdram) {
+    if (rom.empty()) {
+        fprintf(stderr,
+            "[mirror] mirror_rom_to_kseg1 called with empty rom — "
+            "kseg1 cart reads will return garbage\n");
+        fflush(stderr);
+        return;
+    }
+    constexpr size_t kKseg1RomOffset = 0x30000000;
+    const size_t n = rom.size();
+    for (size_t i = 0; i < n; i++) {
+        rdram[(kKseg1RomOffset + i) ^ 3] = rom[i];
+    }
+}
+
 std::span<const uint8_t> recomp::get_rom() {
     return rom;
 }

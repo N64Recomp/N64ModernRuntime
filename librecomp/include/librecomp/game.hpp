@@ -78,6 +78,11 @@ namespace recomp {
     bool is_rom_loaded();
     void set_rom_contents(std::vector<uint8_t>&& new_rom);
     std::span<const uint8_t> get_rom();
+    // Mirror ROM into rdram's kseg1 region so direct MIPS reads of
+    // cart vaddrs (e.g. lw $t1, 0xB0000E38) return correct bytes.
+    // Call once after rdram is allocated. Without this, ROM-checksum
+    // / copy-protection routines see garbage. See pi.cpp for detail.
+    void mirror_rom_to_kseg1(uint8_t* rdram);
     void do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr, size_t num_bytes);
     void do_rom_pio(uint8_t* rdram, gpr ram_address, uint32_t physical_addr);
     const Version& get_project_version();

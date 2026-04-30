@@ -105,7 +105,32 @@ void recomp::do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr
     // TODO handle misaligned DMA
     assert((physical_addr & 0x1) == 0 && "Only PI DMA from aligned ROM addresses is currently supported");
     assert((ram_address & 0x7) == 0 && "Only PI DMA to aligned RDRAM addresses is currently supported");
-    uint8_t* rom_addr = rom.data() + physical_addr - recomp::rom_base;
+
+    // Bounds check: if physical_addr is past end of ROM (audio engine
+    // sometimes does this when wave_list[i].base is corrupted), don't
+    // crash the runner. Log the bad DMA, zero-fill the destination,
+    // and continue. This is a runtime defensive measure to keep
+    // diagnostic data flowing — the underlying pointer corruption
+    // still needs root-cause investigation.
+    const uint32_t rom_off = physical_addr - recomp::rom_base;
+    if (rom_off >= rom.size() || rom_off + num_bytes > rom.size()) {
+        static int s_logged = 0;
+        if (s_logged < 32) {
+            s_logged++;
+            fprintf(stderr,
+                "[do_rom_read] OUT-OF-BOUNDS phys=0x%08X off=0x%X size=0x%zX "
+                "(rom_size=0x%zX) — zero-filling dst=0x%08X\n",
+                physical_addr, rom_off, num_bytes, rom.size(),
+                (uint32_t)(int32_t)ram_address);
+            fflush(stderr);
+        }
+        for (size_t i = 0; i < num_bytes; i++) {
+            MEM_B(i, ram_address) = 0;
+        }
+        return;
+    }
+
+    uint8_t* rom_addr = rom.data() + rom_off;
     for (size_t i = 0; i < num_bytes; i++) {
         MEM_B(i, ram_address) = *rom_addr;
         rom_addr++;

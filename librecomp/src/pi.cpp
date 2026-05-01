@@ -4,6 +4,11 @@
 #include <cstring>
 #include <string>
 #include <mutex>
+#ifdef _WIN32
+#include <windows.h>
+#include <dbghelp.h>
+#pragma comment(lib, "dbghelp.lib")
+#endif
 #include "recomp.h"
 #include "librecomp/addresses.hpp"
 #include "librecomp/game.hpp"
@@ -115,13 +120,34 @@ void recomp::do_rom_read(uint8_t* rdram, gpr ram_address, uint32_t physical_addr
     const uint32_t rom_off = physical_addr - recomp::rom_base;
     if (rom_off >= rom.size() || rom_off + num_bytes > rom.size()) {
         static int s_logged = 0;
-        if (s_logged < 32) {
+        if (s_logged < 8) {
             s_logged++;
             fprintf(stderr,
                 "[do_rom_read] OUT-OF-BOUNDS phys=0x%08X off=0x%X size=0x%zX "
                 "(rom_size=0x%zX) — zero-filling dst=0x%08X\n",
                 physical_addr, rom_off, num_bytes, rom.size(),
                 (uint32_t)(int32_t)ram_address);
+#ifdef _WIN32
+            HANDLE proc = GetCurrentProcess();
+            SymInitialize(proc, NULL, TRUE);
+            void* frames[24];
+            USHORT n = CaptureStackBackTrace(0, 24, frames, NULL);
+            char symbuf[sizeof(SYMBOL_INFO) + 256];
+            SYMBOL_INFO* sym = (SYMBOL_INFO*)symbuf;
+            sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+            sym->MaxNameLen = 255;
+            IMAGEHLP_LINE64 line; memset(&line, 0, sizeof(line));
+            line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+            for (USHORT i = 0; i < n && i < 18; i++) {
+                DWORD64 disp64 = 0; DWORD disp32 = 0;
+                const char* name = "?"; const char* file = "?"; DWORD lineno = 0;
+                if (SymFromAddr(proc, (DWORD64)frames[i], &disp64, sym)) name = sym->Name;
+                if (SymGetLineFromAddr64(proc, (DWORD64)frames[i], &disp32, &line)) {
+                    file = line.FileName; lineno = line.LineNumber;
+                }
+                fprintf(stderr, "  #%02u %s (%s:%lu)\n", i, name, file, lineno);
+            }
+#endif
             fflush(stderr);
         }
         for (size_t i = 0; i < num_bytes; i++) {

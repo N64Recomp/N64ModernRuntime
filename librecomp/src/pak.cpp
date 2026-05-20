@@ -8,6 +8,16 @@ extern "C" void osPfsInitPak_recomp(uint8_t * rdram, recomp_context* ctx) {
     ctx->r2 = 1; // PFS_ERR_NOPACK
 }
 
+extern "C" void osPfsInit_recomp(uint8_t * rdram, recomp_context * ctx) {
+    ctx->r2 = 1; // PFS_ERR_NOPACK
+}
+
+extern "C" void osPfsIsPlug_recomp(uint8_t * rdram, recomp_context * ctx) {
+    u8* pattern = _arg<1, u8*>(rdram, ctx);
+    *pattern = 0; // No controller pak plugged in
+    ctx->r2 = 0;
+}
+
 extern "C" void osPfsFreeBlocks_recomp(uint8_t * rdram, recomp_context * ctx) {
     ctx->r2 = 1; // PFS_ERR_NOPACK
 }

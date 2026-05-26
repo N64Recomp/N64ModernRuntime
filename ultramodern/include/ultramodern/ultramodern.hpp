@@ -96,7 +96,8 @@ enum class ThreadPriority {
 void set_native_thread_name(const std::string& name);
 void set_native_thread_priority(ThreadPriority pri);
 PTR(OSThread) this_thread();
-void set_main_thread();
+void set_entrypoint_thread();
+bool is_entrypoint_thread();
 bool is_game_thread();
 void submit_rsp_task(RDRAM_ARG PTR(OSTask) task);
 void send_si_message();

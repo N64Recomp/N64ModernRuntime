@@ -1,5 +1,6 @@
 #include <array>
 #include <cassert>
+#include <ultramodern/save.hpp>
 #include <ultramodern/ultra64.h>
 #include <ultramodern/ultramodern.hpp>
 #include "recomp.h"
@@ -15,15 +16,11 @@ constexpr uint32_t page_count = flash_size / page_size;
 constexpr uint32_t sector_size = page_size * pages_per_sector;
 constexpr uint32_t sector_count = flash_size / sector_size;
 
-void save_write_ptr(const void* in, uint32_t offset, uint32_t count);
-void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count);
-void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count);
-void save_clear(uint32_t start, uint32_t size, char value);
-
 std::array<char, page_size> write_buffer;
+std::vector<uint8_t> save_buffer;
 
 extern "C" void osFlashInit_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -32,7 +29,7 @@ extern "C" void osFlashInit_recomp(uint8_t * rdram, recomp_context * ctx) {
 }
 
 extern "C" void osFlashReadStatus_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -43,7 +40,7 @@ extern "C" void osFlashReadStatus_recomp(uint8_t * rdram, recomp_context * ctx) 
 }
 
 extern "C" void osFlashReadId_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -57,7 +54,7 @@ extern "C" void osFlashReadId_recomp(uint8_t * rdram, recomp_context * ctx) {
 }
 
 extern "C" void osFlashClearStatus_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -66,30 +63,30 @@ extern "C" void osFlashClearStatus_recomp(uint8_t * rdram, recomp_context * ctx)
 }
 
 extern "C" void osFlashAllErase_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
 
-    save_clear(0, ultramodern::save_size, 0xFF);
+    ultramodern::save_clear(0, ultramodern::save_size, 0xFF);
 
     ctx->r2 = 0;
 }
 
 extern "C" void osFlashAllEraseThrough_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
 
-    save_clear(0, ultramodern::save_size, 0xFF);
+    ultramodern::save_clear(0, ultramodern::save_size, 0xFF);
 
     ctx->r2 = 0;
 }
 
 // This function is named sector but really means page.
 extern "C" void osFlashSectorErase_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -102,14 +99,14 @@ extern "C" void osFlashSectorErase_recomp(uint8_t * rdram, recomp_context * ctx)
         return;
     }
 
-    save_clear(page_num * page_size, page_size, 0xFF);
+    ultramodern::save_clear(page_num * page_size, page_size, 0xFF);
 
     ctx->r2 = 0;
 }
 
 // Same naming issue as above.
 extern "C" void osFlashSectorEraseThrough_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -122,13 +119,13 @@ extern "C" void osFlashSectorEraseThrough_recomp(uint8_t * rdram, recomp_context
         return;
     }
 
-    save_clear(page_num * page_size, page_size, 0xFF);
+    ultramodern::save_clear(page_num * page_size, page_size, 0xFF);
 
     ctx->r2 = 0;
 }
 
 extern "C" void osFlashCheckEraseEnd_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -138,7 +135,7 @@ extern "C" void osFlashCheckEraseEnd_recomp(uint8_t * rdram, recomp_context * ct
 }
 
 extern "C" void osFlashWriteBuffer_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -160,7 +157,7 @@ extern "C" void osFlashWriteBuffer_recomp(uint8_t * rdram, recomp_context * ctx)
 }
 
 extern "C" void osFlashWriteArray_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -168,13 +165,13 @@ extern "C" void osFlashWriteArray_recomp(uint8_t * rdram, recomp_context * ctx) 
     uint32_t page_num = ctx->r4;
 
     // Copy the write buffer into the save file
-    save_write_ptr(write_buffer.data(), page_num * page_size, page_size);
+    ultramodern::save_write_ptr(write_buffer.data(), page_num * page_size, page_size);
 
     ctx->r2 = 0;
 }
 
 extern "C" void osFlashReadArray_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -190,7 +187,11 @@ extern "C" void osFlashReadArray_recomp(uint8_t * rdram, recomp_context * ctx) {
     uint32_t count = n_pages * page_size;
 
     // Read from the save file into the provided buffer
-    save_read(PASS_RDRAM dramAddr, offset, count);
+    save_buffer.resize(count);
+    ultramodern::save_read_ptr(save_buffer.data(), offset, count);
+    for (uint32_t i = 0; i < count; i++) {
+        MEM_B(i, dramAddr) = save_buffer[i];
+    }
 
     // Send the message indicating read completion
     ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
@@ -199,7 +200,7 @@ extern "C" void osFlashReadArray_recomp(uint8_t * rdram, recomp_context * ctx) {
 }
 
 extern "C" void osFlashChange_recomp(uint8_t * rdram, recomp_context * ctx) {
-    if (!recomp::flashram_allowed()) {
+    if (!ultramodern::flashram_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use FlashRAM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }

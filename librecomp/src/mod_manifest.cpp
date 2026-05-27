@@ -3,8 +3,8 @@
 #include "json/json.hpp"
 
 #include "recompiler/context.h"
-#include "librecomp/files.hpp"
 #include "librecomp/mods.hpp"
+#include <ultramodern/files.hpp>
 
 static bool read_json(std::ifstream input_file, nlohmann::json &json_out) {
     if (!input_file.good()) {
@@ -27,7 +27,7 @@ static bool read_json_with_backups(const std::filesystem::path &path, nlohmann::
     }
 
     // Try reading and parsing the backup file.
-    if (read_json(recomp::open_input_backup_file(path), json_out)) {
+    if (read_json(ultramodern::open_input_backup_file(path), json_out)) {
         return true;
     }
 

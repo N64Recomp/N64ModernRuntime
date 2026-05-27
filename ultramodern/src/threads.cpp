@@ -29,14 +29,18 @@ std::string ultramodern::threads::get_game_thread_name(const OSThread* t) {
 
 extern "C" void bootproc();
 
-thread_local bool is_main_thread = false;
+thread_local bool is_entrypoint_thread = false;
 // Whether this thread is part of the game (i.e. the start thread or one spawned by osCreateThread)
 thread_local bool is_game_thread = false;
 thread_local PTR(OSThread) thread_self = NULLPTR;
 
-void ultramodern::set_main_thread() {
+void ultramodern::set_entrypoint_thread() {
     ::is_game_thread = true;
-    is_main_thread = true;
+    ::is_entrypoint_thread = true;
+}
+
+bool ultramodern::is_entrypoint_thread() {
+    return ::is_entrypoint_thread;
 }
 
 bool ultramodern::is_game_thread() {
@@ -45,7 +49,7 @@ bool ultramodern::is_game_thread() {
 
 #if 0
 int main(int argc, char** argv) {
-    ultramodern::set_main_thread();
+    ultramodern::set_entrypoint_thread();
 
     bootproc();
 }

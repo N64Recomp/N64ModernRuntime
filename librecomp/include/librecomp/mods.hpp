@@ -27,6 +27,7 @@
 #include "librecomp/game.hpp"
 #include "librecomp/sections.h"
 #include "librecomp/overlays.hpp"
+#include "librecomp/config.hpp"
 
 namespace N64Recomp {
     class Context;
@@ -81,7 +82,10 @@ namespace recomp {
             InvalidDependencyString,
             MissingManifestField,
             DuplicateMod,
-            WrongGame
+            WrongGame,
+            InvalidDisableOptionDependency,
+            InvalidHiddenOptionDependency,
+            DuplicateEnumStrings,
         };
 
         std::string error_to_string(ModOpenError);
@@ -149,6 +153,25 @@ namespace recomp {
             WrongVersion = 3
         };
 
+        enum class DeprecationStatus {
+            // Status is unknown.
+            Unknown,
+
+            // The mod was integrated as part of the project.
+            Integrated,
+
+            // The mod is known to have a game breaking issue, but can be fixed by updating it.
+            BrokenVersion,
+
+            // The mod is known to have a game breaking issue that is not fixable.
+            BrokenPermanent
+        };
+
+        struct DeprecatedMod {
+            DeprecationStatus status;
+            Version maximum_version;
+        };
+
         struct ModFileHandle {
             virtual ~ModFileHandle() = default;
             virtual std::vector<char> read_file(const std::string& filepath, bool& exists) const = 0;
@@ -190,45 +213,6 @@ namespace recomp {
             bool optional;
         };
 
-        struct ConfigOptionEnum {
-            std::vector<std::string> options;
-            uint32_t default_value = 0;
-        };
-
-        struct ConfigOptionNumber {
-            double min = 0.0;
-            double max = 0.0;
-            double step = 0.0;
-            int precision = 0;
-            bool percent = false;
-            double default_value = 0.0;
-        };
-
-        struct ConfigOptionString {
-            std::string default_value;
-        };
-
-        typedef std::variant<ConfigOptionEnum, ConfigOptionNumber, ConfigOptionString> ConfigOptionVariant;
-
-        struct ConfigOption {
-            std::string id;
-            std::string name;
-            std::string description;
-            ConfigOptionType type;
-            ConfigOptionVariant variant;
-        };
-
-        struct ConfigSchema {
-            std::vector<ConfigOption> options;
-            std::unordered_map<std::string, size_t> options_by_id;
-        };
-
-        typedef std::variant<std::monostate, uint32_t, double, std::string> ConfigValueVariant;
-
-        struct ConfigStorage {
-            std::unordered_map<std::string, ConfigValueVariant> value_map;
-        };
-
         struct ModDetails {
             std::string mod_id;
             std::string display_name;
@@ -239,6 +223,7 @@ namespace recomp {
             std::vector<Dependency> dependencies;
             bool runtime_toggleable;
             bool enabled_by_default;
+            bool custom_gamemode;
         };
 
         struct ModManifest {
@@ -252,11 +237,11 @@ namespace recomp {
             std::vector<std::string> authors;
             std::vector<Dependency> dependencies;
             std::unordered_map<std::string, size_t> dependencies_by_id;
-            ConfigSchema config_schema;
             Version minimum_recomp_version;
             Version version;
             bool runtime_toggleable;
             bool enabled_by_default;
+            bool custom_gamemode;
 
             std::vector<NativeLibraryManifest> native_libraries;
             std::unique_ptr<ModFileHandle> file_handle;
@@ -341,7 +326,11 @@ namespace recomp {
             uint32_t pad;
         };
 
-        typedef std::variant<ModConfigQueueSaveMod, ModConfigQueueSave, ModConfigQueueEnd> ModConfigQueueVariant;
+        struct ModConfigSetLatestGamemode {
+            uint32_t pad;
+        };
+
+        typedef std::variant<ModConfigQueueSaveMod, ModConfigQueueSave, ModConfigQueueEnd, ModConfigSetLatestGamemode> ModConfigQueueVariant;
 
         class LiveRecompilerCodeHandle;
         class ModContext {
@@ -351,14 +340,18 @@ namespace recomp {
 
             void register_game(const std::string& mod_game_id);
             void register_embedded_mod(const std::string& mod_id, std::span<const uint8_t> mod_bytes);
+            void register_deprecated_mod(const std::string& mod_id, DeprecationStatus deprecation_status, const Version& maximum_version);
             std::vector<ModOpenErrorDetails> scan_mod_folder(const std::filesystem::path& mod_folder);
             void close_mods();
             void load_mods_config();
             void enable_mod(const std::string& mod_id, bool enabled, bool trigger_save);
-            bool is_mod_enabled(const std::string& mod_id);
-            bool is_mod_auto_enabled(const std::string& mod_id);
+            bool is_mod_enabled(const std::string& mod_id) const;
+            bool is_mod_auto_enabled(const std::string& mod_id) const;
+            bool is_mod_deprecated(const std::string& mod_id, const Version& mod_version) const;
+            DeprecationStatus get_mod_deprecation_status(const std::string& mod_id) const;
+            Version get_mod_deprecation_version(const std::string& mod_id) const;
             size_t num_opened_mods();
-            std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
+            std::vector<ModLoadErrorDetails> load_mods(const GameEntry& game_entry, const std::string& game_mode_id, uint8_t* rdram, int32_t load_address, uint32_t& ram_used);
             void unload_mods();
             std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename) const;
             std::filesystem::path get_mod_filename(const std::string& mod_id) const;
@@ -366,17 +359,21 @@ namespace recomp {
             size_t get_mod_order_index(size_t mod_index) const;
             std::optional<ModDetails> get_details_for_mod(const std::string& mod_id) const;
             std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
+            size_t game_mode_count(const std::string& mod_game_id, bool include_disabled) const;
             recomp::Version get_mod_version(size_t mod_index);
             std::string get_mod_id(size_t mod_index);
             void set_mod_index(const std::string &mod_game_id, const std::string &mod_id, size_t index);
-            const ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
+            const config::ConfigSchema &get_mod_config_schema(const std::string &mod_id) const;
+            config::Config *get_mod_config(const std::string &mod_id);
             const std::vector<char> &get_mod_thumbnail(const std::string &mod_id) const;
-            void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
-            void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
-            ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id) const;
-            ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id) const;
+            void set_mod_config_value(size_t mod_index, const std::string &option_id, const config::ConfigValueVariant &value);
+            void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const config::ConfigValueVariant &value);
+            config::ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id) const;
+            config::ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id) const;
             void set_mods_config_path(const std::filesystem::path &path);
             void set_mod_config_directory(const std::filesystem::path &path);
+            std::string get_latest_game_mode_id() const;
+            void set_latest_game_mode_id(const std::string& game_mode_id);
             ModContentTypeId register_content_type(const ModContentType& type);
             bool register_container_type(const std::string& extension, const std::vector<ModContentTypeId>& content_types, bool requires_manifest);
             ModContentTypeId get_code_content_type() const { return code_content_type_id; }
@@ -394,7 +391,7 @@ namespace recomp {
             CodeModLoadError init_mod_code(uint8_t* rdram, const std::unordered_map<uint32_t, uint16_t>& section_vrom_map, ModHandle& mod, int32_t load_address, bool hooks_available, uint32_t& ram_used, std::string& error_param);
             CodeModLoadError load_mod_code(uint8_t* rdram, ModHandle& mod, uint32_t base_event_index, std::string& error_param);
             CodeModLoadError resolve_code_dependencies(ModHandle& mod, size_t mod_index, const std::unordered_map<recomp_func_t*, recomp::overlays::BasePatchedFunction>& base_patched_funcs, std::string& error_param);
-            void add_opened_mod(ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail);
+            void add_opened_mod(ModManifest&& manifest, config::Config&& config, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& detected_content_types, std::vector<char>&& thumbnail);
             std::vector<ModLoadErrorDetails> regenerate_with_hooks(
                 const std::vector<std::pair<HookDefinition, size_t>>& sorted_unprocessed_hooks,
                 const std::unordered_map<uint32_t, uint16_t>& section_vrom_map,
@@ -419,6 +416,7 @@ namespace recomp {
             std::unordered_set<std::string> mod_ids;
             std::unordered_set<std::string> enabled_mods;
             std::unordered_set<std::string> auto_enabled_mods;
+            std::unordered_map<std::string, DeprecatedMod> deprecated_mods;
             std::unordered_map<recomp_func_t*, PatchData> patched_funcs;
             std::unordered_map<std::string, size_t> loaded_mods_by_id;
             std::unique_ptr<std::thread> mod_configuration_thread;
@@ -438,12 +436,13 @@ namespace recomp {
             std::vector<bool> processed_hook_slots;
             // Generated shim functions to use for implementing shim exports.
             std::vector<std::unique_ptr<N64Recomp::ShimFunction>> shim_functions;
-            ConfigSchema empty_schema;
+            config::ConfigSchema empty_schema;
             std::vector<char> empty_bytes;
             size_t num_events = 0;
             ModContentTypeId code_content_type_id;
             ModContentTypeId rom_patch_content_type_id;
             size_t active_game = (size_t)-1;
+            std::string latest_game_mode;
         };
 
         class ModCodeHandle {
@@ -463,7 +462,7 @@ namespace recomp {
         public:
             // TODO make these private and expose methods for the functionality they're currently used in.
             ModManifest manifest;
-            ConfigStorage config_storage;
+            config::Config config;
             std::unique_ptr<ModCodeHandle> code_handle;
             std::unique_ptr<N64Recomp::Context> recompiler_context;
             std::vector<uint32_t> section_load_addresses;
@@ -471,7 +470,7 @@ namespace recomp {
             std::vector<ModContentTypeId> content_types;
             std::vector<char> thumbnail;
 
-            ModHandle(const ModContext& context, ModManifest&& manifest, ConfigStorage&& config_storage, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail);
+            ModHandle(const ModContext& context, ModManifest&& manifest, config::Config&& config, std::vector<size_t>&& game_indices, std::vector<ModContentTypeId>&& content_types, std::vector<char>&& thumbnail);
             ModHandle(const ModHandle& rhs) = delete;
             ModHandle& operator=(const ModHandle& rhs) = delete;
             ModHandle(ModHandle&& rhs);
@@ -510,7 +509,8 @@ namespace recomp {
                     .authors = manifest.authors,
                     .dependencies = manifest.dependencies,
                     .runtime_toggleable = is_runtime_toggleable(),
-                    .enabled_by_default = manifest.enabled_by_default
+                    .enabled_by_default = manifest.enabled_by_default,
+                    .custom_gamemode = manifest.custom_gamemode
                 };
             }
         private:
@@ -617,27 +617,36 @@ namespace recomp {
         void register_hook_exports();
         void run_hook(uint8_t* rdram, recomp_context* ctx, size_t hook_slot_index);
 
-        ModOpenError parse_manifest(ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param);
+        ModOpenError parse_manifest(ModManifest &ret, const std::vector<char> &manifest_data, std::string &error_param, recomp::config::Config *config = nullptr);
         CodeModLoadError validate_api_version(uint32_t api_version, std::string& error_param);
 
         void initialize_mods();
-        void register_embedded_mod(const std::string &mod_id, std::span<const uint8_t> mod_bytes);
+        void register_embedded_mod(const std::string& mod_id, std::span<const uint8_t> mod_bytes);
+        void register_deprecated_mod(const std::string& mod_id, DeprecationStatus deprecation_status, const Version &maximum_version);
         void scan_mods();
         void close_mods();
         std::filesystem::path get_mods_directory();
         std::optional<ModDetails> get_details_for_mod(const std::string& mod_id);
         std::vector<ModDetails> get_all_mod_details(const std::string& mod_game_id);
+        size_t game_mode_count(const std::string& mod_game_id, bool include_disabled);
         recomp::Version get_mod_version(size_t mod_index);
         std::string get_mod_id(size_t mod_index);
         void enable_mod(const std::string& mod_id, bool enabled);
         bool is_mod_enabled(const std::string& mod_id);
         bool is_mod_auto_enabled(const std::string& mod_id);
-        const ConfigSchema &get_mod_config_schema(const std::string &mod_id);
+        bool is_mod_deprecated(const std::string& mod_id, const Version& mod_version);
+        DeprecationStatus get_mod_deprecation_status(const std::string& mod_id);
+        Version get_mod_deprecation_version(const std::string& mod_id);
+        std::string deprecation_status_to_message(DeprecationStatus deprecation_status);
+        const config::ConfigSchema &get_mod_config_schema(const std::string &mod_id);
+        config::Config *get_mod_config(const std::string &mod_id);
         const std::vector<char> &get_mod_thumbnail(const std::string &mod_id);
-        void set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value);
-        void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value);
-        ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
-        ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
+        void set_mod_config_value(size_t mod_index, const std::string &option_id, const config::ConfigValueVariant &value);
+        void set_mod_config_value(const std::string &mod_id, const std::string &option_id, const config::ConfigValueVariant &value);
+        config::ConfigValueVariant get_mod_config_value(size_t mod_index, const std::string &option_id);
+        config::ConfigValueVariant get_mod_config_value(const std::string &mod_id, const std::string &option_id);
+        std::string get_latest_game_mode_id();
+        void set_latest_game_mode_id(const std::string& game_mode_id);
         std::string get_mod_id_from_filename(const std::filesystem::path& mod_filename);
         std::filesystem::path get_mod_filename(const std::string& mod_id);
         size_t get_mod_order_index(const std::string& mod_id);

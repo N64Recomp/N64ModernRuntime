@@ -68,7 +68,15 @@ void recomp::register_config_path(std::filesystem::path path) {
     config_path = path;
 }
 
+std::filesystem::path recomp::get_config_path() {
+    return config_path;
+}
+
 bool recomp::register_game(const recomp::GameEntry& entry) {
+    if (entry.display_name.empty()) {
+        ultramodern::error_handling::message_box("Game display name was not set.");
+        ULTRAMODERN_QUICK_EXIT();
+    }
     // TODO verify that there's no game with this ID already.
     {
         std::lock_guard<std::mutex> lock(game_roms_mutex);
@@ -78,7 +86,6 @@ bool recomp::register_game(const recomp::GameEntry& entry) {
         std::lock_guard<std::mutex> lock(mod_context_mutex);
         mod_context->register_game(entry.mod_game_id);
     }
-
     return true;
 }
 
@@ -93,6 +100,11 @@ void recomp::mods::initialize_mods() {
 void recomp::mods::register_embedded_mod(const std::string &mod_id, std::span<const uint8_t> mod_bytes) {
     std::lock_guard<std::mutex> lock(mod_context_mutex);
     mod_context->register_embedded_mod(mod_id, mod_bytes);
+}
+
+void recomp::mods::register_deprecated_mod(const std::string& mod_id, recomp::mods::DeprecationStatus deprecation_status, const Version& maximum_version) {
+    std::lock_guard<std::mutex> lock(mod_context_mutex);
+    mod_context->register_deprecated_mod(mod_id, deprecation_status, maximum_version);
 }
 
 void recomp::mods::scan_mods() {
@@ -457,6 +469,7 @@ extern "C" void do_break(uint32_t vram) {
     exit(EXIT_FAILURE);
 }
 
+std::string current_game_mode_id;
 std::optional<std::u8string> current_game = std::nullopt;
 std::atomic<GameStatus> game_status = GameStatus::None;
 
@@ -522,11 +535,13 @@ std::string recomp::current_mod_game_id() {
     return game_entry.mod_game_id;
 }
 
-void recomp::start_game(const std::u8string& game_id) {
+void recomp::start_game(const std::u8string& game_id, const std::string& game_mode_id) {
     std::lock_guard<std::mutex> lock(current_game_mutex);
+    current_game_mode_id = game_mode_id;
     current_game = game_id;
     game_status.store(GameStatus::Running);
     game_status.notify_all();
+    mods::set_latest_game_mode_id(game_mode_id);
 }
 
 bool ultramodern::is_game_started() {
@@ -560,9 +575,42 @@ bool recomp::mods::is_mod_auto_enabled(const std::string& mod_id) {
     return mod_context->is_mod_auto_enabled(mod_id);
 }
 
-const recomp::mods::ConfigSchema &recomp::mods::get_mod_config_schema(const std::string &mod_id) {
+bool recomp::mods::is_mod_deprecated(const std::string& mod_id, const recomp::Version& mod_version) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->is_mod_deprecated(mod_id, mod_version);
+}
+
+recomp::mods::DeprecationStatus recomp::mods::get_mod_deprecation_status(const std::string& mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_deprecation_status(mod_id);
+}
+
+recomp::Version recomp::mods::get_mod_deprecation_version(const std::string& mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_deprecation_version(mod_id);
+}
+
+std::string recomp::mods::deprecation_status_to_message(DeprecationStatus deprecation_status) {
+    switch (deprecation_status) {
+    case DeprecationStatus::Integrated:
+        return "This mod has already been integrated into the game";
+    case DeprecationStatus::BrokenVersion:
+        return "This version of the mod is known to cause issues. Please update it";
+    case DeprecationStatus::BrokenPermanent:
+        return "This mod is known to cause issues. Please uninstall it";
+    default:
+        return "Reason is unknown";
+    }
+}
+
+const recomp::config::ConfigSchema &recomp::mods::get_mod_config_schema(const std::string &mod_id) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->get_mod_config_schema(mod_id);
+}
+
+recomp::config::Config *recomp::mods::get_mod_config(const std::string &mod_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_mod_config(mod_id);
 }
 
 const std::vector<char> &recomp::mods::get_mod_thumbnail(const std::string &mod_id) {
@@ -570,24 +618,34 @@ const std::vector<char> &recomp::mods::get_mod_thumbnail(const std::string &mod_
     return mod_context->get_mod_thumbnail(mod_id);
 }
 
-void recomp::mods::set_mod_config_value(size_t mod_index, const std::string &option_id, const ConfigValueVariant &value) {
+void recomp::mods::set_mod_config_value(size_t mod_index, const std::string &option_id, const recomp::config::ConfigValueVariant &value) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->set_mod_config_value(mod_index, option_id, value);
 }
 
-void recomp::mods::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const ConfigValueVariant &value) {
+void recomp::mods::set_mod_config_value(const std::string &mod_id, const std::string &option_id, const recomp::config::ConfigValueVariant &value) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->set_mod_config_value(mod_id, option_id, value);
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(size_t mod_index, const std::string &option_id) {
+recomp::config::ConfigValueVariant recomp::mods::get_mod_config_value(size_t mod_index, const std::string &option_id) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->get_mod_config_value(mod_index, option_id);
 }
 
-recomp::mods::ConfigValueVariant recomp::mods::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
+recomp::config::ConfigValueVariant recomp::mods::get_mod_config_value(const std::string &mod_id, const std::string &option_id) {
     std::lock_guard lock{ mod_context_mutex };
     return mod_context->get_mod_config_value(mod_id, option_id);
+}
+
+std::string recomp::mods::get_latest_game_mode_id() {
+    std::lock_guard lock{ mod_context_mutex };
+    return mod_context->get_latest_game_mode_id();
+}
+
+void recomp::mods::set_latest_game_mode_id(const std::string& game_mode_id) {
+    std::lock_guard lock{ mod_context_mutex };
+    mod_context->set_latest_game_mode_id(game_mode_id);
 }
 
 std::string recomp::mods::get_mod_id_from_filename(const std::filesystem::path& mod_filename) {
@@ -618,6 +676,11 @@ std::optional<recomp::mods::ModDetails> recomp::mods::get_details_for_mod(const 
 std::vector<recomp::mods::ModDetails> recomp::mods::get_all_mod_details(const std::string& mod_game_id) {
     std::lock_guard lock { mod_context_mutex };
     return mod_context->get_all_mod_details(mod_game_id);
+}
+
+size_t recomp::mods::game_mode_count(const std::string& mod_game_id, bool include_disabled) {
+    std::lock_guard lock { mod_context_mutex };
+    return mod_context->game_mode_count(mod_game_id, include_disabled);
 }
 
 recomp::Version recomp::mods::get_mod_version(size_t mod_index) {
@@ -659,7 +722,7 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
                     std::vector<recomp::mods::ModLoadErrorDetails> mod_load_errors;
                     {
                         std::lock_guard lock { mod_context_mutex };
-                        mod_load_errors = mod_context->load_mods(game_entry, rdram, recomp::mod_rdram_start, mod_ram_used);
+                        mod_load_errors = mod_context->load_mods(game_entry, current_game_mode_id, rdram, recomp::mod_rdram_start, mod_ram_used);
                     }
 
                     if (!mod_load_errors.empty()) {

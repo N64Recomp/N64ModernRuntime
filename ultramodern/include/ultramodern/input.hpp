@@ -15,7 +15,7 @@ namespace ultramodern {
         enum class Pak {
             None,
             RumblePak,
-            // ControllerPak,
+            ControllerPak,
             // TransferPak
         };
 
@@ -58,6 +58,11 @@ namespace ultramodern {
 
         void set_callbacks(const callbacks_t& callbacks);
     }
+
+    input::connected_device_info_t get_connected_device_info(int channel);
+
+    int get_max_controllers();
 }
 
 #endif
+

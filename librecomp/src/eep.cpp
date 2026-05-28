@@ -1,20 +1,19 @@
 #include "recomp.h"
 #include "librecomp/game.hpp"
 
-#include "ultramodern/ultra64.h"
-
-void save_write(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count);
-void save_read(RDRAM_ARG PTR(void) rdram_address, uint32_t offset, uint32_t count);
+#include <ultramodern/save.hpp>
+#include <ultramodern/ultra64.h>
 
 constexpr int eeprom_block_size = 8;
+static std::vector<uint8_t> save_buffer;
 
 extern "C" void osEepromProbe_recomp(uint8_t* rdram, recomp_context* ctx) {
-    switch (recomp::get_save_type()) {
-        case recomp::SaveType::AllowAll:
-        case recomp::SaveType::Eep16k:
+    switch (ultramodern::get_save_type()) {
+        case ultramodern::SaveType::AllowAll:
+        case ultramodern::SaveType::Eep16k:
             ctx->r2 = 0x02; // EEPROM_TYPE_16K
             break;
-        case recomp::SaveType::Eep4k:
+        case ultramodern::SaveType::Eep4k:
             ctx->r2 = 0x01; // EEPROM_TYPE_4K
             break;
         default:
@@ -24,7 +23,7 @@ extern "C" void osEepromProbe_recomp(uint8_t* rdram, recomp_context* ctx) {
 }
 
 extern "C" void osEepromWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
-    if (!recomp::eeprom_allowed()) {
+    if (!ultramodern::eeprom_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use EEPROM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -33,13 +32,17 @@ extern "C" void osEepromWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
     gpr buffer = ctx->r6;
     int32_t nbytes = eeprom_block_size;
 
-    save_write(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+    save_buffer.resize(nbytes);
+    for (uint32_t i = 0; i < nbytes; i++) {
+        save_buffer[i] = MEM_B(i, buffer);
+    }
+    ultramodern::save_write_ptr(save_buffer.data(), eep_address * eeprom_block_size, nbytes);
 
     ctx->r2 = 0;
 }
 
 extern "C" void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
-    if (!recomp::eeprom_allowed()) {
+    if (!ultramodern::eeprom_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use EEPROM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -50,13 +53,17 @@ extern "C" void osEepromLongWrite_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     assert((nbytes % eeprom_block_size) == 0);
 
-    save_write(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+    save_buffer.resize(nbytes);
+    for (uint32_t i = 0; i < nbytes; i++) {
+        save_buffer[i] = MEM_B(i, buffer);
+    }
+    ultramodern::save_write_ptr(save_buffer.data(), eep_address * eeprom_block_size, nbytes);
 
     ctx->r2 = 0;
 }
 
 extern "C" void osEepromRead_recomp(uint8_t* rdram, recomp_context* ctx) {
-    if (!recomp::eeprom_allowed()) {
+    if (!ultramodern::eeprom_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use EEPROM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -65,13 +72,17 @@ extern "C" void osEepromRead_recomp(uint8_t* rdram, recomp_context* ctx) {
     gpr buffer = ctx->r6;
     int32_t nbytes = eeprom_block_size;
 
-    save_read(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+    save_buffer.resize(nbytes);
+    ultramodern::save_read_ptr(save_buffer.data(), eep_address * eeprom_block_size, nbytes);
+    for (uint32_t i = 0; i < nbytes; i++) {
+        MEM_B(i, buffer) = save_buffer[i];
+    }
 
     ctx->r2 = 0;
 }
 
 extern "C" void osEepromLongRead_recomp(uint8_t* rdram, recomp_context* ctx) {
-    if (!recomp::eeprom_allowed()) {
+    if (!ultramodern::eeprom_allowed()) {
         ultramodern::error_handling::message_box("Attempted to use EEPROM saving with other save type");
         ULTRAMODERN_QUICK_EXIT();
     }
@@ -82,7 +93,11 @@ extern "C" void osEepromLongRead_recomp(uint8_t* rdram, recomp_context* ctx) {
 
     assert((nbytes % eeprom_block_size) == 0);
 
-    save_read(rdram, buffer, eep_address * eeprom_block_size, nbytes);
+    save_buffer.resize(nbytes);
+    ultramodern::save_read_ptr(save_buffer.data(), eep_address * eeprom_block_size, nbytes);
+    for (uint32_t i = 0; i < nbytes; i++) {
+        MEM_B(i, buffer) = save_buffer[i];
+    }
 
     ctx->r2 = 0;
 }

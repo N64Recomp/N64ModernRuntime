@@ -466,22 +466,20 @@ recomp::mods::ModOpenError parse_manifest_config_schema_option(const nlohmann::j
 
             auto precision = config_schema_json.find(config_schema_precision_key);
             if (precision != config_schema_json.end()) {
-                int64_t precision_int64;
-                if (get_to<int64_t>(*precision, precision_int64)) {
-                    option_number.precision = precision_int64;
-                }
-                else {
+                if (!precision->is_number()) {
                     error_param = config_schema_precision_key;
                     return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
                 }
+                option_number.precision = precision->template get<int64_t>();
             }
 
             auto percent = config_schema_json.find(config_schema_percent_key);
             if (percent != config_schema_json.end()) {
-                if (!get_to<bool>(*percent, option_number.percent)) {
+                if (!percent->is_boolean()) {
                     error_param = config_schema_percent_key;
                     return recomp::mods::ModOpenError::IncorrectConfigSchemaType;
                 }
+                option_number.percent = percent->template get<bool>();
             }
 
             auto default_value = config_schema_json.find(config_schema_default_key);

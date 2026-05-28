@@ -704,6 +704,8 @@ bool wait_for_game_started(uint8_t* rdram, recomp_context* context) {
         case GameStatus::None:
             return true;
     }
+
+    return true;
 }
 
 recomp::SaveType recomp::get_save_type() {

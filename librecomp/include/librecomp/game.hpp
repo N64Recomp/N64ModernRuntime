@@ -87,9 +87,9 @@ namespace recomp {
     std::filesystem::path get_config_path();
     bool register_game(const recomp::GameEntry& entry);
     void check_all_stored_roms();
-    bool load_stored_rom(std::u8string& game_id);
-    RomValidationError select_rom(const std::filesystem::path& rom_path, std::u8string& game_id);
-    bool is_rom_valid(std::u8string& game_id);
+    bool load_stored_rom(const std::u8string& game_id);
+    RomValidationError select_rom(const std::filesystem::path& rom_path, const std::u8string& game_id);
+    bool is_rom_valid(const std::u8string& game_id);
     bool is_rom_loaded();
     void set_rom_contents(std::vector<uint8_t>&& new_rom);
     std::span<const uint8_t> get_rom();
@@ -104,6 +104,8 @@ namespace recomp {
     /// - `renderer_callbacks`
     /// 
     struct Configuration {
+        int argc = 0;
+        char **argv = nullptr;
         Version project_version;
         ultramodern::renderer::WindowHandle window_handle;
         recomp::rsp::callbacks_t rsp_callbacks;

@@ -208,7 +208,7 @@ bool check_stored_rom(const recomp::GameEntry& game_entry) {
 
 static std::unordered_set<std::u8string> valid_game_roms;
 
-bool recomp::is_rom_valid(std::u8string& game_id) {
+bool recomp::is_rom_valid(const std::u8string& game_id) {
     return valid_game_roms.contains(game_id);
 }
 
@@ -220,7 +220,7 @@ void recomp::check_all_stored_roms() {
     }
 }
 
-bool recomp::load_stored_rom(std::u8string& game_id) {
+bool recomp::load_stored_rom(const std::u8string& game_id) {
     auto find_it = game_roms.find(game_id);
 
     if (find_it == game_roms.end()) {
@@ -357,7 +357,7 @@ void byteswap_data(std::vector<uint8_t>& rom_data, size_t index_xor) {
     }
 }
 
-recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, std::u8string& game_id) {
+recomp::RomValidationError recomp::select_rom(const std::filesystem::path& rom_path, const std::u8string& game_id) {
     auto find_it = game_roms.find(game_id);
 
     if (find_it == game_roms.end()) {
@@ -792,8 +792,111 @@ bool recomp::flashram_allowed() {
         save_type == SaveType::AllowAll;
 }
 
+void print_cli_game_options() {
+    for (const auto &it : game_roms) {
+        bool rom_valid = recomp::is_rom_valid(it.second.game_id);
+        fprintf(stderr, "\"%s\" (%s)%s\n", it.second.mod_game_id.c_str(), it.second.display_name.c_str(), rom_valid ? "" : " (No ROM)");
+    }
+}
+
+void print_cli_game_mode_options(const std::vector<recomp::mods::ModDetails> &mods) {
+    for (const auto &mod : mods) {
+        if (mod.custom_gamemode) {
+            bool mod_enabled = recomp::mods::is_mod_enabled(mod.mod_id) || recomp::mods::is_mod_auto_enabled(mod.mod_id);
+            fprintf(stderr, "\"%s\" (%s)%s\n", mod.mod_id.c_str(), mod.display_name.c_str(), mod_enabled ? "" : " (Disabled)");
+        }
+    }
+}
+
+void parse_cli(int argc, char **argv) {
+    std::string cli_game_id;
+    std::string cli_game_mode_id;
+    bool game_mode_missing_argument = false;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--game") == 0) {
+            if (i + 1 < argc) {
+                cli_game_id = std::string(argv[++i]);
+            }
+            else {
+                fprintf(stderr, "No argument was specified for the game. Possible options are:\n");
+                print_cli_game_options();
+            }
+        }
+        else if (strcmp(argv[i], "--game-mode") == 0) {
+            if (i + 1 < argc) {
+                cli_game_mode_id = std::string(argv[++i]);
+            }
+            else {
+                game_mode_missing_argument = true;
+            }
+        }
+    }
+
+    if (!cli_game_id.empty()) {
+        // We use the mod game ID instead to do the lookup since it's much easier for the user to remember.
+        std::u8string game_id;
+        for (const auto &it : game_roms) {
+            if (it.second.mod_game_id == cli_game_id) {
+                if (recomp::is_rom_valid(it.second.game_id)) {
+                    game_id = it.second.game_id;
+                }
+                else {
+                    fprintf(stderr, "Game \"%s\" does not have a valid ROM. Please select a ROM on the launcher first.\n", cli_game_id.c_str());
+                }
+
+                break;
+            }
+        }
+
+        if (!game_id.empty()) {
+            bool game_mode_error = false;
+            std::string game_mode_id;
+            if (!cli_game_mode_id.empty() || game_mode_missing_argument) {
+                std::vector<recomp::mods::ModDetails> mods = recomp::mods::get_all_mod_details(cli_game_id);
+                if (!cli_game_mode_id.empty()) {
+                    for (const auto &mod : mods) {
+                        if ((mod.mod_id == cli_game_mode_id) && mod.custom_gamemode) {
+                            if (recomp::mods::is_mod_enabled(mod.mod_id) || recomp::mods::is_mod_auto_enabled(mod.mod_id)) {
+                                game_mode_id = mod.mod_id;
+                            }
+                            else {
+                                fprintf(stderr, "Game mode \"%s\" is disabled. Please enable it on the mods menu first.\n", cli_game_mode_id.c_str());
+                            }
+
+                            break;
+                        }
+                    }
+
+                    if (game_mode_id.empty()) {
+                        fprintf(stderr, "Game mode \"%s\" is not available. Possible options are:\n", cli_game_mode_id.c_str());
+                        print_cli_game_mode_options(mods);
+                        game_mode_error = true;
+                    }
+                }
+                else if (game_mode_missing_argument) {
+                    fprintf(stderr, "No argument was specified for the game mode. Possible options are:\n");
+                    print_cli_game_mode_options(mods);
+                    game_mode_error = true;
+                }
+            }
+
+            if (!game_mode_error) {
+                recomp::start_game(game_id, game_mode_id);
+            }
+        }
+        else {
+            fprintf(stderr, "Game \"%s\" is not available. Possible options are:\n", cli_game_id.c_str());
+            print_cli_game_options();
+        }
+    }
+    else if (game_mode_missing_argument) {
+        fprintf(stderr, "No argument was specified for the game mode. The game must be specified first to show the options.\n");
+    }
+}
+
 void recomp::start(const recomp::Configuration& cfg) {
     project_version = cfg.project_version;
+
     recomp::check_all_stored_roms();
 
     recomp::rsp::set_callbacks(cfg.rsp_callbacks);
@@ -876,6 +979,8 @@ void recomp::start(const recomp::Configuration& cfg) {
         // Loop until the game starts.
         while (!wait_for_game_started(rdram, &context)) {}
     }, window_handle, rdram};
+
+    parse_cli(cfg.argc, cfg.argv);
 
     while (!exited) {
         ultramodern::sleep_milliseconds(1);

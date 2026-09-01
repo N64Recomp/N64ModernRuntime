@@ -1130,4 +1130,6 @@ std::string recomp::mods::error_to_string(CodeModLoadError error) {
         case CodeModLoadError::UnsupportedApiVersion:
             return "Mod DLL has an unsupported API version";
     }
+
+    return "Unknown code mod load error";
 }

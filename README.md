@@ -1,7 +1,7 @@
 # N64 Modern Runtime
 
 A modern runtime for traditional ports and recompilations of N64 games. \
-The runtime is consists of two libraries: [ultramodern](#ultramodern) and [librecomp](#librecomp).
+The runtime consists of two libraries: [ultramodern](#ultramodern) and [librecomp](#librecomp).
 
 ## ultramodern
 

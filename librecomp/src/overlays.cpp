@@ -137,6 +137,10 @@ uint32_t recomp::overlays::get_section_ram_addr(uint16_t code_section_index) {
     return sections_info.code_sections[code_section_index].ram_addr;
 }
 
+std::optional<uint32_t> recomp::overlays::get_section_got_ram_addr(uint16_t code_section_index) {
+    return sections_info.code_sections[code_section_index].got_ram_addr;
+}
+
 std::span<const RelocEntry> recomp::overlays::get_section_relocs(uint16_t code_section_index) {
     if (code_section_index < sections_info.num_code_sections) {
         const auto& section = sections_info.code_sections[code_section_index];

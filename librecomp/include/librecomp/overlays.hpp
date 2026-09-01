@@ -34,6 +34,7 @@ namespace recomp {
         void init_overlays();
         const std::unordered_map<uint32_t, uint16_t>& get_vrom_to_section_map();
         uint32_t get_section_ram_addr(uint16_t code_section_index);
+        std::optional<uint32_t> get_section_got_ram_addr(uint16_t code_section_index);
         std::span<const RelocEntry> get_section_relocs(uint16_t code_section_index);
         recomp_func_t* get_func_by_section_rom_function_vram(uint32_t section_rom, uint32_t function_vram);
         bool get_func_entry_by_section_index_function_offset(uint16_t code_section_index, uint32_t function_offset, FuncEntry& func_out);

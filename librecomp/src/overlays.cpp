@@ -282,11 +282,24 @@ void recomp::overlays::init_overlays() {
         }
     );
 
+    // code_sections is sorted in-place above, but overlays_info.table entries are
+    // generated from the original SectionTableEntry::index values. Remap the
+    // overlay table so those entries still point at the same sections after sort.
+    std::unordered_map<int, int> original_index_to_sorted_index;
+
     for (size_t section_index = 0; section_index < sections_info.num_code_sections; section_index++) {
         SectionTableEntry* code_section = &sections_info.code_sections[section_index];
 
-        section_addresses[sections_info.code_sections[section_index].index] = code_section->ram_addr;
-        code_sections_by_rom[code_section->rom_addr] = section_index;        
+        section_addresses[code_section->index] = code_section->ram_addr;
+        code_sections_by_rom[code_section->rom_addr] = section_index;
+        original_index_to_sorted_index[code_section->index] = static_cast<int>(section_index);
+    }
+
+    for (size_t overlay_index = 0; overlay_index < overlays_info.len; overlay_index++) {
+        auto sorted_index_it = original_index_to_sorted_index.find(overlays_info.table[overlay_index]);
+        if (sorted_index_it != original_index_to_sorted_index.end()) {
+            overlays_info.table[overlay_index] = sorted_index_it->second;
+        }
     }
 
     load_patch_functions();

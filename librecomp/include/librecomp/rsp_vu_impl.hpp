@@ -36,6 +36,12 @@ using u32 = uint32_t;
 #define DIVOUT vpu.divout
 #define DIVDP  vpu.divdp
 
+#ifdef _MSC_VER
+#define COUNT_LEADING_ZEROES __lzcnt
+#else
+#define COUNT_LEADING_ZEROES __builtin_clz
+#endif
+
 auto RSP::r128::operator()(u32 index) const -> r128 {
     if constexpr (Accuracy::RSP::SISD) {
         r128 v{ *this };
@@ -1348,7 +1354,7 @@ auto RSP::VRCP(r128& vd, u8 de, cr128& vt) -> void {
     } else if (input == -32768) {
         result = 0xffff'0000;
     } else {
-        u32 shift = __builtin_clz(data);
+        u32 shift = COUNT_LEADING_ZEROES(data);
         u32 index = (u64(data) << shift & 0x7fc0'0000) >> 22;
         result = rspReciprocals[index];
         result = (0x10000 | result) << 14;
@@ -1400,7 +1406,7 @@ auto RSP::VRSQ(r128& vd, u8 de, cr128& vt) -> void {
     } else if (input == -32768) {
         result = 0xffff'0000;
     } else {
-        u32 shift = __builtin_clz(data);
+        u32 shift = COUNT_LEADING_ZEROES(data);
         u32 index = (u64(data) << shift & 0x7fc0'0000) >> 22;
         result = rspInverseSquareRoots[index & 0x1fe | shift & 1];
         result = (0x10000 | result) << 14;

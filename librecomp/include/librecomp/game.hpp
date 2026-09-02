@@ -24,6 +24,7 @@ namespace recomp {
         std::string display_name;
         std::u8string game_id;
         std::string mod_game_id;
+        std::string discovery_url;
         SaveType save_type = SaveType::None;
         std::span<const char> thumbnail_bytes;
         bool is_enabled;

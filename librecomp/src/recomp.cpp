@@ -993,6 +993,7 @@ void recomp::start(const recomp::Configuration& cfg) {
 
     game_thread.join();
     ultramodern::join_event_threads();
+    ultramodern::join_timer_thread();
     ultramodern::join_thread_cleaner_thread();
     ultramodern::join_saving_thread();
     

@@ -1,6 +1,7 @@
 #ifndef __SECTIONS_H__
 #define __SECTIONS_H__
 
+#include <optional>
 #include <stdint.h>
 #include "recomp.h"
 
@@ -43,6 +44,7 @@ typedef struct {
     RelocEntry* relocs;
     size_t num_relocs;
     size_t index;
+    std::optional<uint32_t> got_ram_addr;
 } SectionTableEntry;
 
 typedef struct {

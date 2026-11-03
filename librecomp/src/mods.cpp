@@ -1303,6 +1303,7 @@ struct RegeneratedSection {
     size_t first_func_index;
     size_t first_reloc_index;
     bool relocatable;
+    std::optional<uint32_t> got_ram_addr;
 };
 
 struct RegeneratedFunction {
@@ -1368,6 +1369,7 @@ N64Recomp::Context context_from_regenerated_list(const RegeneratedList& regenlis
         section_out.executable = true;
         section_out.relocatable = section_in.relocatable;
         section_out.has_mips32_relocs = false;
+        section_out.got_ram_addr = section_in.got_ram_addr;
 
         std::vector<size_t>& section_funcs_out = ret.section_functions[section_index];
         section_funcs_out.resize(cur_num_funcs);
@@ -1872,14 +1874,17 @@ std::vector<recomp::mods::ModLoadErrorDetails> build_regen_list(
 
             uint16_t section_index = find_section_it->second;
             uint32_t section_ram_addr;
+            std::optional<uint32_t> got_ram_addr;
 
             if constexpr (patched_regenlist) {
                 section_ram_addr = recomp::overlays::get_patch_section_ram_addr(section_index);
                 cur_section_relocs = recomp::overlays::get_patch_section_relocs(section_index);
+                got_ram_addr = std::nullopt;
             }
             else {
                 section_ram_addr = recomp::overlays::get_section_ram_addr(section_index);
                 cur_section_relocs = recomp::overlays::get_section_relocs(section_index);
+                got_ram_addr = recomp::overlays::get_section_got_ram_addr(section_index);
             }
 
             // Allocate a new section.
@@ -1890,7 +1895,8 @@ std::vector<recomp::mods::ModLoadErrorDetails> build_regen_list(
                 .first_func_index = regenlist.functions.size(),
                 .first_reloc_index = regenlist.relocs.size(),
                 // Patch sections are never relocatable, so a section is relocatable if it has any relocs and is not a base patch section.
-                .relocatable = !patched_regenlist && !cur_section_relocs.empty()
+                .relocatable = !patched_regenlist && !cur_section_relocs.empty(),
+                .got_ram_addr = got_ram_addr
             });
 
             // Update the tracked section fields.

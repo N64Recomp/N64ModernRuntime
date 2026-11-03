@@ -168,7 +168,13 @@ extern "C" void osContGetReadData(OSContPad *data) {
         float y = 0.0f;
         bool got_response = false;
 
-        if (input_callbacks.get_input != nullptr) {
+        ultramodern::input::connected_device_info_t device_info{};
+
+        if (input_callbacks.get_connected_device_info != nullptr) {
+            device_info = input_callbacks.get_connected_device_info(controller);
+        }
+
+        if (device_info.connected_device != ultramodern::input::Device::None && input_callbacks.get_input != nullptr) {
             got_response = input_callbacks.get_input(controller, &buttons, &x, &y);
         }
 

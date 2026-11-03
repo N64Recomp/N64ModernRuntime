@@ -1,6 +1,8 @@
 #include <thread>
 #include <variant>
-#include <set>
+#include <map>
+#include <unordered_map>
+#include <utility>
 #include "blockingconcurrentqueue.h"
 
 #include "ultramodern/ultra64.h"
@@ -29,8 +31,16 @@ struct OSTimer {
     OSMesg msg;
 };
 
+struct TimerState {
+    OSTime timestamp;
+    OSTime interval;
+    PTR(OSMesgQueue) mq;
+    OSMesg msg;
+};
+
 struct AddTimerAction {
     PTR(OSTimer) timer;
+    TimerState state;
 };
 
 struct RemoveTimerAction {
@@ -66,34 +76,36 @@ uint64_t time_now() {
     return duration_to_ticks(std::chrono::high_resolution_clock::now() - start_time);
 }
 
+using TimerKey = std::pair<OSTime, PTR(OSTimer)>;
+
 void timer_thread(RDRAM_ARG1) {
     ultramodern::set_native_thread_name("Timer Thread");
     ultramodern::set_native_thread_priority(ultramodern::ThreadPriority::VeryHigh);
+    std::map<TimerKey, TimerState> active_timers{};
+    std::unordered_map<PTR(OSTimer), OSTime> active_timer_timestamps{};
 
-    // Lambda comparator function to keep the set ordered
-    auto timer_sort = [PASS_RDRAM1](PTR(OSTimer) a_, PTR(OSTimer) b_) {
-        OSTimer* a = TO_PTR(OSTimer, a_);
-        OSTimer* b = TO_PTR(OSTimer, b_);
-
-        // Order by timestamp if the timers have different timestamps
-        if (a->timestamp != b->timestamp) {
-            return a->timestamp < b->timestamp;
+    //add and remove a timer
+    auto remove_timer = [&](PTR(OSTimer) timer) {
+        auto timestamp_it = active_timer_timestamps.find(timer);
+        if (timestamp_it != active_timer_timestamps.end()) {
+            active_timers.erase(TimerKey{timestamp_it->second, timer});
+            active_timer_timestamps.erase(timestamp_it);
         }
-
-        // If they have the exact same timestamp then order by address instead
-        return a < b;
     };
 
-    // Ordered set of timers that are currently active
-    std::set<PTR(OSTimer), decltype(timer_sort)> active_timers{timer_sort};
-    
+    auto insert_timer = [&](PTR(OSTimer) timer, const TimerState& state) {
+        remove_timer(timer);
+        active_timers.emplace(TimerKey{state.timestamp, timer}, state);
+        active_timer_timestamps.emplace(timer, state.timestamp);
+    };
+
     // Lambda to process a timer action to handle adding and removing timers
     auto process_timer_action = [&](const Action& action) {
         // Determine the action type and act on it
         if (const auto* add_action = std::get_if<AddTimerAction>(&action)) {
-            active_timers.insert(add_action->timer);
+            insert_timer(add_action->timer, add_action->state);
         } else if (const auto* remove_action = std::get_if<RemoveTimerAction>(&action)) {
-            active_timers.erase(remove_action->timer);
+            remove_timer(remove_action->timer);
         }
     };
 
@@ -111,30 +123,32 @@ void timer_thread(RDRAM_ARG1) {
         }
 
         // Get the timer that's closest to running out
-        PTR(OSTimer) cur_timer_ = *active_timers.begin();
-        OSTimer* cur_timer = TO_PTR(OSTimer, cur_timer_);
+        const auto cur_timer_it = active_timers.begin();
+        PTR(OSTimer) cur_timer_ = cur_timer_it->first.second;
+        TimerState cur_timer = cur_timer_it->second;
 
         // Remove the timer from the queue (it may get readded if waiting is interrupted)
-        active_timers.erase(cur_timer_);
+        active_timers.erase(cur_timer_it);
+        active_timer_timestamps.erase(cur_timer_);
 
         // Determine how long to wait to reach the timer's timestamp
-        auto wait_duration = ticks_to_timepoint(cur_timer->timestamp) - std::chrono::high_resolution_clock::now();
+        auto wait_duration = ticks_to_timepoint(cur_timer.timestamp) - std::chrono::high_resolution_clock::now();
 
         // Wait for either the duration to complete or a new action to come through
         if (wait_duration.count() >= 0 && timer_context.action_queue.wait_dequeue_timed(cur_action, wait_duration)) {
             // Timer was interrupted by a new action 
             // Add the current timer back to the queue (done first in case the action is to remove this timer)
-            active_timers.insert(cur_timer_);
+            insert_timer(cur_timer_, cur_timer);
             // Process the new action
             process_timer_action(cur_action);
         }
         else {
             // Waiting for the timer completed, so send the timer's message to its message queue
-            ultramodern::enqueue_external_message_src(cur_timer->mq, cur_timer->msg, false, ultramodern::EventMessageSource::Timer);
+            ultramodern::enqueue_external_message_src(cur_timer.mq, cur_timer.msg, false, ultramodern::EventMessageSource::Timer);
             // If the timer has a specified interval then reload it with that value
-            if (cur_timer->interval != 0) {
-                cur_timer->timestamp = cur_timer->interval + time_now();
-                active_timers.insert(cur_timer_);
+            if (cur_timer.interval != 0) {
+                cur_timer.timestamp = cur_timer.interval + time_now();
+                insert_timer(cur_timer_, cur_timer);
             }
         }
     }
@@ -182,17 +196,20 @@ extern "C" int osSetTimer(RDRAM_ARG PTR(OSTimer) t_, OSTime countdown, OSTime in
     OSTimer* t = TO_PTR(OSTimer, t_);
 
     // Determine the time when this timer will trigger off
+    OSTime timestamp;
     if (countdown == 0) {
         // Set the timestamp based on the interval
-        t->timestamp = interval + time_now();
+        timestamp = interval + time_now();
     } else {
-        t->timestamp = countdown + time_now();
+        timestamp = countdown + time_now();
     }
+
+    t->timestamp = timestamp;
     t->interval = interval;
     t->mq = mq;
     t->msg = msg;
 
-    timer_context.action_queue.enqueue(AddTimerAction{ t_ });
+    timer_context.action_queue.enqueue(AddTimerAction{ t_, TimerState{ timestamp, interval, mq, msg } });
 
     return 0;
 }

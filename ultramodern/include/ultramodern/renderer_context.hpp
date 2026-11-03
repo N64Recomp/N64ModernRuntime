@@ -72,6 +72,11 @@ namespace ultramodern {
             GraphicsDeviceNotFound
         };
 
+        struct MipsInterrupts {
+            bool dp = false;
+            bool sp = false;
+        };
+
         class RendererContext {
             public:
                 virtual ~RendererContext() = default;
@@ -79,6 +84,11 @@ namespace ultramodern {
                 virtual bool valid() = 0;
                 virtual SetupResult get_setup_result() const { return setup_result; }
                 virtual GraphicsApi get_chosen_api() const { return chosen_api; }
+                virtual MipsInterrupts get_and_clear_mips_interrupts() {
+                    MipsInterrupts result = mips_interrupts;
+                    mips_interrupts = {};
+                    return result;
+                }
 
                 virtual bool update_config(const GraphicsConfig& old_config, const GraphicsConfig& new_config) = 0;
 
@@ -93,6 +103,7 @@ namespace ultramodern {
             protected:
                 SetupResult setup_result;
                 GraphicsApi chosen_api;
+                MipsInterrupts mips_interrupts;
         };
 
         struct callbacks_t {
